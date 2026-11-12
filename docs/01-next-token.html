@@ -12,50 +12,259 @@
   <h1>Guess the next character</h1>
   <p class="question">How can a file full of numbers write a sentence?</p>
 
-  <p>A language model does exactly one thing. You hand it some text, and it hands back a list of probabilities: one for every symbol that could come next. That is all. It does not write, it does not answer, it does not chat.</p>
-  <p>Writing is a loop built around that one ability: ask for the probabilities, roll weighted dice to pick a symbol, glue it onto the text, ask again. Every system in this course, from the toy on the home page to the assistant on your phone, is that loop. The whole difficulty is hidden in one place: <em>how do you compute good probabilities?</em></p>
-  <p>So start with the simplest answer anyone could give.</p>
+  <p>Every AI system that writes text, from the small model on this course's home page to the assistant on your phone, is built around one surprisingly modest piece. This chapter is about that piece: what it does, how to build the simplest possible version of it, how to measure whether it is any good, and why the simplest version hits a wall. Each of these ideas comes back in every later chapter, so we take them slowly.</p>
+
+  <h2>The one thing a language model does</h2>
+  <p>Before any definitions, a picture. Below, a model has been given the text <code>ROMEO: Wh</code>. It does not answer with a letter. It answers with a list of scores, one for every character that could come next, saying how likely each one is.</p>
+
+  <figure class="fig">
+    <svg viewBox="0 0 760 240" role="img" aria-labelledby="f1t">
+      <title id="f1t">The writing loop: text goes into the model, the model returns a probability for each next character, one is picked at random and appended, and the loop repeats.</title>
+      <defs><marker id="c1a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
+      <text x="105" y="58" text-anchor="middle" class="t-small t-muted">1. the text so far</text>
+      <rect x="20" y="70" width="170" height="60" rx="10" class="bx"/>
+      <text x="105" y="106" text-anchor="middle" class="t-mono t-big">ROMEO: Wh</text>
+      <line x1="192" y1="100" x2="232" y2="100" class="ln" marker-end="url(#c1a)"/>
+      <rect x="235" y="70" width="130" height="60" rx="10" class="bx-fwd"/>
+      <text x="300" y="96" text-anchor="middle" class="t-bold t-fwd">language</text>
+      <text x="300" y="115" text-anchor="middle" class="t-bold t-fwd">model</text>
+      <line x1="367" y1="100" x2="402" y2="100" class="ln" marker-end="url(#c1a)"/>
+      <text x="490" y="22" text-anchor="middle" class="t-small t-muted">2. a probability for every next character</text>
+      <rect x="405" y="32" width="170" height="140" rx="10" class="bx"/>
+      <text x="425" y="56" class="t-mono">e</text><rect x="442" y="45" width="91" height="14" rx="3" class="bar-prob"/><text x="538" y="56" class="t-small t-muted">0.38</text>
+      <text x="425" y="81" class="t-mono">a</text><rect x="442" y="70" width="50" height="14" rx="3" class="bar-prob"/><text x="497" y="81" class="t-small t-muted">0.21</text>
+      <text x="425" y="106" class="t-mono">o</text><rect x="442" y="95" width="41" height="14" rx="3" class="bar-prob"/><text x="488" y="106" class="t-small t-muted">0.17</text>
+      <text x="425" y="131" class="t-mono">y</text><rect x="442" y="120" width="22" height="14" rx="3" class="bar-prob"/><text x="469" y="131" class="t-small t-muted">0.09</text>
+      <text x="425" y="156" class="t-mono">…</text><text x="442" y="156" class="t-small t-muted">61 others</text>
+      <line x1="577" y1="100" x2="612" y2="100" class="ln" marker-end="url(#c1a)"/>
+      <text x="677" y="58" text-anchor="middle" class="t-small t-muted">3. roll weighted dice</text>
+      <rect x="615" y="70" width="125" height="60" rx="10" class="bx-prob"/>
+      <text x="677" y="96" text-anchor="middle" class="t-small">picked:</text>
+      <text x="677" y="119" text-anchor="middle" class="t-mono t-big">e</text>
+      <path d="M677,132 V205 H105 V134" class="ln-fwd" marker-end="url(#c1a)"/>
+      <text x="391" y="226" text-anchor="middle" class="t-small t-fwd">4. append it (ROMEO: Whe) and ask again</text>
+    </svg>
+    <figcaption><b>The writing loop.</b> The model only ever does step 2. Steps 1, 3 and 4 are a few lines of ordinary code around it. The numbers are illustrative.</figcaption>
+  </figure>
+
+  <p>That list of scores is what the whole field is built on, so it deserves precise words.</p>
+
+  <div class="def"><span class="kind">Definitions</span>
+    <p>A <dfn>probability</dfn> is a number between 0 and 1 that says how likely something is: 0 means never, 1 means always, 0.25 means one time in four.</p>
+    <p>A <dfn>probability distribution</dfn> is a list of probabilities, one for each possible outcome, that adds up to exactly 1. Something has to happen, so the chances of all the outcomes together are 100%.</p>
+    <p>A <dfn>language model</dfn> is a program that takes some text and returns a probability distribution over the next <dfn>symbol</dfn>: a probability for every symbol that could come next. In this chapter a symbol is a single <dfn>character</dfn>: a letter, a digit, a space or a punctuation mark.</p>
+  </div>
+
+  <details class="refresher"><summary>Refresher: probabilities in two minutes</summary>
+    <p>A fair die gives each face probability 1/6 ≈ 0.167. The six probabilities add up to 1. A loaded die might give the six a probability of 0.5 and each other face 0.1: still a distribution, because 0.5 + 5 × 0.1 = 1.</p>
+    <p>"Rolling" a loaded die means picking one outcome so that, over many rolls, each outcome turns up as often as its probability says. Picking at random in this weighted way is called <dfn>sampling</dfn>.</p>
+    <p>The probability of two independent things both happening is the product of their probabilities: two sixes in a row on a fair die is 1/6 × 1/6 = 1/36. Keep this in mind: it is why logarithms appear later in this chapter.</p>
+  </details>
+
+  <p>That is all a language model does. It does not write, answer or chat. <a class="term" href="glossary.html#sampling">Sampling</a> once from the distribution gives one character. Writing a sentence is a loop: ask for the distribution, sample a character, append it to the text, ask again. Chatting (chapter 10) and agents using tools (chapter 11) are the same loop with extra rules around it.</p>
+  <p>The whole difficulty therefore sits in one place: <em>how do you compute good probabilities?</em> Start with the simplest answer anyone could give.</p>
 
   <h2>Just count</h2>
-  <p>Take a million characters of Shakespeare. For every character, tally what came right after it. After <code>q</code> you will almost always find <code>u</code>. After a space, often <code>t</code>. Turn the tallies into fractions and you have a language model. It fits in a small table.</p>
-  <p>One character of context is not much. So let the table look further back: the last two characters, the last three. The number of characters it looks back is called the <strong>order</strong>.</p>
+  <p>Suppose that all the text we have is one short sentence, and we want to predict what comes after the letter <code>t</code>. The simplest thing to do is look at every <code>t</code> in the sentence and note what comes right after it:</p>
+
+  <figure class="fig">
+    <div class="chips center" style="justify-content:center;font-size:20px;gap:2px" aria-label="the cat sat on the mat, with every t and the character after it highlighted">
+      <span class="hot">t</span><span class="born">h</span><span>e</span><span>␣</span><span>c</span><span>a</span><span class="hot">t</span><span class="born">␣</span><span>s</span><span>a</span><span class="hot">t</span><span class="born">␣</span><span>o</span><span>n</span><span>␣</span><span class="hot">t</span><span class="born">h</span><span>e</span><span>␣</span><span>m</span><span>a</span><span class="hot">t</span>
+    </div>
+    <figcaption><b>Counting by hand.</b> Every <code>t</code> (pink) and the character after it (green). <code>␣</code> marks a space. The last <code>t</code> ends the text, so nothing follows it.</figcaption>
+  </figure>
+
+  <p>Four times, something followed a <code>t</code>: an <code>h</code> twice and a space twice. Turn those tallies into fractions by dividing by the total:</p>
+  <table class="mini">
+    <tr><th>After <code>t</code> came</th><th>Tally</th><th>Probability</th></tr>
+    <tr><td class="mono">h</td><td>2</td><td>2 / 4 = 0.5</td></tr>
+    <tr><td class="mono">␣ (space)</td><td>2</td><td>2 / 4 = 0.5</td></tr>
+    <tr><td>anything else</td><td>0</td><td>0</td></tr>
+  </table>
+  <p>The probabilities add up to 1, so this is a distribution: a language model, made of nothing but counting. Do the same for every character, not just <code>t</code>, and you have a table with one row per character. That table is the whole model.</p>
+  <p>Now do it on real text. Over the million characters of Shakespeare used in this course, a <code>q</code> is followed by a <code>u</code> in all 563 cases, so the table says <code>u</code> with probability 1. After a space, <code>t</code> comes 14% of the time (think <i>the</i>, <i>to</i>, <i>that</i>), then <code>a</code> at 8% and <code>s</code> at 7%.</p>
+
+  <h3 style="max-width:680px;margin:30px auto 8px">Looking further back</h3>
+  <p>One character is very little to go on. After <code>n</code>, almost anything can follow. After <code>kin</code>, it is <code>g</code> four times out of five. So let the table look at the last two characters, or the last three, instead of only the last one.</p>
+
+  <figure class="fig">
+    <svg viewBox="0 0 760 205" role="img" aria-labelledby="f2t">
+      <title id="f2t">Predicting the character after "the kin" with contexts of 0, 1, 2 and 3 characters.</title>
+      <g class="t-mono">
+        <text x="20" y="37" class="t-small t-muted">order 0</text>
+        <text x="20" y="85" class="t-small t-muted">order 1</text>
+        <text x="20" y="133" class="t-small t-muted">order 2</text>
+        <text x="20" y="181" class="t-small t-muted">order 3</text>
+      </g>
+      <rect x="100" y="16" width="32" height="32" rx="5" class="bx-soft"/><text x="116" y="38" text-anchor="middle" class="t-mono">t</text>
+      <rect x="134" y="16" width="32" height="32" rx="5" class="bx-soft"/><text x="150" y="38" text-anchor="middle" class="t-mono">h</text>
+      <rect x="168" y="16" width="32" height="32" rx="5" class="bx-soft"/><text x="184" y="38" text-anchor="middle" class="t-mono">e</text>
+      <rect x="202" y="16" width="32" height="32" rx="5" class="bx-soft"/><text x="218" y="38" text-anchor="middle" class="t-mono">␣</text>
+      <rect x="236" y="16" width="32" height="32" rx="5" class="bx-soft"/><text x="252" y="38" text-anchor="middle" class="t-mono">k</text>
+      <rect x="270" y="16" width="32" height="32" rx="5" class="bx-soft"/><text x="286" y="38" text-anchor="middle" class="t-mono">i</text>
+      <rect x="304" y="16" width="32" height="32" rx="5" class="bx-soft"/><text x="320" y="38" text-anchor="middle" class="t-mono">n</text>
+      <rect x="338" y="16" width="32" height="32" rx="5" class="bx-prob"/><text x="354" y="38" text-anchor="middle" class="t-mono t-bold">?</text>
+      <rect x="100" y="64" width="32" height="32" rx="5" class="bx-soft"/><text x="116" y="86" text-anchor="middle" class="t-mono">t</text>
+      <rect x="134" y="64" width="32" height="32" rx="5" class="bx-soft"/><text x="150" y="86" text-anchor="middle" class="t-mono">h</text>
+      <rect x="168" y="64" width="32" height="32" rx="5" class="bx-soft"/><text x="184" y="86" text-anchor="middle" class="t-mono">e</text>
+      <rect x="202" y="64" width="32" height="32" rx="5" class="bx-soft"/><text x="218" y="86" text-anchor="middle" class="t-mono">␣</text>
+      <rect x="236" y="64" width="32" height="32" rx="5" class="bx-soft"/><text x="252" y="86" text-anchor="middle" class="t-mono">k</text>
+      <rect x="270" y="64" width="32" height="32" rx="5" class="bx-soft"/><text x="286" y="86" text-anchor="middle" class="t-mono">i</text>
+      <rect x="304" y="64" width="32" height="32" rx="5" class="bx-fwd"/><text x="320" y="86" text-anchor="middle" class="t-mono t-fwd t-bold">n</text>
+      <rect x="338" y="64" width="32" height="32" rx="5" class="bx-prob"/><text x="354" y="86" text-anchor="middle" class="t-mono t-bold">?</text>
+      <rect x="100" y="112" width="32" height="32" rx="5" class="bx-soft"/><text x="116" y="134" text-anchor="middle" class="t-mono">t</text>
+      <rect x="134" y="112" width="32" height="32" rx="5" class="bx-soft"/><text x="150" y="134" text-anchor="middle" class="t-mono">h</text>
+      <rect x="168" y="112" width="32" height="32" rx="5" class="bx-soft"/><text x="184" y="134" text-anchor="middle" class="t-mono">e</text>
+      <rect x="202" y="112" width="32" height="32" rx="5" class="bx-soft"/><text x="218" y="134" text-anchor="middle" class="t-mono">␣</text>
+      <rect x="236" y="112" width="32" height="32" rx="5" class="bx-soft"/><text x="252" y="134" text-anchor="middle" class="t-mono">k</text>
+      <rect x="270" y="112" width="32" height="32" rx="5" class="bx-fwd"/><text x="286" y="134" text-anchor="middle" class="t-mono t-fwd t-bold">i</text>
+      <rect x="304" y="112" width="32" height="32" rx="5" class="bx-fwd"/><text x="320" y="134" text-anchor="middle" class="t-mono t-fwd t-bold">n</text>
+      <rect x="338" y="112" width="32" height="32" rx="5" class="bx-prob"/><text x="354" y="134" text-anchor="middle" class="t-mono t-bold">?</text>
+      <rect x="100" y="160" width="32" height="32" rx="5" class="bx-soft"/><text x="116" y="182" text-anchor="middle" class="t-mono">t</text>
+      <rect x="134" y="160" width="32" height="32" rx="5" class="bx-soft"/><text x="150" y="182" text-anchor="middle" class="t-mono">h</text>
+      <rect x="168" y="160" width="32" height="32" rx="5" class="bx-soft"/><text x="184" y="182" text-anchor="middle" class="t-mono">e</text>
+      <rect x="202" y="160" width="32" height="32" rx="5" class="bx-soft"/><text x="218" y="182" text-anchor="middle" class="t-mono">␣</text>
+      <rect x="236" y="160" width="32" height="32" rx="5" class="bx-fwd"/><text x="252" y="182" text-anchor="middle" class="t-mono t-fwd t-bold">k</text>
+      <rect x="270" y="160" width="32" height="32" rx="5" class="bx-fwd"/><text x="286" y="182" text-anchor="middle" class="t-mono t-fwd t-bold">i</text>
+      <rect x="304" y="160" width="32" height="32" rx="5" class="bx-fwd"/><text x="320" y="182" text-anchor="middle" class="t-mono t-fwd t-bold">n</text>
+      <rect x="338" y="160" width="32" height="32" rx="5" class="bx-prob"/><text x="354" y="182" text-anchor="middle" class="t-mono t-bold">?</text>
+      <text x="395" y="37" class="t-small">no context: how common is each character overall?</text>
+      <text x="395" y="85" class="t-small">what usually follows <tspan class="t-mono t-fwd">n</tspan>? (d, space, o, g, …: no clear winner)</text>
+      <text x="395" y="133" class="t-small">what usually follows <tspan class="t-mono t-fwd">in</tspan>? (g 35%, space 24%)</text>
+      <text x="395" y="181" class="t-small">what usually follows <tspan class="t-mono t-fwd">kin</tspan>? (g 79%, d 14%: king, kind)</text>
+    </svg>
+    <figcaption><b>Order is how far back the table looks.</b> The blue cells are the context used to predict the next character (?). More context makes the guess sharper: the numbers are the real ones from the Shakespeare text.</figcaption>
+  </figure>
+
+  <div class="def"><span class="kind">Definitions</span>
+    <p>The <dfn>context</dfn> is the text the model uses to make its prediction. For a counting model it is the last few characters.</p>
+    <p>The <dfn>order</dfn> of a counting model is how many characters of context it uses. Order 0 uses none and only knows how common each character is overall. Order 3 has one row for every three-character context it has seen.</p>
+    <p>A language model made of such tallies is called an <dfn>n-gram model</dfn>, or count table. The text it learns from (here, counts) is its <dfn>training text</dfn>.</p>
+  </div>
 
   <section class="bench" id="w-ngram">
     <h3>A language model made of tallies</h3>
-    <p class="try"><b>Try this.</b> Press Write at order 0, then 1, then 3, then 5. The text goes from letter soup to something that looks like English. Then read the two numbers under the slider at order 5.</p>
+    <p class="try"><b>Try this.</b> Press Write at order 0, then 1, then 3, then 5. The text goes from letter soup to something that looks like English. At each order, also type a context in the box and look at the bars: they are one row of the table. Then read the two numbers under the slider at order 5.</p>
   </section>
 
-  <p>At order 5 the text looks impressive. Look at the readout, though: most of the contexts in the table were seen only once or twice. When a context was seen once, there is only one continuation on record, and the model has no choice but to replay the book. It is not writing. It is quoting.</p>
+  <p><strong>What you should have seen.</strong> At order 0 the output is letters in roughly the right proportions, with spaces in roughly the right places, and nothing else. At order 3, real short words appear. At order 5 whole phrases look like Shakespeare. That looks like progress, but the readout tells a different story: at order 5 most of the contexts in the table were seen only once or twice. When a context was seen once, there is exactly one continuation on record, with probability 1, and the model has no choice but to copy the book. It is not writing. It is quoting.</p>
 
   <h2>A ruler for language models</h2>
-  <p>We need a way to tell a good model from a quoting machine. Here is the test that all of machine learning for language rests on: show the model real text it has <em>never seen</em>, and at each position ask how much probability it gave to the character that actually came next.</p>
-  <p>If it gave probability <i>p</i>, we score its <strong>surprise</strong> as −log <i>p</i>. A confident correct guess (<i>p</i> near 1) costs almost nothing. A guess of <i>p</i> = 0.01 costs 4.6. The average surprise over a text is called the <strong>loss</strong>, or cross-entropy. Lower is better.</p>
-  <div class="eq">loss = − average of log <i>p</i>(the character that actually came next)</div>
-  <p>Why the logarithm? Because probabilities of a sequence multiply, and logs turn products into sums. The total surprise of a text is then the sum of the surprises of its characters, which is what you want from a ruler. A model that guesses uniformly among our 65 characters scores log 65 ≈ 4.17 at every position. That is the number to beat.</p>
+  <p>Looking at the output is not enough to tell a good model from a copying machine: the copying machine produces the best-looking text of all. We need a number. Here is the test that all of machine learning for language rests on.</p>
+  <p>Take some real text that the model has <em>never seen</em>. Walk through it one character at a time. At each position, ask the model for its distribution over the next character, and look up the probability it gave to the character that <em>actually</em> came next. A good model gives high probability to what really happens.</p>
+
+  <div class="def"><span class="kind">Definition</span>
+    <p>Text kept away from the model during learning, used only to test it, is called <dfn>held-out text</dfn> (also unseen, validation or test text). Testing on held-out text is the only fair test: a model can be perfect on text it has memorised and useless on anything new.</p>
+  </div>
+
+  <p>Each position gives us one probability, <i>p</i>. We need to turn it into a penalty: small when <i>p</i> is close to 1 (the model saw it coming), large when <i>p</i> is close to 0 (the model was caught out). The standard choice is:</p>
+  <div class="eq">surprise = −log <i>p</i></div>
+  <p>If you have not used a logarithm in a while, open the refresher below. Otherwise, the experiment after it shows what this formula does.</p>
+
+  <details class="refresher"><summary>Refresher: what a logarithm is</summary>
+    <p>A logarithm answers the question "what power do I need?". Here we use the <i>natural</i> logarithm, written log, whose base is the number e ≈ 2.718. log <i>x</i> is the power you must raise e to in order to get <i>x</i>: log 1 = 0 because e<sup>0</sup> = 1, and log e = 1.</p>
+    <p>Three facts are all this course needs:</p>
+    <ul>
+      <li>log 1 = 0, and the log of a number between 0 and 1 is negative. That is why there is a minus sign in −log <i>p</i>: it makes the surprise positive.</li>
+      <li>As <i>p</i> goes towards 0, log <i>p</i> goes towards minus infinity, so the surprise grows without limit.</li>
+      <li>log(<i>a</i> × <i>b</i>) = log <i>a</i> + log <i>b</i>. Logarithms turn multiplication into addition.</li>
+    </ul>
+  </details>
+
+  <section class="bench" id="w-curve">
+    <h3>How surprise depends on probability</h3>
+    <p class="try"><b>Try this.</b> Drag the slider: it is the probability the model gave to the character that really came next. Start at 1 and move down to 0.5, 0.1, 0.01.</p>
+  </section>
+
+  <p><strong>What you should have seen.</strong> The curve is flat near <i>p</i> = 1 and shoots up near 0. Going from probability 1 to 0.5 costs 0.69. Going from 0.02 to 0.01 also costs 0.69: every time the probability is halved, the surprise goes up by the same amount. Being confidently wrong is punished hardest.</p>
+
+  <h3 style="max-width:680px;margin:30px auto 8px">From one surprise to a score</h3>
+  <p>A model's score on a text is its average surprise over all positions. Here is a worked example with a text of just three characters, with made-up probabilities:</p>
+  <table class="mini">
+    <tr><th>Position</th><th>Probability given to the true character</th><th>Surprise −log <i>p</i></th></tr>
+    <tr><td>1</td><td>0.5</td><td>0.69</td></tr>
+    <tr><td>2</td><td>0.25</td><td>1.39</td></tr>
+    <tr><td>3</td><td>0.01 (caught out)</td><td>4.61</td></tr>
+    <tr><td></td><td><b>Average</b></td><td><b>2.23</b></td></tr>
+  </table>
+  <p>One bad prediction dominates the average. That is deliberate: a model that is sometimes very wrong is a bad model.</p>
+
+  <div class="def"><span class="kind">Definition</span>
+    <p>The <dfn>loss</dfn>, also called <dfn>cross-entropy</dfn>, is the average surprise of a model over a text. Lower is better. Measured on held-out text, it is the single number used to compare, and later to train, every model in this course.</p>
+  </div>
+  <div class="eq">loss = average over positions of ( −log <i>p</i>(the character that actually came next) )</div>
+
+  <p><strong>Why a logarithm, and not simply 1 − <i>p</i>?</strong> Because of the last fact in the refresher. The probability the model gives to the whole three-character text is the product 0.5 × 0.25 × 0.01 = 0.00125, and −log 0.00125 = 6.69 = 0.69 + 1.39 + 4.61. The surprise of a whole text is exactly the sum of the surprises of its characters. That is what you want from a ruler: two halves of a text add up to the whole.</p>
+
+  <p><strong>The number to beat.</strong> A model that knows nothing gives each of our 65 characters the same probability, 1/65. Its surprise is −log(1/65) = log 65 ≈ 4.17 at every position, so its loss is 4.17. Any model worth having must score below that.</p>
 
   <section class="bench" id="w-surprise">
     <h3>Where is the model surprised?</h3>
-    <p class="try"><b>Try this.</b> Each character is shaded by its surprise: darker means the model did not see it coming. Switch between text the model counted and text it never saw, at order 1 and then at order 5.</p>
+    <p class="try"><b>Try this.</b> Each character is shaded by its surprise: darker means the model did not see it coming. Switch between text the model counted (its training text) and text it never saw (held-out text), at order 1 and then at order 5, and note the loss printed under the text each time.</p>
   </section>
 
-  <p>At order 5 the gap is plain. On text it has counted, the model is almost never surprised. On new text from the same play it stumbles constantly, because most five-character contexts it meets were never in its table.</p>
+  <p><strong>What you should have seen.</strong> At order 1 the two texts look alike and the two losses are close: the model is equally mediocre everywhere. At order 5 the gap is plain. On text it counted, it is almost never surprised, because it has the answer on record. On new text from the same play it stumbles constantly, because many of the five-character contexts it meets were never in its table at all.</p>
+
+  <div class="def"><span class="kind">Definition</span>
+    <p>When a model does much better on its training text than on held-out text, it has learned the text instead of the patterns in it. This is called <dfn>memorisation</dfn> or overfitting. Doing well on new text is called <dfn>generalisation</dfn>. Generalisation is the only thing that matters, because new text is the only thing you will ever use a model on.</p>
+  </div>
 
   <h2>The wall</h2>
-  <p>Here is the same experiment run on the full million characters by <code>code/ch01_ngram.py</code>. The widgets above count over a 60,000-character excerpt to stay light, so their tables are sparser and they hit the wall sooner.</p>
-  <div class="scroll"><table>
-    <tr><th>Order</th><th>Contexts seen</th><th>Contexts possible</th><th>Loss on counted text</th><th>Loss on unseen text</th></tr>
-    <tr><td>0</td><td>1</td><td>1</td><td>3.29</td><td>3.35</td></tr>
-    <tr><td>1</td><td>65</td><td>65</td><td>2.48</td><td>2.49</td></tr>
-    <tr><td>2</td><td>1,380</td><td>4,225</td><td>1.95</td><td>1.99</td></tr>
-    <tr><td>3</td><td>11,228</td><td>274,625</td><td>1.51</td><td>1.72</td></tr>
-    <tr><td>4</td><td>48,539</td><td>17.9 million</td><td>1.25</td><td><strong>1.68</strong></td></tr>
-    <tr><td>5</td><td>133,293</td><td>1.16 billion</td><td>1.06</td><td>1.89</td></tr>
-    <tr><td>6</td><td>264,623</td><td>75 billion</td><td>0.90</td><td>2.24</td></tr>
-  </table></div>
-  <p>The loss on counted text falls forever. The loss on unseen text falls, bottoms out at order 4, then climbs. More context should help, and it does, until the table is so sparse that most lookups come back empty. The number of possible contexts multiplies by 65 with every extra character. The amount of text does not.</p>
-  <p>This is the wall. A table treats every context as unrelated to every other. It has seen <code>the king</code> a hundred times and <code>the duke</code> a hundred times, and that tells it nothing about <code>the earl</code>. To get past the wall we need a model that treats <em>similar contexts similarly</em>. Instead of looking the answer up, it must <em>compute</em> it, with a formula whose adjustable numbers are tuned on the data. The rest of part one builds that formula.</p>
+  <p>The widgets above count over a 60,000-character excerpt to stay light in your browser. Here is the same experiment on the full text, run by <code>code/ch01_ngram.py</code>: count on the first 90% of the text (about a million characters), and measure the loss on the rest.</p>
+
+  <section class="bench" id="w-wall">
+    <h3>Loss by order, on the full text</h3>
+    <p class="try">Blue: loss on the counted text. Pink: loss on held-out text. The dashed line is the know-nothing baseline, 4.17.</p>
+  </section>
+
+  <p>Read the two curves from left to right. The blue curve, on counted text, falls forever: with more context, the table remembers its training text more and more exactly. The pink curve, on held-out text, falls until order 4, reaches its best value of 1.68, and then <em>climbs</em>. Beyond order 4, more context makes the model worse at the only thing we care about. Why?</p>
+
+  <h3 style="max-width:680px;margin:30px auto 8px">Too many rows, not enough text</h3>
+  <p>Count how many rows the table could need. With 65 possible characters there are 65 contexts of one character. For two characters, each of the 65 first characters can be followed by any of 65 second ones: 65 × 65 = 4,225 contexts. Every extra character multiplies by 65 again.</p>
+
+  <figure class="fig">
+    <svg viewBox="0 0 760 320" role="img" aria-labelledby="f3t">
+      <title id="f3t">Number of possible contexts grows as 65 to the power of the order, passing the size of the training text at order 4, while the number of contexts actually seen levels off.</title>
+      <g class="ln-dash"><line x1="80" y1="250" x2="700" y2="250"/><line x1="80" y1="190" x2="700" y2="190"/><line x1="80" y1="70" x2="700" y2="70"/></g>
+      <text x="72" y="254" text-anchor="end" class="t-small t-muted">1</text>
+      <text x="72" y="194" text-anchor="end" class="t-small t-muted">1 thousand</text>
+      <text x="72" y="134" text-anchor="end" class="t-small t-muted">1 million</text>
+      <text x="72" y="74" text-anchor="end" class="t-small t-muted">1 billion</text>
+      <line x1="80" y1="130" x2="700" y2="130" class="ln-grad" stroke-dasharray="7 5"/>
+      <text x="96" y="122" class="t-small t-grad t-bold">characters of training text (1 million)</text>
+      <polyline points="80,250 183.3,213.7 286.7,177.5 390,141.2 493.3,105 596.7,68.7 700,32.5" class="ln" stroke-width="2.5"/>
+      <g class="t-muted"><circle cx="80" cy="250" r="4" class="arrowhead"/><circle cx="183.3" cy="213.7" r="4" class="arrowhead"/><circle cx="286.7" cy="177.5" r="4" class="arrowhead"/><circle cx="390" cy="141.2" r="4" class="arrowhead"/><circle cx="493.3" cy="105" r="4" class="arrowhead"/><circle cx="596.7" cy="68.7" r="4" class="arrowhead"/><circle cx="700" cy="32.5" r="4" class="arrowhead"/></g>
+      <text x="606" y="28" text-anchor="end" class="t-small t-bold">contexts possible: 65<tspan baseline-shift="super" font-size="9">order</tspan></text>
+      <polyline points="80,250 183.3,213.7 286.7,187.2 390,169 493.3,156.3 596.7,147.5 700,141.5" class="ln-fwd" stroke-width="2.5"/>
+      <g><circle cx="286.7" cy="187.2" r="4" class="arrowhead-fwd"/><circle cx="390" cy="169" r="4" class="arrowhead-fwd"/><circle cx="493.3" cy="156.3" r="4" class="arrowhead-fwd"/><circle cx="596.7" cy="147.5" r="4" class="arrowhead-fwd"/><circle cx="700" cy="141.5" r="4" class="arrowhead-fwd"/></g>
+      <text x="700" y="164" text-anchor="end" class="t-small t-fwd t-bold">contexts actually seen</text>
+      <g text-anchor="middle" class="t-small t-muted">
+        <text x="80" y="272">0</text><text x="183.3" y="272">1</text><text x="286.7" y="272">2</text><text x="390" y="272">3</text><text x="493.3" y="272">4</text><text x="596.7" y="272">5</text><text x="700" y="272">6</text>
+        <text x="390" y="300">order (characters of context)</text>
+      </g>
+    </svg>
+    <figcaption><b>Possible contexts explode; the text does not grow.</b> Each step up the vertical axis is a thousand times more. At order 4 there are 17.9 million possible contexts for a million characters of text; at order 6, 75 billion. The text can only ever show a sliver of them.</figcaption>
+  </figure>
+
+  <p>Two things go wrong as the order grows, and you can measure both:</p>
+  <ul>
+    <li><strong>Contexts the table has never seen.</strong> At order 4, 2.8% of the contexts in the held-out text never appeared in the training text. At order 6 it is 18.5%, nearly one position in five. For those, the table has no row and can only shrug.</li>
+    <li><strong>Contexts seen too few times.</strong> At order 6, 58% of the rows in the table were seen exactly once. A row seen once claims, with total confidence, that the one thing that happened is the only thing that can happen. On new text that confidence is usually wrong, and confident mistakes are what the loss punishes hardest.</li>
+  </ul>
+  <p>Here is a real case. The held-out text contains the line <code>Good morrow, neighbour Baptista.</code> The training text contains <i>neighbour</i> many times and many words starting with <i>B</i>, but never the six characters <code>bour B</code>. An order-6 table looking at that context finds an empty row. It has nothing to say about what comes next, even though "a capital letter after <i>neighbour</i> starts a name, and names are often followed by a vowel" is exactly the kind of pattern it could have learned from elsewhere.</p>
+
+  <div class="def"><span class="kind">Definition</span>
+    <p>A table whose possible rows are mostly empty is called <dfn>sparse</dfn>. Sparsity is why the held-out loss climbs: with every extra character of context, the number of possible rows multiplies by 65, while the amount of text stays the same.</p>
+  </div>
+
+  <p>This is the wall, and its cause is that a table treats every context as unrelated to every other. It may have seen <code>the king</code> a hundred times and <code>the duke</code> a hundred times, and that tells it nothing about <code>the earl</code>, even though all three behave alike. To get past the wall we need a model that treats <em>similar contexts similarly</em>. Instead of looking the answer up in a table, it must <em>compute</em> it, with a formula that contains adjustable numbers, tuned on the data.</p>
+
+  <div class="def"><span class="kind">Looking ahead</span>
+    <p>Those adjustable numbers are called <dfn>parameters</dfn> (or weights). The model built in this course has 345,504 of them. Chapter 3 shows how to tune them, chapter 4 how similar characters end up with similar numbers, and chapters 5 and 6 build the formula itself.</p>
+  </div>
 
   <h2>Build it</h2>
+  <p>Here is the whole model in Python. <code>fit</code> walks through the training text and, at each position, adds one to the tally of "this character followed this context". <code>prob</code> turns one row of tallies into a probability. <code>loss</code> is the average surprise from the ruler above.</p>
   <pre class="code" data-src="ch01_ngram.py#fit">def fit(order):
     """counts[context][next_char] = how often next_char followed context."""
     counts = defaultdict(Counter)
@@ -72,6 +281,7 @@ def loss(counts, order, s):
     """Cross-entropy: the average surprise, -log p(what actually came next)."""
     return -sum(math.log(prob(counts, s[i - order:i], s[i])) for i in range(order, len(s))) / (len(s) - order)</pre>
   <p class="src">From <code>code/ch01_ngram.py</code>. The whole model is a dictionary of counters.</p>
+  <p>One detail in <code>prob</code>: the small number <code>alpha</code> is added to every tally. Without it, a character never seen after a context would get probability exactly 0, and its surprise, −log 0, would be infinite: a single unexpected character would make the loss infinite. Adding 0.01 everywhere keeps every probability slightly above zero. The second function is the writing loop from the first figure: look up the row, roll the weighted dice, append.</p>
   <pre class="code" data-src="ch01_ngram.py#sample">def sample(counts, order, n=120, seed=0):
     rnd = random.Random(seed)
     out = train[:order]                        # seed with the first few characters
@@ -85,10 +295,21 @@ def loss(counts, order, s):
     return out[order:]</pre>
   <p class="src">Writing is the loop: look up, roll, append.</p>
 
+  <div class="recap">
+    <h3>In short</h3>
+    <ul>
+      <li>A <a class="term" href="glossary.html#language-model">language model</a> returns a <a class="term" href="glossary.html#distribution">probability distribution</a> over the next symbol. Writing is a loop around it: sample, append, repeat.</li>
+      <li>The simplest model counts what followed each <a class="term" href="glossary.html#context">context</a> in the <a class="term" href="glossary.html#training-text">training text</a>.</li>
+      <li>Models are measured by their <a class="term" href="glossary.html#loss">loss</a>: the average <a class="term" href="glossary.html#surprise">surprise</a>, −log <i>p</i>, on <a class="term" href="glossary.html#held-out">held-out text</a>. Know-nothing guessing scores 4.17 here.</li>
+      <li>Longer contexts help until the table becomes <a class="term" href="glossary.html#sparse">sparse</a>: possible contexts multiply by 65 per character, the text does not. The best count table reaches 1.68.</li>
+      <li>To do better, a model must treat similar contexts similarly: compute its answer with tuned <a class="term" href="glossary.html#parameter">parameters</a> instead of looking it up.</li>
+    </ul>
+  </div>
+
   <div class="note">
     <h3>What this chapter glossed over</h3>
     <p><strong>The ruler measures imitation.</strong> A low loss means the model predicts text that resembles its training text. It says nothing about whether the text is true, kind or useful. Keep this in mind when the models get large: the ruler does not change.</p>
-    <p><strong>Units.</strong> Losses here use the natural logarithm, so the unit is the nat. You will also meet bits (log base 2) and perplexity, which is e<sup>loss</sup>: the number of equally likely options the model is effectively hesitating between. A loss of 1.68 is a perplexity of 5.4 characters.</p>
+    <p><strong>Units.</strong> Losses here use the natural logarithm, so the unit is the nat. You will also meet bits (log base 2) and perplexity, which is e<sup>loss</sup>: the number of equally likely options the model is effectively hesitating between. A loss of 1.68 is a perplexity of 5.4 characters: at its best, the count table is as uncertain as if it were choosing among about five equally likely characters at every step.</p>
     <p><strong>Unseen is not impossible.</strong> A raw count of zero would mean probability zero and infinite surprise. The code adds a tiny constant to every count so that nothing is ever ruled out completely.</p>
   </div>
 
@@ -99,6 +320,7 @@ def loss(counts, order, s):
 </main>
 
 <script src="assets/data.js"></script>
+<script src="assets/glossary.js"></script>
 <script src="assets/micro.js"></script>
 <script>
 M.ready(function () {
@@ -186,6 +408,52 @@ M.ready(function () {
     box.appendChild(M.row(order, pick));
     box.appendChild(own); box.appendChild(view); box.appendChild(stat);
     draw();
+  })();
+  // ---- widget: the surprise curve, -log p ----
+  (function () {
+    var box = M.$('#w-curve'), out = M.el('p', { class: 'readout' });
+    var sl = M.slider({ label: 'Probability given to the true character', min: 1, max: 1000, value: 1000,
+      fmt: function (v) { return (v / 1000).toFixed(3); }, oninput: function () { plot.redraw(); } });
+    box.appendChild(M.row(sl));
+    var pts = [];
+    for (var i = 1; i <= 1000; i++) { var p = i / 1000; pts.push([p, -Math.log(p)]); }
+    var plot = M.canvas(box, 220, function (o) {
+      var p = sl.value / 1000, s = -Math.log(p);
+      var g = M.plot(o, { xmin: 0, xmax: 1, ymin: 0, ymax: 7, xticks: [0, 0.25, 0.5, 0.75, 1], yticks: [0, 1, 2, 3, 4, 5, 6, 7],
+        xlabel: 'probability p given to what really came next', ylabel: 'surprise',
+        hlines: [{ y: Math.log(65), label: 'know-nothing guess, 1/65: 4.17', color: M.css('--muted') }],
+        series: [{ pts: pts, color: M.css('--grad') }] });
+      var c = o.ctx; c.fillStyle = M.css('--fwd');
+      c.beginPath(); c.arc(g.px(p), g.py(Math.min(7, s)), 6, 0, 7); c.fill();
+      out.innerHTML = 'p = <b>' + p.toFixed(3) + '</b> &nbsp;→&nbsp; surprise −log p = <b>' + s.toFixed(2) + '</b>' + (p >= 0.999 ? ' (certain and right: no penalty)' : p < 0.02 ? ' (caught out: heavy penalty)' : '');
+    });
+    box.appendChild(out);
+    plot.redraw();
+  })();
+
+  // ---- widget: the wall, measured on the full text by code/ch01_ngram.py ----
+  (function () {
+    var box = M.$('#w-wall');
+    var seen = [[0, 3.29], [1, 2.48], [2, 1.95], [3, 1.51], [4, 1.25], [5, 1.06], [6, 0.90]];
+    var unseen = [[0, 3.35], [1, 2.49], [2, 1.99], [3, 1.72], [4, 1.68], [5, 1.89], [6, 2.24]];
+    M.canvas(box, 250, function (o) {
+      var g = M.plot(o, { xmin: -0.2, xmax: 6.2, ymin: 0, ymax: 4.5, xticks: [0, 1, 2, 3, 4, 5, 6], yticks: [0, 1, 2, 3, 4],
+        xlabel: 'order (characters of context)', ylabel: 'loss',
+        hlines: [{ y: Math.log(65), label: 'know-nothing baseline 4.17', below: true }],
+        series: [{ pts: seen, color: M.css('--fwd'), dots: 4 }, { pts: unseen, color: M.css('--grad'), dots: 4 }] });
+      var c = o.ctx; c.font = '600 12px ' + M.css('--sans');
+      c.fillStyle = M.css('--grad'); c.textAlign = 'center'; c.textBaseline = 'top';
+      c.textBaseline = 'bottom'; c.fillText('best: 1.68 at order 4', g.px(4), g.py(1.68) - 10); c.textBaseline = 'top';
+      c.fillText('held-out text', g.px(5.75), g.py(2.24) - 26);
+      c.fillStyle = M.css('--fwd'); c.fillText('counted text', g.px(5.75), g.py(0.90) + 9);
+    }).redraw();
+    var tbl = M.el('details', { class: 'refresher', style: 'margin:14px 0 0' });
+    tbl.innerHTML = '<summary>The numbers behind the chart</summary><div class="scroll"><table>' +
+      '<tr><th>Order</th><th>Contexts seen in the text</th><th>Contexts possible (65<sup>order</sup>)</th><th>Loss on counted text</th><th>Loss on held-out text</th></tr>' +
+      [[0, '1', '1'], [1, '65', '65'], [2, '1,380', '4,225'], [3, '11,228', '274,625'], [4, '48,539', '17.9 million'], [5, '133,293', '1.16 billion'], [6, '264,623', '75 billion']].map(function (r, i) {
+        return '<tr><td>' + r[0] + '</td><td>' + r[1] + '</td><td>' + r[2] + '</td><td>' + seen[i][1].toFixed(2) + '</td><td>' + (i === 4 ? '<b>' : '') + unseen[i][1].toFixed(2) + (i === 4 ? '</b>' : '') + '</td></tr>';
+      }).join('') + '</table></div><p style="margin-top:10px">"Contexts seen" counts the rows the table actually has. "Contexts possible" is how many rows it could need. Order 0 has a single row: the overall letter frequencies.</p>';
+    box.appendChild(tbl);
   })();
 });
 </script>

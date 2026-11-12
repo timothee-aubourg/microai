@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Glossary | microAI</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<main>
+  <p class="where">Reference</p>
+  <h1>Glossary</h1>
+  <p>Every technical term in the course, in plain words, with the chapter that introduces it. In the chapters, terms with a dotted underline show their definition when you point at them, and link here.</p>
+  <dl class="gloss" id="gloss"></dl>
+  <noscript><p>The glossary is built from <code>assets/glossary.js</code> and needs JavaScript.</p></noscript>
+</main>
+
+<script src="assets/glossary.js"></script>
+<script src="assets/micro.js"></script>
+<script>
+M.ready(function () {
+  var G = window.MICRO_GLOSSARY, dl = M.$('#gloss');
+  Object.keys(G).sort(function (a, b) { return G[a].term.localeCompare(G[b].term); }).forEach(function (k) {
+    var g = G[k], ch = M.chapters[g.ch - 1];
+    dl.appendChild(M.el('dt', { id: k, text: g.term }));
+    var dd = M.el('dd', null, M.el('span', { text: g.short + (g.long ? ' ' + g.long : '') + ' ' }));
+    if (ch) dd.appendChild(M.el('a', { class: 'ch', href: ch[0], text: 'Chapter ' + g.ch + ': ' + ch[1] }));
+    dl.appendChild(dd);
+  });
+  if (location.hash) { var t = document.getElementById(location.hash.slice(1)); if (t) t.scrollIntoView(); }
+});
+</script>
+</body>
+</html>

@@ -443,7 +443,8 @@
       if (i + 1 === ch) a.setAttribute('aria-current', 'page');
       trail.appendChild(a);
     });
-    const top = M.el('header', { class: 'top' }, M.el('div', { class: 'top-in' }, M.el('a', { class: 'brand', href: 'index.html', html: 'micro<span>AI</span>' }), trail));
+    const top = M.el('header', { class: 'top' }, M.el('div', { class: 'top-in' }, M.el('a', { class: 'brand', href: 'index.html', html: 'micro<span>AI</span>' }), trail,
+      M.el('a', { class: 'gl', href: 'glossary.html', text: 'Glossary' })));
     document.body.insertBefore(top, document.body.firstChild);
     const main = M.$('main');
     if (ch && main) {
@@ -456,7 +457,62 @@
       main.appendChild(pager);
     }
     document.querySelectorAll('pre.code').forEach((p) => { if (p.getAttribute('data-lang') !== 'text') highlight(p); });
+    termTips();
   }
+
+  /* Glossary terms: <a class="term" href="glossary.html#loss">loss</a>.
+     Works as a plain link without JavaScript; with it, the definition
+     from assets/glossary.js pops up on hover and on keyboard focus. */
+  function termTips() {
+    const G = window.MICRO_GLOSSARY;
+    if (!G) return;
+    let tip = null;
+    const hide = () => { if (tip) { tip.remove(); tip = null; } };
+    const show = (a) => {
+      const key = (a.getAttribute('href') || '').split('#')[1], g = G[key];
+      if (!g) return;
+      hide();
+      tip = M.el('div', { class: 'tip', role: 'tooltip' }, M.el('b', { text: g.term }), M.el('span', { text: g.short }));
+      document.body.appendChild(tip);
+      const r = a.getBoundingClientRect(), tw = tip.offsetWidth;
+      const left = Math.max(8, Math.min(window.scrollX + r.left, window.scrollX + document.documentElement.clientWidth - tw - 8));
+      tip.style.left = left + 'px';
+      tip.style.top = (window.scrollY + r.bottom + 8) + 'px';
+    };
+    document.querySelectorAll('a.term').forEach((a) => {
+      a.addEventListener('mouseenter', () => show(a));
+      a.addEventListener('focus', () => show(a));
+      a.addEventListener('mouseleave', hide);
+      a.addEventListener('blur', hide);
+    });
+    window.addEventListener('scroll', hide, { passive: true });
+  }
+
+  /* A step-by-step walkthrough: Back / Next / Play over n steps.
+     render(i) draws step i (0 .. n-1). Returns {go(i), get step}. */
+  M.stepper = function (box, n, render) {
+    let i = 0, timer = null;
+    const back = M.button('◀ Back', () => go(i - 1));
+    const next = M.button('Next ▶', () => go(i + 1), 'go');
+    const play = M.button('Play', () => { if (timer) stop(); else start(); });
+    const reset = M.button('Start over', () => { stop(); go(0); });
+    const pos = M.el('span', { class: 'readout' });
+    function stop() { clearInterval(timer); timer = null; play.textContent = 'Play'; }
+    function start() {
+      if (i >= n - 1) go(0);
+      play.textContent = 'Pause';
+      timer = setInterval(() => { if (i >= n - 1) stop(); else go(i + 1); }, M.reduced() ? 2600 : 1400);
+    }
+    function go(k) {
+      i = Math.max(0, Math.min(n - 1, k));
+      back.disabled = i === 0; next.disabled = i === n - 1;
+      pos.textContent = 'step ' + (i + 1) + ' of ' + n;
+      render(i);
+    }
+    box.classList.add('stepper');
+    box.appendChild(M.el('div', { class: 'steps-ctl' }, back, next, play, reset, pos));
+    return { go: go, get step() { return i; }, set n(v) { n = v; } };
+  };
   M.ready = function (fn) {
     const go = () => { try { fn(); } catch (e) { console.error(e); } };
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go); else go();
