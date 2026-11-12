@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Learning by rolling downhill | microAI</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-ch="3">
+<main>
+  <p class="where">Chapter 3</p>
+  <h1>Learning by rolling downhill</h1>
+  <p class="question">Our model will have 345,504 adjustable numbers. How do you find good values for all of them at once?</p>
+
+  <p>Chapter 1 ended with a plan: replace the lookup table by a formula with adjustable numbers, called <strong>parameters</strong> or <strong>weights</strong>, and tune them so that the loss is low. Trying values at random is hopeless. With 345,504 parameters, even testing just "a bit higher" and "a bit lower" for each one, in every combination, is more experiments than there are atoms in the universe.</p>
+  <p>The way out is to stop searching and start asking. For each parameter, ask one local question: <em>if I nudge you up a hair, does the loss go up or down, and how steeply?</em> The answer is a number, the slope of the loss along that parameter. Collect the slopes for all parameters and you have the <strong>gradient</strong>. It points in the direction that increases the loss fastest. Step the other way.</p>
+  <div class="eq">each weight ← weight − learning rate × slope of the loss for that weight</div>
+
+  <h2>Two numbers first</h2>
+  <p>Take the smallest model that can learn anything: a straight line, prediction = <i>w</i> × <i>x</i> + <i>b</i>, with two parameters. Its loss is the average squared distance between the line and six data points. Two parameters means the loss is a landscape you can actually draw: every point on the right-hand map is one possible line, and the shading is how wrong that line is.</p>
+
+  <section class="bench" id="w-descent">
+    <h3>Gradient descent on a line</h3>
+    <p class="try"><b>Try this.</b> Run with the learning rate at 0.05 and watch the dot slide into the valley while the line settles on the points. Reset, set the rate to 0.30 and run: it zigzags. Set it to 0.33: every step overshoots further than the last. Tap the map to start somewhere else.</p>
+  </section>
+
+  <p>Two views of one process. On the left, a line wiggling toward the data. On the right, a dot rolling downhill. The right-hand view is the one that scales: with a million parameters you cannot draw the landscape, but "compute the slope, step against it" works unchanged.</p>
+  <p>The learning rate matters more than you might expect. Too small and training takes forever. Too large and each step lands higher up the opposite wall than where it started, and the loss explodes. For this little bowl the limit can be computed exactly, and it sits just above 0.30. For a real network nobody can compute it, so it is found by trial.</p>
+
+  <h2>Getting all the slopes in one pass</h2>
+  <p>There is still a cost problem. Measuring one slope by nudging one parameter requires recomputing the loss. Doing that for 345,504 parameters means 345,504 runs of the model for a single step.</p>
+  <p>The fix is the chain rule from calculus, applied with good bookkeeping. Any computation, however large, is built from small operations: an addition here, a multiplication there. Each small operation knows its own local slope. Run the computation forward and remember every intermediate value. Then walk backward from the loss, and at each operation multiply the slope that arrived by the local slope and pass it on. One backward walk delivers every slope. This is <strong>backpropagation</strong>.</p>
+
+  <section class="bench" id="w-graph">
+    <h3>One forward pass, one backward pass</h3>
+    <p class="try"><b>Try this.</b> The blue numbers are values computed left to right. Press Backward repeatedly and watch the raspberry slopes travel right to left. Then press Take a step and see the loss L drop.</p>
+  </section>
+
+  <p>Only two rules were needed. Addition passes the incoming slope to both of its inputs unchanged. Multiplication passes it to each input scaled by the <em>other</em> input's value. Every operation in a GPT has a rule of this kind, and the backward pass costs about as much as the forward pass, whether there are two parameters or two billion.</p>
+
+  <h2>Build it</h2>
+  <p>The engine below is what trains the model in this course. A <code>Tensor</code> holds an array of numbers, remembers which tensors it was computed from, and carries a small function that knows how to pass a gradient back to them.</p>
+  <pre class="code" data-src="engine.py#tensor">class Tensor:
+    dtype = np.float32          # switch to float64 for gradient checking
+
+    def __init__(self, data, parents=()):
+        self.data = np.asarray(data, dtype=Tensor.dtype)
+        self.grad = None        # dLoss/dself, filled in by backward()
+        self._parents = parents
+        self._backward = None   # given dLoss/dself, pushes gradient to the parents
+
+    def _accumulate(self, g):   # gradients from several paths ADD UP
+        self.grad = g if self.grad is None else self.grad + g
+
+    def backward(self):
+        order, seen = [], set()
+        def visit(t):           # topological order: parents before children
+            if id(t) not in seen:
+                seen.add(id(t))
+                for p in t._parents:
+                    visit(p)
+                order.append(t)
+        visit(self)
+        self.grad = np.ones_like(self.data)        # dLoss/dLoss = 1
+        for t in reversed(order):                  # chain rule, output -&gt; inputs
+            if t._backward is not None:
+                t._backward(t.grad)            # hand the output's gradient to the op</pre>
+  <p class="src">From <code>code/engine.py</code>. <code>backward()</code> is the right-to-left walk of the widget, for any graph.</p>
+  <pre class="code" data-src="engine.py#ops">def __add__(self, other):
+    other = other if isinstance(other, Tensor) else Tensor(other)
+    out = Tensor(self.data + other.data, (self, other))
+    def _backward(g):        # d(a+b)/da = 1, d(a+b)/db = 1
+        self._accumulate(_unbroadcast(g, self.shape))
+        other._accumulate(_unbroadcast(g, other.shape))
+    out._backward = _backward
+    return out
+
+def __mul__(self, other):
+    other = other if isinstance(other, Tensor) else Tensor(other)
+    out = Tensor(self.data * other.data, (self, other))
+    def _backward(g):        # d(a*b)/da = b, d(a*b)/db = a
+        self._accumulate(_unbroadcast(g * other.data, self.shape))
+        other._accumulate(_unbroadcast(g * self.data, other.shape))
+    out._backward = _backward
+    return out
+
+def __matmul__(self, other):
+    out = Tensor(self.data @ other.data, (self, other))
+    def _backward(g):        # the matrix version of the product rule
+        self._accumulate(_unbroadcast(g @ np.swapaxes(other.data, -1, -2), self.shape))
+        if other.data.ndim == 2:   # weight matrix shared by the whole batch
+            a2 = self.data.reshape(-1, self.shape[-1])
+            other._accumulate(a2.T @ g.reshape(-1, g.shape[-1]))
+        else:
+            other._accumulate(_unbroadcast(np.swapaxes(self.data, -1, -2) @ g, other.shape))
+    out._backward = _backward
+    return out</pre>
+  <p class="src">The local rules for addition, multiplication and matrix multiplication. The file has a dozen more, all this short.</p>
+  <p>How do you know a backward rule is right? You measure the slope the slow way, by nudging one number and rerunning, and compare.</p>
+  <pre class="code" data-src="ch03_gradient_descent.py#gradcheck">rng = np.random.default_rng(0)
+model = GPT(vocab_size=11, block_size=8, n_layer=2, n_head=2, d_model=8)
+x, y = rng.integers(0, 11, (3, 8)), rng.integers(0, 11, (3, 8))
+_, loss = model.forward(x, y)
+loss.backward()
+
+worst = 0.0
+for name, p in model.p.items():
+    i = tuple(rng.integers(0, n) for n in p.shape)   # one random entry per tensor
+    old, h = p.data[i], 1e-5
+    p.data[i] = old + h; up = float(model.forward(x, y)[1].data)
+    p.data[i] = old - h; down = float(model.forward(x, y)[1].data)
+    p.data[i] = old
+    numeric = (up - down) / (2 * h)                  # slope measured by brute force
+    worst = max(worst, abs(numeric - p.grad[i]))
+print(f'gradient check on a 2-layer GPT: worst |numeric - backprop| = {worst:.2e}')
+assert worst &lt; 1e-6</pre>
+  <p class="src">From <code>code/ch03_gradient_descent.py</code>. On a small GPT the two methods agree to nine decimal places.</p>
+
+  <div class="note">
+    <h3>What this chapter glossed over</h3>
+    <p><strong>The bowl is a best case.</strong> A line's loss landscape has a single valley. A network's does not, and nothing guarantees that rolling downhill finds the lowest point. In practice, for large networks, it finds points that are good enough, and why that works so reliably is still an active research question.</p>
+    <p><strong>The slope is measured on a sample.</strong> Real training computes the loss on a small random batch of data, not all of it. The gradient is exact for that batch and a noisy estimate for the whole dataset. That is the "stochastic" in stochastic gradient descent.</p>
+    <p><strong>A bug worth knowing.</strong> In the first version of this engine each operation's backward function held a reference to its own output. Python could not free such cycles promptly, memory grew with every step, and training was killed at step 600. The fix was one line of design: hand the gradient to the function as an argument. Minimal code is not automatically correct code.</p>
+  </div>
+
+  <h2>Check yourself</h2>
+  <details class="check"><summary>In the first widget, why does a learning rate of 0.33 make the loss grow?</summary><p>Across the steep direction of the valley, each step overshoots the bottom by more than the distance it started from. The error in that direction is multiplied by a factor larger than 1 at every step, so it grows without limit.</p></details>
+  <details class="check"><summary>The engine adds gradients arriving at the same tensor. When does one tensor receive several?</summary><p>Whenever its value is used more than once. In the GPT, the token table is used at the input and again at the output, and every residual connection uses a value twice. Each use contributes a slope, and total slopes add.</p></details>
+  <details class="check"><summary>How many forward passes would the brute-force method need for one step of our model?</summary><p>Two per parameter with the symmetric nudge used in the check: 691,008. Backpropagation needs one forward and one backward pass.</p></details>
+</main>
+
+<script src="assets/micro.js"></script>
+<script>
+M.ready(function () {
+  // ---------- widget 1: gradient descent on a line ----------
+  (function () {
+    var box = M.$('#w-descent');
+    var xs = [-2, -1, 0, 1, 2, 3], ys = [-4.7, -3.2, -0.9, 0.7, 3.2, 5.0];
+    var W0 = -1.5, W1 = 4.5, B0 = -4.5, B1 = 2.5;
+    var w = 0, b = 1.5, path = [[w, b]], timer = 0;
+    function loss(w, b) { var s = 0; for (var i = 0; i < 6; i++) { var e = w * xs[i] + b - ys[i]; s += e * e; } return s / 6; }
+    function grad(w, b) { var dw = 0, db = 0; for (var i = 0; i < 6; i++) { var e = w * xs[i] + b - ys[i]; dw += 2 * e * xs[i]; db += 2 * e; } return [dw / 6, db / 6]; }
+    var lr = M.slider({ label: 'Learning rate', min: 0.01, max: 0.4, step: 0.01, value: 0.05, fmt: function (v) { return v.toFixed(2); } });
+    var stat = M.el('p', { class: 'readout' });
+    var grid = M.el('div', { class: 'col2' }), left = M.el('div'), right = M.el('div');
+    grid.appendChild(left); grid.appendChild(right);
+    var dataCv = M.canvas(left, 240, function (o) {
+      var c = o.ctx, X = function (x) { return 20 + (x + 3) / 7 * (o.w - 40); }, Y = function (y) { return o.h / 2 - y * (o.h - 30) / 16; };
+      c.strokeStyle = M.css('--line'); c.lineWidth = 1;
+      c.beginPath(); c.moveTo(X(-3), Y(0)); c.lineTo(X(4), Y(0)); c.moveTo(X(0), 8); c.lineTo(X(0), o.h - 8); c.stroke();
+      c.strokeStyle = M.css('--grad'); c.lineWidth = 2;
+      for (var i = 0; i < 6; i++) { c.beginPath(); c.moveTo(X(xs[i]), Y(ys[i])); c.lineTo(X(xs[i]), Y(Math.max(-9, Math.min(9, w * xs[i] + b)))); c.stroke(); }
+      c.save(); c.beginPath(); c.rect(0, 0, o.w, o.h); c.clip();
+      c.strokeStyle = M.css('--fwd'); c.lineWidth = 3; c.beginPath(); c.moveTo(X(-3), Y(w * -3 + b)); c.lineTo(X(4), Y(w * 4 + b)); c.stroke(); c.restore();
+      c.fillStyle = M.css('--ink');
+      for (i = 0; i < 6; i++) { c.beginPath(); c.arc(X(xs[i]), Y(ys[i]), 4.5, 0, 7); c.fill(); }
+      c.font = '12px ' + M.css('--sans'); c.fillStyle = M.css('--muted'); c.textAlign = 'left'; c.textBaseline = 'top';
+      c.fillText('the data and the current line', 6, 4);
+    });
+    var mapCv = M.canvas(right, 240, function (o) {
+      var c = o.ctx, n = 40, cw = o.w / n, chh = o.h / n, ink = M.css('--ink');
+      var X = function (w) { return (w - W0) / (W1 - W0) * o.w; }, Y = function (b) { return (1 - (b - B0) / (B1 - B0)) * o.h; };
+      for (var i = 0; i < n; i++) for (var j = 0; j < n; j++) {
+        var L = loss(W0 + (i + 0.5) / n * (W1 - W0), B1 - (j + 0.5) / n * (B1 - B0));
+        c.globalAlpha = 0.04 + 0.5 * Math.min(1, Math.floor(Math.log(1 + L) * 2.2) / 10);
+        var px0 = Math.round(i * cw), py0 = Math.round(j * chh);
+        c.fillStyle = ink; c.fillRect(px0, py0, Math.round((i + 1) * cw) - px0, Math.round((j + 1) * chh) - py0);
+      }
+      c.globalAlpha = 1;
+      c.strokeStyle = c.fillStyle = M.css('--grad'); c.lineWidth = 2; c.lineJoin = 'round';
+      c.beginPath(); path.forEach(function (p, i) { i ? c.lineTo(X(p[0]), Y(p[1])) : c.moveTo(X(p[0]), Y(p[1])); }); c.stroke();
+      path.forEach(function (p) { c.beginPath(); c.arc(X(p[0]), Y(p[1]), 2.5, 0, 7); c.fill(); });
+      c.beginPath(); c.arc(X(w), Y(b), 6, 0, 7); c.fill();
+      c.font = '12px ' + M.css('--sans'); c.fillStyle = M.css('--muted'); c.textBaseline = 'top'; c.textAlign = 'left';
+      c.fillText('every point is a line: w across, b up', 6, 4);
+    }, true);
+    function show() {
+      var L = loss(w, b);
+      stat.innerHTML = 'step <b>' + (path.length - 1) + '</b> &nbsp; w = <b>' + M.fmt(w) + '</b> &nbsp; b = <b>' + M.fmt(b) + '</b> &nbsp; loss = <b>' + M.fmt(L) + '</b>' + (L > 1e3 ? ' &nbsp; diverged: the steps overshoot. Lower the rate and reset.' : '');
+      dataCv.redraw(); mapCv.redraw();
+    }
+    function step() { var g = grad(w, b); w -= lr.value * g[0]; b -= lr.value * g[1]; if (Math.abs(w) > 1e6) { w = b = 1e6; } path.push([w, b]); show(); }
+    function run() { clearInterval(timer); var n = 0; if (M.reduced()) { for (; n < 40; n++) step(); return; } timer = setInterval(function () { step(); if (++n >= 40 || loss(w, b) > 1e4) clearInterval(timer); }, 90); }
+    function reset(nw, nb) { clearInterval(timer); w = nw == null ? 0 : nw; b = nb == null ? 1.5 : nb; path = [[w, b]]; show(); }
+    M.pointer(mapCv, function (x, y, phase) { if (phase !== 'up') reset(W0 + x / mapCv.w * (W1 - W0), B1 - y / mapCv.h * (B1 - B0)); });
+    box.appendChild(M.row(lr, M.button('Run 40 steps', run, 'go'), M.button('One step', step), M.button('Reset', function () { reset(); })));
+    box.appendChild(grid); box.appendChild(stat);
+    show();
+  })();
+
+  // ---------- widget 2: forward and backward through a tiny graph ----------
+  (function () {
+    var box = M.$('#w-graph'), x = 2, y = 3, stage = 0;
+    var ws = M.slider({ label: 'w', min: -3, max: 3, step: 0.1, value: 0.5, fmt: function (v) { return v.toFixed(1); }, oninput: function () { stage = 0; draw(); } });
+    var bs = M.slider({ label: 'b', min: -3, max: 3, step: 0.1, value: 0.5, fmt: function (v) { return v.toFixed(1); }, oninput: function () { stage = 0; draw(); } });
+    var msg = M.el('p', { class: 'readout', style: 'min-height:42px' });
+    var nodes = { w: [0.09, 0.16], x: [0.09, 0.50], p: [0.31, 0.33], b: [0.31, 0.80], s: [0.52, 0.50], y: [0.52, 0.92], e: [0.72, 0.66], L: [0.90, 0.30] };
+    var edges = [['w', 'p'], ['x', 'p'], ['p', 's'], ['b', 's'], ['s', 'e'], ['y', 'e'], ['e', 'L']];
+    var label = { w: 'w', x: 'x', p: 'w·x', b: 'b', s: '+', y: 'y', e: '−', L: 'L = e²' };
+    var reveal = { L: 1, e: 2, s: 3, p: 4, b: 4, w: 5 };
+    var cv = M.canvas(box, 270, function (o) {
+      var c = o.ctx, w = ws.value, b = bs.value;
+      var val = { w: w, x: x, b: b, y: y }; val.p = w * x; val.s = val.p + b; val.e = val.s - y; val.L = val.e * val.e;
+      var g = { L: 1 }; g.e = 2 * val.e; g.s = g.e; g.p = g.s; g.b = g.s; g.w = g.p * x;
+      var bw = Math.min(64, o.w * 0.16), bh = 40;
+      var P = function (k) { return [nodes[k][0] * o.w, 20 + nodes[k][1] * (o.h - 70)]; };
+      edges.forEach(function (ed) {
+        var a = P(ed[0]), bb = P(ed[1]), back = reveal[ed[0]] && stage >= reveal[ed[0]];
+        c.strokeStyle = back ? M.css('--grad') : M.css('--line'); c.lineWidth = back ? 2.5 : 1.5;
+        c.beginPath(); c.moveTo(a[0] + bw / 2, a[1]); c.lineTo(bb[0] - bw / 2, bb[1]); c.stroke();
+      });
+      c.textAlign = 'center'; c.textBaseline = 'middle';
+      for (var k in nodes) {
+        var p = P(k);
+        c.fillStyle = M.css('--panel'); c.strokeStyle = M.css('--line'); c.lineWidth = 1.5;
+        c.beginPath(); c.rect(p[0] - bw / 2, p[1] - bh / 2, bw, bh); c.fill(); c.stroke();
+        c.fillStyle = M.css('--muted'); c.font = '12px ' + M.css('--sans'); c.fillText(label[k], p[0], p[1] - 9);
+        c.fillStyle = M.css('--fwd'); c.font = 'bold 13px ' + M.css('--mono'); c.fillText(M.fmt(val[k]), p[0], p[1] + 9);
+        if (reveal[k] && stage >= reveal[k]) { c.fillStyle = M.css('--grad'); c.fillText(M.fmt(g[k]), p[0], p[1] + bh / 2 + 11); }
+      }
+      var e = M.fmt(val.e), text = [
+        'Forward pass done: with these weights the loss L is ' + M.fmt(val.L) + '. Press Backward to find out who is responsible.',
+        'Start at the end. The slope of L with respect to itself is 1.',
+        'L = e², so nudging e changes L by 2e = ' + M.fmt(g.e) + ' per unit.',
+        'e = s − y. A nudge to s moves e by the same amount, so the slope passes through unchanged: ' + M.fmt(g.s) + '.',
+        's = w·x + b. Addition hands the slope to both inputs unchanged. So the slope for b is ' + M.fmt(g.b) + '.',
+        'Multiplication scales the slope by the other input: slope for w = ' + M.fmt(g.p) + ' × x = ' + M.fmt(g.w) + '. Both weights now know which way to move.'
+      ];
+      msg.textContent = text[stage];
+    });
+    function draw() { cv.redraw(); back.disabled = stage >= 5; stepB.disabled = stage < 5; }
+    var back = M.button('Backward', function () { if (stage < 5) stage++; draw(); }, 'go');
+    var stepB = M.button('Take a step (rate 0.05)', function () {
+      var w = ws.value, b = bs.value, e = w * x + b - y;
+      ws.value = Math.max(-3, Math.min(3, w - 0.05 * 2 * e * x)); bs.value = Math.max(-3, Math.min(3, b - 0.05 * 2 * e));
+      stage = 0; draw();
+    });
+    box.insertBefore(M.row(ws, bs), cv.c.parentNode);
+    box.appendChild(msg);
+    box.appendChild(M.row(back, stepB));
+    draw();
+  })();
+});
+</script>
+</body>
+</html>

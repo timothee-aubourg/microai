@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+
+# Local secrets (never commit)
+.env
+.env.*
+
+# slf harness — machine-local agent tooling, never published
+.self/
+.claude/
+.codex/
+.agents/
+.mcp.json
+AGENTS.md
+CLAUDE.md
+integrity_checks.py
+integrity_checks_host.py
+.slf-owner
+.slf-workspace
+.slf-workspace-lease
+.workspace.claim
+.pytest-self-sandbox/
+.venv-build.lock

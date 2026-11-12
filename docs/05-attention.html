@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Letting tokens look at each other | microAI</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-ch="5">
+<main>
+  <p class="where">Chapter 5</p>
+  <h1>Letting tokens look at each other</h1>
+  <p class="question">After chapter 4, each token's vector knows about that token and nothing else. The next character depends on everything before it. How does information travel from where it is to where it is needed?</p>
+
+  <p>The count table of chapter 1 had a fixed answer: look at the last few characters, always the same ones. That is rigid. To continue <code>KING RICHARD:</code> the model needs the newline that follows a speaker's name. To finish a word it needs the letters since the last space. What is relevant changes from position to position.</p>
+  <p>So let each position <em>choose</em> what to read, based on content. This is <strong>attention</strong>, and it is built from the dot product of the previous chapter.</p>
+
+  <h2>Ask, advertise, hand over</h2>
+  <p>From its vector, every token produces three new vectors, each by multiplying with its own learned matrix:</p>
+  <ul>
+    <li>a <strong>query</strong>: what I am looking for;</li>
+    <li>a <strong>key</strong>: what I can offer;</li>
+    <li>a <strong>value</strong>: what I will hand over if chosen.</li>
+  </ul>
+  <p>A token compares its query with the key of every token before it, using the dot product. A high score means "this is what I was looking for". The scores are turned into weights that are positive and add up to 1. The token then receives the weighted average of the values. That average is added to its own vector, and the token now knows something about its context.</p>
+
+  <section class="bench" id="w-toy">
+    <h3>Attention with five tokens, in two dimensions</h3>
+    <p class="try"><b>Try this.</b> The dark arrow is one token's query. The coloured dots are the keys of five other tokens, and each token's value is simply its colour. Swing the query toward a key and watch the output take that colour. Then pull sharpness to 0 and to 5.</p>
+  </section>
+
+  <p>At sharpness 0 the output is the plain average of all five colours: the token reads everything and learns little. At high sharpness it copies a single value. Attention can sit anywhere between a soft blend and a precise lookup, and the model learns which it needs.</p>
+
+  <h2>Why a softmax?</h2>
+  <p>The step from scores to weights is the <strong>softmax</strong>: raise e to each score, then divide by the total.</p>
+  <div class="eq">weight<sub><i>i</i></sub> = <span class="frac"><span>e<sup>score<sub><i>i</i></sub></sup></span><span>e<sup>score<sub>1</sub></sup> + e<sup>score<sub>2</sub></sup> + …</span></span></div>
+  <p>Each part of that recipe answers a need. The weights must be positive and sum to 1, so that the output is an average and keeps the same scale whether there are 5 tokens or 5,000. They must change smoothly with the scores, or gradient descent has no slope to follow. And the exponential makes the result depend on <em>differences</em> between scores: add 10 to every score and nothing changes. A gap of 1 between two scores always means a ratio of e ≈ 2.7 between their weights.</p>
+
+  <h2>Why divide by a square root?</h2>
+  <p>The attention formula in every implementation divides the scores by √<i>d</i>, where <i>d</i> is the number of dimensions of the queries and keys. It looks like a fussy detail. It is there because of a fact about dot products that you can check by experiment.</p>
+  <p>A dot product is a sum of <i>d</i> terms. If the entries of the vectors are roughly independent with a typical size of 1, each term is as likely to be positive as negative, and the sum wanders away from zero like a random walk: its typical size grows as √<i>d</i>. With 2 dimensions the scores are around ±1.4. With 1,024 they are around ±32. Feed scores that far apart to a softmax and one weight becomes 1 and the rest 0.</p>
+
+  <section class="bench" id="w-sqrt">
+    <h3>Random queries and keys, at different widths</h3>
+    <p class="try"><b>Try this.</b> Eight random keys, one random query. Raise the dimension and compare the two sets of bars. Without scaling, attention collapses onto one token as the vectors get wider. With scaling, it looks the same at every width.</p>
+  </section>
+
+  <p>A collapsed softmax is a problem for learning, not only for reading. Where a weight is pinned at 0 or 1 the slope is nearly flat, so the gradient has nothing to say, and at the start of training the model would be stuck with arbitrary hard choices. Dividing by √<i>d</i> brings the scores back to a typical size of 1 whatever the width, and leaves it to learning to sharpen them where sharpness helps.</p>
+
+  <h2>No looking ahead</h2>
+  <p>One rule is missing. During training the model sees a whole passage and must predict, at every position, the character that follows. If position 5 could attend to position 6, it would just read the answer. So before the softmax, the scores of all later positions are set to minus infinity, which gives them weight exactly 0. This <strong>causal mask</strong> is what lets one pass over 64 characters count as 64 honest predictions.</p>
+
+  <h2>Several heads</h2>
+  <p>One attention pattern per position is limiting: a token may want its previous letter <em>and</em> the start of the line. So the 96 dimensions are split into 4 groups of 24, and each group runs its own attention with its own queries, keys and values. These are <strong>heads</strong>. Their outputs are glued back together and mixed by one more matrix.</p>
+
+  <section class="bench" id="w-real">
+    <h3>Attention inside the trained model</h3>
+    <p class="try"><b>Try this.</b> Tap a character. The shading shows how much that position reads from each earlier one, in the chosen layer and head. Positions after it are masked. Step through the heads of layer 1, then choose layer 2, head 2.</p>
+  </section>
+
+  <p>Measured over 2,500 characters of held-out text, the heads of layer 1 all do a version of the same job: they read the last few characters. Head 2 is the sharpest, with about half its weight on the character immediately before. The network has rebuilt for itself the local context that the count table of chapter 1 was given by construction. Layer 2, head 2 does something a table cannot: it sends about half its attention to the most recent line break, however far back that is. In a play script that is worth knowing, because what comes next depends on whether a line has just begun.</p>
+
+  <h2>Build it</h2>
+  <pre class="code" data-src="gpt.py#attention">def attention(self, x, i, trace=None):
+    B, T, d = x.shape
+    h, hd = self.n_head, d // self.n_head
+    split = lambda t: t.reshape(B, T, h, hd).transpose(0, 2, 1, 3)   # (B, heads, T, hd)
+    q = split(x @ self.p[f'h{i}.attn.wq'])
+    k = split(x @ self.p[f'h{i}.attn.wk'])
+    v = split(x @ self.p[f'h{i}.attn.wv'])
+    scores = (q @ k.transpose(0, 1, 3, 2)) * (1.0 / np.sqrt(hd))     # every query · every key
+    future = np.triu(np.ones((T, T), dtype=bool), k=1)               # no peeking ahead
+    weights = scores.masked_fill(future, -1e9).softmax(axis=-1)      # each row sums to 1
+    if trace is not None:
+        trace.setdefault('attn', []).append(weights.data)
+    mixed = weights @ v                                              # weighted average of values
+    mixed = mixed.transpose(0, 2, 1, 3).reshape(B, T, d)             # glue the heads back
+    return mixed @ self.p[f'h{i}.attn.wo']</pre>
+  <p class="src">From <code>code/gpt.py</code>. Queries, keys, values, scores, the scale, the mask, the softmax and the weighted average, for all positions and all heads at once.</p>
+
+  <div class="note">
+    <h3>What this chapter glossed over</h3>
+    <p><strong>The √<i>d</i> argument has an assumption.</strong> It holds when the entries of queries and keys are roughly independent with similar spread. That is true at the start of training, and the normalisation of chapter 6 helps keep it approximately true later. It is a statement about typical size, not a guarantee.</p>
+    <p><strong>An attention map is not an explanation.</strong> It shows where a head reads from. It does not show what was read or how it was used afterwards. Treat pretty patterns as hints.</p>
+    <p><strong>The cost is quadratic.</strong> Every position scores every earlier position, so doubling the context quadruples the work in this step. This is the main reason long contexts are expensive, and chapter 8 shows the trick that makes generation affordable anyway.</p>
+  </div>
+
+  <h2>Check yourself</h2>
+  <details class="check"><summary>In the first widget, what is the output when sharpness is 0?</summary><p>All scores become 0, the softmax gives every token weight 1/5, and the output is the plain average of the five values, whatever the query is.</p></details>
+  <details class="check"><summary>Our heads use 24 dimensions. What are the scores multiplied by?</summary><p>1/√24 ≈ 0.204. You can see it in the code as <code>1.0 / np.sqrt(hd)</code>.</p></details>
+  <details class="check"><summary>What would happen if you trained without the mask and then asked the model to generate?</summary><p>Training loss would drop to almost zero, because every position could copy its answer from the next one. At generation time there is no next one. The model would have learned to cheat and nothing else.</p></details>
+</main>
+
+<script src="assets/data.js"></script>
+<script src="assets/weights.js"></script>
+<script src="assets/micro.js"></script>
+<script>
+M.ready(function () {
+  // ---------- widget 1: toy attention ----------
+  (function () {
+    var box = M.$('#w-toy');
+    var toks = [['sun', [240, 185, 58], [2.2, 1.3]], ['sea', [40, 110, 220], [-2.0, 1.6]], ['rose', [205, 50, 105], [1.4, -1.9]], ['leaf', [30, 140, 95], [-1.8, -1.5]], ['ash', [125, 135, 150], [0.2, 2.6]]];
+    var q = [1.6, 0.4], grab = null;
+    var sharp = M.slider({ label: 'Sharpness', min: 0, max: 5, step: 0.1, value: 1, fmt: function (v) { return v.toFixed(1); }, oninput: function () { cv.redraw(); } });
+    var bars = M.el('div'), sw = M.el('div', { style: 'height:44px;border-radius:8px;border:1px solid var(--line);margin-top:10px' });
+    var grid = M.el('div', { class: 'col2' }), left = M.el('div'), right = M.el('div');
+    var cv = M.canvas(left, function (w) { return Math.min(300, w * 0.85); }, function (o) {
+      var c = o.ctx, cx = o.w / 2, cy = o.h / 2, u = Math.min(o.w, o.h) / 7;
+      c.strokeStyle = M.css('--line'); c.lineWidth = 1; c.beginPath(); c.moveTo(0, cy); c.lineTo(o.w, cy); c.moveTo(cx, 0); c.lineTo(cx, o.h); c.stroke();
+      var scores = toks.map(function (t) { return (q[0] * t[2][0] + q[1] * t[2][1]) * sharp.value; }), wts = M.softmax(scores);
+      toks.forEach(function (t, i) {
+        var x = cx + t[2][0] * u, y = cy - t[2][1] * u, col = 'rgb(' + t[1].join(',') + ')';
+        c.strokeStyle = col; c.globalAlpha = 0.25 + 0.75 * wts[i]; c.lineWidth = 1 + 9 * wts[i];
+        c.beginPath(); c.moveTo(cx, cy); c.lineTo(x, y); c.stroke(); c.globalAlpha = 1;
+        c.fillStyle = col; c.beginPath(); c.arc(x, y, 10, 0, 7); c.fill();
+        c.fillStyle = M.css('--ink'); c.font = '13px ' + M.css('--sans'); c.textAlign = 'center'; c.fillText(t[0], x, y - 16);
+      });
+      var qx = cx + q[0] * u, qy = cy - q[1] * u;
+      c.strokeStyle = c.fillStyle = M.css('--ink'); c.lineWidth = 3; c.beginPath(); c.moveTo(cx, cy); c.lineTo(qx, qy); c.stroke();
+      c.beginPath(); c.arc(qx, qy, 8, 0, 7); c.fill(); c.font = 'bold 13px ' + M.css('--sans'); c.fillText('query', qx, qy + 22);
+      M.bars(bars, toks.map(function (t, i) { return { label: t[0] + '  score ' + (scores[i] >= 0 ? ' ' : '') + scores[i].toFixed(1), p: wts[i] }; }), 1);
+      var mix = [0, 0, 0]; toks.forEach(function (t, i) { for (var k = 0; k < 3; k++) mix[k] += wts[i] * t[1][k]; });
+      sw.style.background = 'rgb(' + mix.map(Math.round).join(',') + ')';
+    }, true);
+    M.pointer(cv, function (x, y, phase) {
+      if (phase === 'up') { grab = null; return; }
+      var u = Math.min(cv.w, cv.h) / 7, v = [(x - cv.w / 2) / u, (cv.h / 2 - y) / u];
+      if (phase === 'down') { var bd = 1e9; [q].concat(toks.map(function (t) { return t[2]; })).forEach(function (h) { var d = Math.hypot(h[0] - v[0], h[1] - v[1]); if (d < bd) { bd = d; grab = h; } }); }
+      grab[0] = Math.max(-3.3, Math.min(3.3, v[0])); grab[1] = Math.max(-3.3, Math.min(3.3, v[1])); cv.redraw();
+    });
+    right.appendChild(M.el('p', { class: 'caption', text: 'Score = query · key × sharpness. Weights = softmax of the scores.', style: 'margin:0 0 8px' }));
+    right.appendChild(bars);
+    right.appendChild(sw);
+    right.appendChild(M.el('p', { class: 'caption', text: 'Output: the weighted average of the values (colours).' }));
+    grid.appendChild(left); grid.appendChild(right);
+    box.appendChild(M.row(sharp)); box.appendChild(grid);
+    cv.redraw();
+  })();
+
+  // ---------- widget 2: why divide by sqrt(d) ----------
+  (function () {
+    var box = M.$('#w-sqrt'), seed = 3;
+    var raw = M.el('div'), scaled = M.el('div'), stat = M.el('p', { class: 'readout' });
+    var dim = M.slider({ label: 'Dimensions d', min: 1, max: 10, value: 3, fmt: function (v) { return Math.pow(2, v); }, oninput: draw });
+    function scores(d, rnd) {
+      var qv = [], out = [];
+      for (var i = 0; i < d; i++) qv.push(M.gauss(rnd));
+      for (var k = 0; k < 8; k++) { var s = 0; for (i = 0; i < d; i++) s += qv[i] * M.gauss(rnd); out.push(s); }
+      return out;
+    }
+    function draw() {
+      var d = Math.pow(2, dim.value), s = scores(d, M.rng(seed)), sq = Math.sqrt(d);
+      var p1 = M.softmax(s), p2 = M.softmax(s.map(function (v) { return v / sq; }));
+      M.bars(raw, s.map(function (v, i) { return { label: 'key ' + (i + 1), p: p1[i] }; }), 1);
+      M.bars(scaled, s.map(function (v, i) { return { label: 'key ' + (i + 1), p: p2[i] }; }), 1);
+      var rnd = M.rng(99), n = 0, sum2 = 0, m1 = 0, m2 = 0, trials = d > 256 ? 60 : 200;
+      for (var t = 0; t < trials; t++) {
+        var ss = scores(d, rnd); ss.forEach(function (v) { sum2 += v * v; n++; });
+        m1 += Math.max.apply(null, M.softmax(ss)); m2 += Math.max.apply(null, M.softmax(ss.map(function (v) { return v / sq; })));
+      }
+      stat.innerHTML = 'Over ' + trials + ' random draws: typical score size <b>' + Math.sqrt(sum2 / n).toFixed(1) + '</b> (√d = ' + sq.toFixed(1) + '). Largest weight on average: <b>' + (100 * m1 / trials).toFixed(0) + '%</b> unscaled, <b>' + (100 * m2 / trials).toFixed(0) + '%</b> scaled.';
+    }
+    var grid = M.el('div', { class: 'col2' });
+    grid.appendChild(M.el('div', null, M.el('p', { class: 'caption', text: 'Weights without scaling', style: 'margin:0 0 6px' }), raw));
+    grid.appendChild(M.el('div', null, M.el('p', { class: 'caption', text: 'Weights with scores divided by √d', style: 'margin:0 0 6px' }), scaled));
+    box.appendChild(M.row(dim, M.button('New random vectors', function () { seed++; draw(); })));
+    box.appendChild(grid); box.appendChild(stat);
+    draw();
+  })();
+
+  // ---------- widget 3: attention in the real model ----------
+  (function () {
+    var box = M.$('#w-real'), m = M.loadModel();
+    if (!m) { box.appendChild(M.el('p', { text: 'The model weights did not load, so this experiment is unavailable.' })); return; }
+    var layer = 0, head = 0, sel = -1, res = null, ids = [];
+    var input = M.el('input', { type: 'text', id: 'att-in', value: 'KING RICHARD:↵Now is the winter of our', maxlength: 48, 'aria-label': 'Text to analyse' });
+    var chips = M.el('div', { class: 'chips', style: 'margin:12px 0' }), stat = M.el('p', { class: 'readout' });
+    var lsel = M.select('Layer', [[0, '1'], [1, '2'], [2, '3']], function (v) { layer = +v; draw(); });
+    var hsel = M.select('Head', [[0, '1'], [1, '2'], [2, '3'], [3, '4']], function (v) { head = +v; draw(); });
+    var map = M.canvas(box, function (w) { return Math.min(w, 300); }, function (o) {
+      if (!res) return;
+      var T = ids.length, a = res.attn[layer][head], s = Math.min(o.w, 300) / T, c = o.ctx, col = M.css('--fwd');
+      for (var t = 0; t < T; t++) for (var k = 0; k <= t; k++) { c.globalAlpha = Math.min(1, a[t * T + k]); c.fillStyle = col; c.fillRect(k * s, t * s, s + 0.5, s + 0.5); }
+      c.globalAlpha = 1; c.strokeStyle = M.css('--grad'); c.lineWidth = 2; c.strokeRect(0, sel * s, (sel + 1) * s, s);
+    });
+    function run() {
+      var text = input.value.replace(/↵/g, '\n');
+      ids = M.encode(m, text).slice(0, 48); if (!ids.length) ids = [m.stoi['\n']];
+      res = M.forward(m, ids, null, true); sel = ids.length - 1; draw();
+    }
+    function draw() {
+      var T = ids.length, a = res.attn[layer][head];
+      chips.textContent = '';
+      ids.forEach(function (id, i) {
+        var sp = M.el('span', { text: M.show(m.chars[id]), role: 'button', tabindex: 0, class: i === sel ? 'sel' : '' });
+        if (i <= sel) sp.style.background = M.heat(a[sel * T + i]); else sp.style.opacity = 0.35;
+        var go = function () { sel = i; draw(); };
+        sp.addEventListener('click', go); sp.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
+        chips.appendChild(sp);
+      });
+      var row = []; for (var k = 0; k <= sel; k++) row.push([k, a[sel * T + k]]);
+      row.sort(function (x, y) { return y[1] - x[1]; });
+      stat.innerHTML = 'Position ' + (sel + 1) + ' (<b>' + M.show(m.chars[ids[sel]]) + '</b>) reads most from: ' + row.slice(0, 3).map(function (r) { return '<b>' + M.show(m.chars[ids[r[0]]]) + '</b> ' + (sel - r[0] === 0 ? 'itself' : (sel - r[0]) + ' back') + ' (' + Math.round(100 * r[1]) + '%)'; }).join(', ');
+      map.redraw();
+    }
+    input.addEventListener('input', run);
+    box.insertBefore(M.row(lsel, hsel), map.c.parentNode);
+    box.insertBefore(input, map.c.parentNode);
+    box.insertBefore(chips, map.c.parentNode);
+    box.insertBefore(stat, map.c.parentNode);
+    box.appendChild(M.el('p', { class: 'caption', text: 'The full map: each row is one position, each column an earlier position it can read. The outlined row is the one you tapped. Type ↵ for a line break.' }));
+    run();
+  })();
+});
+</script>
+</body>
+</html>

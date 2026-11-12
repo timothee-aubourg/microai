@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>microAI</title>
+<meta name="description" content="Build and understand a local language model from first principles: an interactive course with a real GPT running in your browser.">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-ch="0">
+<main>
+  <h1>A language model you can hold in your head</h1>
+  <p>The text below is being written right now, on your device, by a model with <span id="nparams">345,504</span> numbers in it. It was trained from scratch on Shakespeare with the code in this repository: numpy, no deep-learning library.</p>
+
+  <div class="hero-out" id="hero" aria-live="off"></div>
+  <div class="row sans" style="max-width:680px;margin:0 auto 26px">
+    <button type="button" class="go" id="again">Write another passage</button>
+    <span class="readout" id="herostat"></span>
+  </div>
+
+  <p>It is bad Shakespeare. But it is the same kind of machine as the multi-gigabyte model you can run on a laptop, and the same kind as the assistants you use every day. Only the numbers are fewer. This course takes that machine apart and puts it back together, one idea per chapter, until you can build each piece yourself and then run a real model on your own computer.</p>
+
+  <h2>How each chapter works</h2>
+  <p>Every chapter follows the same three moves.</p>
+  <ul>
+    <li><strong>Why.</strong> It opens with a real problem. An idea only makes sense once you have felt what goes wrong without it.</li>
+    <li><strong>See.</strong> You get an experiment to play with. Most of them run on the actual trained model, so what you see is measured, not drawn.</li>
+    <li><strong>Build.</strong> You read the few lines of code that implement the idea. The snippets are copied from the files in <code>code/</code> by a script, so they are the code that runs.</li>
+  </ul>
+  <p>Three colours mean the same thing on every page: <span class="fwd">blue for values flowing forward</span> through the model, <span class="grad">raspberry for gradients and error flowing backward</span>, <span class="prob">amber for probabilities</span>.</p>
+
+  <h2>The path</h2>
+  <p>Text goes in on the left; a guess about the next token comes out on the right. Chapters 1 to 6 build that pipeline. Chapters 7 to 9 make it learn, write and shrink. Chapters 10 to 12 turn it into a system on your machine.</p>
+
+  <p class="part">Part one: the model</p>
+  <ol class="toc" id="toc1"></ol>
+  <p class="part">Part two: making it work</p>
+  <ol class="toc" id="toc2" style="counter-reset: ch 6"></ol>
+  <p class="part">Part three: the system on your machine</p>
+  <ol class="toc" id="toc3" style="counter-reset: ch 9"></ol>
+
+  <h2>Run the code yourself</h2>
+  <p>The only dependency is numpy. Training takes roughly a quarter of an hour on a laptop CPU.</p>
+  <pre class="code" data-lang="text">git clone &lt;your fork of this repo&gt; &amp;&amp; cd microai
+pip install numpy
+python code/ch01_ngram.py      # every chapter has a script like this
+python code/train.py           # trains the model you see on this page
+python code/ch08_sample.py --prompt "ROMEO:"</pre>
+  <p class="src">Each script prints what it is doing. Read it top to bottom; none is longer than a few screens.</p>
+
+  <h2>Where this comes from</h2>
+  <p>The approach owes a lot to three teachers: David Louapre (Science Étonnante) for starting from the question rather than the answer, Grant Sanderson (3Blue1Brown) for making the picture carry the mathematics, and Andrej Karpathy (micrograd, nanoGPT) for showing that the real thing fits in a few hundred lines. The text, code and visuals here are original. The training text is Shakespeare, which is in the public domain.</p>
+</main>
+
+<script src="assets/data.js"></script>
+<script src="assets/weights.js"></script>
+<script src="assets/micro.js"></script>
+<script>
+M.ready(function () {
+  var blurbs = [
+    'A language model answers one question. Start with the dumbest possible answer: counting.',
+    'Why models read neither letters nor words, and the greedy algorithm that finds the pieces in between.',
+    'How to tune hundreds of thousands of numbers at once: the gradient, and the chain rule that computes it.',
+    'Turning token IDs into vectors, so that similar things point in similar directions.',
+    'Queries, keys, values, a softmax and a square root. Each one is there to fix a specific problem.',
+    'Residual stream, MLP, normalisation: the full GPT in a hundred lines, and how to count its parameters.',
+    'The training loop, minute by minute, on the real loss curve of this model.',
+    'Temperature, top-k, top-p, and the cache that makes generation fast.',
+    'Why 4 bits per weight is nearly as good as 16, and how to predict whether a model fits and how fast it runs.',
+    'What is inside the file you download, what the runtime does, and why a chat is still next-token prediction.',
+    'Context as working memory, retrieval as an open book, tools as hands: the loop behind every agent.',
+    'Changing a frozen model with a small low-rank add-on, and where the road goes from here.'
+  ];
+  M.chapters.forEach(function (c, i) {
+    var list = M.$(i < 6 ? '#toc1' : i < 9 ? '#toc2' : '#toc3');
+    list.appendChild(M.el('li', null, M.el('a', { href: c[0] }, M.el('b', { text: c[1] }), M.el('span', { text: blurbs[i] }))));
+  });
+
+  var m = M.loadModel(), hero = M.$('#hero'), stat = M.$('#herostat'), timer = 0, seed = 7;
+  var fallback = (window.MICRO_DATA && MICRO_DATA.log.samples.slice(-1)[0][1]) || '';
+  if (!m) { hero.textContent = fallback; return; }
+  M.$('#nparams').textContent = m.cfg.params.toLocaleString('en-US');
+  function write() {
+    clearTimeout(timer);
+    var rnd = M.rng(seed++), wr = M.writer(m, '\n'), text = '', n = 0, total = 320, t0 = performance.now();
+    var caret = M.el('span', { class: 'caret' });
+    function step(k) {
+      for (var i = 0; i < k && n < total; i++, n++) {
+        var nx = M.pick(M.shape(wr.logits(), { temperature: 0.75, top_p: 0.95 }), rnd);
+        wr.add(nx); text += m.chars[nx];
+      }
+      hero.textContent = text.replace(/^\n+/, '');
+      if (n < total) { hero.appendChild(caret); timer = setTimeout(function () { step(2); }, 16); }
+      else stat.textContent = total + ' characters, sampled one at a time from the model, in this tab';
+    }
+    stat.textContent = '';
+    step(M.reduced() ? total : 2);
+  }
+  M.$('#again').addEventListener('click', write);
+  write();
+});
+</script>
+</body>
+</html>

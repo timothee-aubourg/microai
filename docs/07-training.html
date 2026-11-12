@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Watching it learn | microAI</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-ch="7">
+<main>
+  <p class="where">Chapter 7</p>
+  <h1>Watching it learn</h1>
+  <p class="question">The machine is built and its 345,504 numbers are random noise. What does learning actually look like, step by step?</p>
+
+  <p>Training repeats four moves, thousands of times:</p>
+  <ol>
+    <li>Pick a few random passages from the text.</li>
+    <li>Run the model on them and measure the loss of chapter 1: how surprised was it by each next character?</li>
+    <li>Run backward (chapter 3) to get the slope of the loss for every parameter.</li>
+    <li>Move every parameter a small step against its slope.</li>
+  </ol>
+  <p>There is no other ingredient. Nobody tells the model about words, lines, or speakers. Whatever it ends up knowing, it found because knowing it lowered the surprise.</p>
+
+  <h2>One passage, many questions</h2>
+  <p>A passage of 64 characters is not one training example. It is 64 of them. The model must predict character 2 from character 1, character 3 from characters 1 and 2, and so on. Thanks to the causal mask of chapter 5, a single pass through the model answers all of them at once without any position seeing its own answer.</p>
+
+  <section class="bench" id="w-unroll">
+    <h3>The questions hidden in one line of text</h3>
+    <p class="try"><b>Try this.</b> Drag the slider. Blue is what the model may look at. The outlined character is what it must predict.</p>
+  </section>
+
+  <p>Our training run uses 32 passages per step, so every step is graded on 32 × 64 = 2,048 predictions. That group is called a <strong>batch</strong>.</p>
+
+  <h2>The run</h2>
+  <p>Here is the actual training run of the model used throughout this course: <span id="nsteps">6,000</span> steps, <span id="secs">a few minutes</span> on two ordinary CPU cores, using only the code in this repository. The thin line is the loss on each training batch. The dots are the loss on a held-out tenth of the text that the model never trains on.</p>
+
+  <section class="bench" id="w-run">
+    <h3>From noise to Shakespeare-ish</h3>
+    <p class="try"><b>Try this.</b> Drag across the chart, or use the arrows, to move through training. Below it is what the model wrote at that moment. The horizontal axis is logarithmic, because most of the drama happens early.</p>
+  </section>
+
+  <p>At step 0 the output is noise: every character is as likely as any other. By step 30 the model is picking up the cheapest fact available, which characters are common, and its output drifts toward lowercase letters, spaces and line breaks. By step 100 the strings are word-shaped and <em>the</em> and <em>that</em> appear: it has learned which letters follow which. By step 300 lines start with capitals. By step 1,000 it writes speaker names in capitals followed by a colon, with short real words underneath. After that the changes are quieter: more real words, lines of verse-like length. Between steps 2,250 and 2,500 the held-out loss drops below the best count table of chapter 1.</p>
+
+  <h2>Reading the numbers</h2>
+  <p>The loss starts at 4.17. That is log 65: the freshly initialised model spreads its bets evenly over all characters. It ends near <span id="finalval">1.5</span> on text it has never seen. Since the loss is an average of −log <i>p</i>, a loss of <span class="fv2">1.5</span> means the model gives the correct next character a typical probability of e<sup>−<span class="fv2">1.5</span></sup> ≈ <span id="typp">22</span>%, up from 1.5% at the start.</p>
+  <p>Compare with chapter 1. The best count table reached 1.68 on unseen text and got <em>worse</em> when given more context. The network <span id="beats">does better</span>, and it does so while reading 64 characters of context, a length at which a table would be hopeless. It has the same data. The difference is that it shares what it learns between similar contexts.</p>
+  <p>The gap between the training line and the held-out dots tells you how much is memorisation. Here it stays small, because the model is tiny compared with a million characters of text: it has no room to memorise. Give a much larger model the same text and the dots would eventually turn upward while the line keeps falling. That turn is called overfitting, and the held-out loss exists to catch it.</p>
+
+  <h2>Three additions to plain gradient descent</h2>
+  <p>The loop in the code differs from chapter 3 in three small ways, each fixing a practical problem.</p>
+  <ul>
+    <li><strong>Adam.</strong> Plain descent uses one step size for every parameter. Adam keeps a running average of each parameter's recent slopes and of their typical size, and scales each parameter's step accordingly. Parameters with consistently small slopes still move. It is the default optimiser for language models.</li>
+    <li><strong>A learning-rate schedule.</strong> The step size ramps up over the first 100 steps, while the slopes are still erratic, then decays smoothly so the model can settle.</li>
+    <li><strong>Gradient clipping.</strong> If a batch produces an unusually large gradient, it is scaled down to a fixed maximum length. One bad batch cannot throw the model off a cliff, as in the diverging run of chapter 3.</li>
+  </ul>
+
+  <h2>Build it</h2>
+  <pre class="code" data-src="train.py#batch">def get_batch(source, batch_size):
+    """Random windows of text. The target is the same window shifted by one character."""
+    starts = rng.integers(0, len(source) - T - 1, batch_size)
+    x = np.stack([source[s:s + T] for s in starts])
+    y = np.stack([source[s + 1:s + T + 1] for s in starts])
+    return x, y</pre>
+  <p class="src">From <code>code/train.py</code>. The target is the input shifted by one character.</p>
+  <pre class="code" data-src="train.py#loop">for step in range(args.steps + 1):
+    if step % 250 == 0 or step == args.steps:
+        log['val'].append([step, val_loss()])
+    if step in sample_at:
+        log['samples'].append([step, sample()])
+    if step == args.steps:
+        break
+
+    x, y = get_batch(train, args.batch)
+    _, loss = model.forward(x, y)          # 1. predict, and measure the surprise
+    for p in params:
+        p.grad = None
+    loss.backward()                        # 2. which way should every weight move?
+
+    gnorm = float(np.sqrt(sum(float((p.grad ** 2).sum()) for p in params)))
+    clip = min(1.0, 1.0 / (gnorm + 1e-6))  # never take a wild step
+    lr = float(lr_at(step))
+    for i, p in enumerate(params):         # 3. move each weight a little (Adam)
+        g = p.grad * clip
+        m[i] = b1 * m[i] + (1 - b1) * g
+        v[i] = b2 * v[i] + (1 - b2) * g * g
+        mhat, vhat = m[i] / (1 - b1 ** (step + 1)), v[i] / (1 - b2 ** (step + 1))
+        p.data -= lr * mhat / (np.sqrt(vhat) + eps)</pre>
+  <p class="src">The training loop. Predict, measure, backward, step.</p>
+  <p>Training a frontier model is this loop. What changes is scale: thousands of times more parameters, a large fraction of the public internet instead of one book, and warehouses of GPUs instead of a laptop. The loop above would still be recognisable.</p>
+
+  <div class="note">
+    <h3>What this chapter glossed over</h3>
+    <p><strong>The curve depends on luck.</strong> A different random initialisation or a different order of batches gives a slightly different curve and different samples. The overall shape is robust; the third decimal is not.</p>
+    <p><strong>Lower loss is not the same as better writing.</strong> The loss rewards getting common things right. Spaces and the letter <em>e</em> count as much as plot. The model here learns spelling and layout long before anything like sense, and at this size it never reaches sense.</p>
+    <p><strong>Hyperparameters were chosen by hand.</strong> Width, depth, learning rate and batch size were picked by a few quick trials to fit a browser and a coffee break. They are reasonable, not optimal.</p>
+  </div>
+
+  <h2>Check yourself</h2>
+  <details class="check"><summary>Why is the loss at step 0 almost exactly 4.17 rather than some random large number?</summary><p>The weights start very small, so the final scores are all close to zero and the softmax is nearly uniform over the 65 characters. Uniform guessing costs log 65 ≈ 4.17. If you ever see a much larger starting loss, the initialisation is wrong.</p></details>
+  <details class="check"><summary>The training loss keeps falling but the held-out loss has started to rise. What is happening, and what do you do?</summary><p>The model is memorising its training text instead of learning patterns that carry over. Stop training at the lowest held-out loss, get more data, or use a smaller model.</p></details>
+  <details class="check"><summary>Why random passages rather than reading the book from start to end?</summary><p>Consecutive passages resemble each other. Their gradients would push the same way for a long stretch and the model would chase the current scene. Random passages make each batch a fair small sample of the whole text.</p></details>
+</main>
+
+<script src="assets/data.js"></script>
+<script src="assets/micro.js"></script>
+<script>
+M.ready(function () {
+  var D = window.MICRO_DATA, log = D.log;
+
+  // ---------- widget 1: one window, many examples ----------
+  (function () {
+    var box = M.$('#w-unroll'), text = 'Before we proceed any further', chips = M.el('div', { class: 'chips', style: 'font-size:17px' }), stat = M.el('p', { class: 'readout' });
+    var s = M.slider({ label: 'Question number', min: 1, max: text.length - 1, value: 6, oninput: draw });
+    function draw() {
+      var t = s.value; chips.textContent = '';
+      Array.from(text).forEach(function (ch, i) {
+        var sp = M.el('span', { text: M.show(ch) });
+        if (i < t) sp.style.background = M.heat(0.45); else if (i === t) { sp.style.outline = '2.5px solid ' + M.css('--grad'); sp.style.background = M.css('--panel'); } else sp.style.opacity = 0.3;
+        chips.appendChild(sp);
+      });
+      stat.innerHTML = 'Given <b>' + text.slice(0, t).replace(/ /g, '␣') + '</b> predict <b>' + M.show(text[t]) + '</b>. This passage holds ' + (text.length - 1) + ' such questions.';
+    }
+    box.appendChild(M.row(s)); box.appendChild(chips); box.appendChild(stat); draw();
+  })();
+
+  // ---------- widget 2: the training run ----------
+  (function () {
+    var box = M.$('#w-run'), samples = log.samples, cur = Math.min(4, samples.length - 1), g = null;
+    var steps = log.config.steps, final = log.val[log.val.length - 1][1];
+    M.$('#nsteps').textContent = steps.toLocaleString('en-US');
+    M.$('#secs').textContent = 'about ' + Math.round(log.seconds / 60) + ' minutes';
+    M.$('#finalval').textContent = final.toFixed(2);
+    document.querySelectorAll('.fv2').forEach(function (e) { e.textContent = final.toFixed(2); });
+    M.$('#typp').textContent = Math.round(100 * Math.exp(-final));
+    M.$('#beats').textContent = final < 1.68 ? 'reaches ' + final.toFixed(2) : 'reaches ' + final.toFixed(2) + ', about the same,';
+    var out = M.el('div', { class: 'out' }), stat = M.el('p', { class: 'readout' });
+    var trainPts = log.train.map(function (p) { return [p[0] + 1, p[1]]; }), valPts = log.val.map(function (p) { return [p[0] + 1, p[1]]; });
+    var cv = M.canvas(box, 270, function (o) {
+      g = M.plot(o, { logx: true, xmin: 1, xmax: steps + 1, ymin: 1.2, ymax: 4.4, yticks: [1.5, 2, 2.5, 3, 3.5, 4], xticks: [1, 10, 100, 1000, steps],
+        xfmt: function (t) { return t === 1 ? '0' : String(t); }, xlabel: 'training step', ylabel: 'loss',
+        hlines: [{ y: 4.174, label: 'uniform guessing', below: true }, { y: 1.68, label: 'best count table (chapter 1)', left: true }],
+        series: [{ pts: trainPts, color: M.css('--fwd'), width: 1.2 }, { pts: valPts, color: M.css('--ink'), nolines: true, dots: 3 }] });
+      var x = g.px(samples[cur][0] + 1);
+      o.ctx.strokeStyle = M.css('--grad'); o.ctx.lineWidth = 2.5; o.ctx.beginPath(); o.ctx.moveTo(x, g.T); o.ctx.lineTo(x, g.T + g.h); o.ctx.stroke();
+    }, true);
+    function show() {
+      var st = samples[cur][0], near = log.train.reduce(function (a, p) { return Math.abs(p[0] - st) < Math.abs(a[0] - st) ? p : a; });
+      out.textContent = samples[cur][1];
+      stat.innerHTML = 'After <b>' + st.toLocaleString('en-US') + '</b> steps. Loss on the training batch: <b>' + near[1].toFixed(2) + '</b>';
+      cv.redraw();
+    }
+    M.pointer(cv, function (x, y, phase) {
+      if (phase === 'up' || !g) return;
+      var best = 0, bd = 1e9; samples.forEach(function (s, i) { var d = Math.abs(g.px(s[0] + 1) - x); if (d < bd) { bd = d; best = i; } });
+      if (best !== cur) { cur = best; show(); }
+    });
+    var leg = M.el('div', { class: 'legend' }, M.el('span', null, M.el('i', { style: 'background:var(--fwd)' }), 'training batches'), M.el('span', null, M.el('i', { style: 'background:var(--ink)' }), 'held-out text'), M.el('span', null, M.el('i', { style: 'background:var(--grad)' }), 'the moment shown below'));
+    box.appendChild(leg);
+    box.appendChild(M.row(M.button('Earlier', function () { cur = Math.max(0, cur - 1); show(); }), M.button('Later', function () { cur = Math.min(samples.length - 1, cur + 1); show(); }, 'go'), stat));
+    box.appendChild(out);
+    show();
+  })();
+});
+</script>
+</body>
+</html>

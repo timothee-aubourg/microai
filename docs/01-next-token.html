@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Guess the next character | microAI</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-ch="1">
+<main>
+  <p class="where">Chapter 1</p>
+  <h1>Guess the next character</h1>
+  <p class="question">How can a file full of numbers write a sentence?</p>
+
+  <p>A language model does exactly one thing. You hand it some text, and it hands back a list of probabilities: one for every symbol that could come next. That is all. It does not write, it does not answer, it does not chat.</p>
+  <p>Writing is a loop built around that one ability: ask for the probabilities, roll weighted dice to pick a symbol, glue it onto the text, ask again. Every system in this course, from the toy on the home page to the assistant on your phone, is that loop. The whole difficulty is hidden in one place: <em>how do you compute good probabilities?</em></p>
+  <p>So start with the simplest answer anyone could give.</p>
+
+  <h2>Just count</h2>
+  <p>Take a million characters of Shakespeare. For every character, tally what came right after it. After <code>q</code> you will almost always find <code>u</code>. After a space, often <code>t</code>. Turn the tallies into fractions and you have a language model. It fits in a small table.</p>
+  <p>One character of context is not much. So let the table look further back: the last two characters, the last three. The number of characters it looks back is called the <strong>order</strong>.</p>
+
+  <section class="bench" id="w-ngram">
+    <h3>A language model made of tallies</h3>
+    <p class="try"><b>Try this.</b> Press Write at order 0, then 1, then 3, then 5. The text goes from letter soup to something that looks like English. Then read the two numbers under the slider at order 5.</p>
+  </section>
+
+  <p>At order 5 the text looks impressive. Look at the readout, though: most of the contexts in the table were seen only once or twice. When a context was seen once, there is only one continuation on record, and the model has no choice but to replay the book. It is not writing. It is quoting.</p>
+
+  <h2>A ruler for language models</h2>
+  <p>We need a way to tell a good model from a quoting machine. Here is the test that all of machine learning for language rests on: show the model real text it has <em>never seen</em>, and at each position ask how much probability it gave to the character that actually came next.</p>
+  <p>If it gave probability <i>p</i>, we score its <strong>surprise</strong> as −log <i>p</i>. A confident correct guess (<i>p</i> near 1) costs almost nothing. A guess of <i>p</i> = 0.01 costs 4.6. The average surprise over a text is called the <strong>loss</strong>, or cross-entropy. Lower is better.</p>
+  <div class="eq">loss = − average of log <i>p</i>(the character that actually came next)</div>
+  <p>Why the logarithm? Because probabilities of a sequence multiply, and logs turn products into sums. The total surprise of a text is then the sum of the surprises of its characters, which is what you want from a ruler. A model that guesses uniformly among our 65 characters scores log 65 ≈ 4.17 at every position. That is the number to beat.</p>
+
+  <section class="bench" id="w-surprise">
+    <h3>Where is the model surprised?</h3>
+    <p class="try"><b>Try this.</b> Each character is shaded by its surprise: darker means the model did not see it coming. Switch between text the model counted and text it never saw, at order 1 and then at order 5.</p>
+  </section>
+
+  <p>At order 5 the gap is plain. On text it has counted, the model is almost never surprised. On new text from the same play it stumbles constantly, because most five-character contexts it meets were never in its table.</p>
+
+  <h2>The wall</h2>
+  <p>Here is the same experiment run on the full million characters by <code>code/ch01_ngram.py</code>. The widgets above count over a 60,000-character excerpt to stay light, so their tables are sparser and they hit the wall sooner.</p>
+  <div class="scroll"><table>
+    <tr><th>Order</th><th>Contexts seen</th><th>Contexts possible</th><th>Loss on counted text</th><th>Loss on unseen text</th></tr>
+    <tr><td>0</td><td>1</td><td>1</td><td>3.29</td><td>3.35</td></tr>
+    <tr><td>1</td><td>65</td><td>65</td><td>2.48</td><td>2.49</td></tr>
+    <tr><td>2</td><td>1,380</td><td>4,225</td><td>1.95</td><td>1.99</td></tr>
+    <tr><td>3</td><td>11,228</td><td>274,625</td><td>1.51</td><td>1.72</td></tr>
+    <tr><td>4</td><td>48,539</td><td>17.9 million</td><td>1.25</td><td><strong>1.68</strong></td></tr>
+    <tr><td>5</td><td>133,293</td><td>1.16 billion</td><td>1.06</td><td>1.89</td></tr>
+    <tr><td>6</td><td>264,623</td><td>75 billion</td><td>0.90</td><td>2.24</td></tr>
+  </table></div>
+  <p>The loss on counted text falls forever. The loss on unseen text falls, bottoms out at order 4, then climbs. More context should help, and it does, until the table is so sparse that most lookups come back empty. The number of possible contexts multiplies by 65 with every extra character. The amount of text does not.</p>
+  <p>This is the wall. A table treats every context as unrelated to every other. It has seen <code>the king</code> a hundred times and <code>the duke</code> a hundred times, and that tells it nothing about <code>the earl</code>. To get past the wall we need a model that treats <em>similar contexts similarly</em>. Instead of looking the answer up, it must <em>compute</em> it, with a formula whose adjustable numbers are tuned on the data. The rest of part one builds that formula.</p>
+
+  <h2>Build it</h2>
+  <pre class="code" data-src="ch01_ngram.py#fit">def fit(order):
+    """counts[context][next_char] = how often next_char followed context."""
+    counts = defaultdict(Counter)
+    for i in range(order, len(train)):
+        counts[train[i - order:i]][train[i]] += 1
+    return counts
+
+def prob(counts, context, ch, alpha=0.01):
+    """P(ch | context), with a tiny bit of probability reserved for the unseen."""
+    c = counts.get(context, {})
+    return (c.get(ch, 0) + alpha) / (sum(c.values()) + alpha * V)
+
+def loss(counts, order, s):
+    """Cross-entropy: the average surprise, -log p(what actually came next)."""
+    return -sum(math.log(prob(counts, s[i - order:i], s[i])) for i in range(order, len(s))) / (len(s) - order)</pre>
+  <p class="src">From <code>code/ch01_ngram.py</code>. The whole model is a dictionary of counters.</p>
+  <pre class="code" data-src="ch01_ngram.py#sample">def sample(counts, order, n=120, seed=0):
+    rnd = random.Random(seed)
+    out = train[:order]                        # seed with the first few characters
+    for _ in range(n):
+        c = counts.get(out[len(out) - order:], None)
+        if not c:                              # never saw this context: the table has no answer
+            out += rnd.choice(train)
+            continue
+        chars, weights = zip(*c.items())
+        out += rnd.choices(chars, weights)[0]  # roll the weighted dice
+    return out[order:]</pre>
+  <p class="src">Writing is the loop: look up, roll, append.</p>
+
+  <div class="note">
+    <h3>What this chapter glossed over</h3>
+    <p><strong>The ruler measures imitation.</strong> A low loss means the model predicts text that resembles its training text. It says nothing about whether the text is true, kind or useful. Keep this in mind when the models get large: the ruler does not change.</p>
+    <p><strong>Units.</strong> Losses here use the natural logarithm, so the unit is the nat. You will also meet bits (log base 2) and perplexity, which is e<sup>loss</sup>: the number of equally likely options the model is effectively hesitating between. A loss of 1.68 is a perplexity of 5.4 characters.</p>
+    <p><strong>Unseen is not impossible.</strong> A raw count of zero would mean probability zero and infinite surprise. The code adds a tiny constant to every count so that nothing is ever ruled out completely.</p>
+  </div>
+
+  <h2>Check yourself</h2>
+  <details class="check"><summary>Why does uniform guessing cost exactly log 65?</summary><p>Each of the 65 characters gets probability 1/65, so the surprise at every position is −log(1/65) = log 65 ≈ 4.17, whatever the text says.</p></details>
+  <details class="check"><summary>The order-6 model scores 0.90 on counted text and 2.24 on unseen text. Which number describes the model?</summary><p>The second. The first measures memory. Only text the model has not seen tells you how it will behave on anything new, which is the only situation you will ever use it in.</p></details>
+  <details class="check"><summary>A real model reads 100,000 tokens of context. Could a count table do that?</summary><p>No. Even with our tiny 65-symbol alphabet, the table for 6 characters of context already has 75 billion possible rows. The idea has to change, not scale.</p></details>
+</main>
+
+<script src="assets/data.js"></script>
+<script src="assets/micro.js"></script>
+<script>
+M.ready(function () {
+  var D = window.MICRO_DATA, corpus = D.corpus, held = D.heldout.slice(0, 260);
+  var alphabet = Array.from(new Set(corpus + held)).sort(), V = alphabet.length, ALPHA = 0.01;
+  var tables = {};
+  function fit(order) {                      // counts[context] = {next: n, ..., '\u0000': total}
+    if (tables[order]) return tables[order];
+    var t = new Map();
+    for (var i = order; i < corpus.length; i++) {
+      var ctx = corpus.slice(i - order, i), c = t.get(ctx);
+      if (!c) { c = { _n: 0 }; t.set(ctx, c); }
+      c[corpus[i]] = (c[corpus[i]] || 0) + 1; c._n++;
+    }
+    return (tables[order] = t);
+  }
+  function prob(t, ctx, ch) { var c = t.get(ctx) || { _n: 0 }; return ((c[ch] || 0) + ALPHA) / (c._n + ALPHA * V); }
+
+  // ---- widget 1: the n-gram model ----
+  (function () {
+    var box = M.$('#w-ngram'), seed = 1;
+    var info = M.el('p', { class: 'readout' }), bars = M.el('div'), out = M.el('div', { class: 'out' });
+    var ctxIn = M.el('input', { type: 'text', id: 'ng-ctx', value: 'the k', 'aria-label': 'Context', style: 'max-width:150px' });
+    var order = M.slider({ label: 'Order (characters of context)', min: 0, max: 5, value: 1, oninput: refresh });
+    function refresh() {
+      var o = order.value, t = fit(o), once = 0;
+      t.forEach(function (c) { if (c._n <= 2) once++; });
+      info.innerHTML = 'Contexts in the table: <b>' + t.size.toLocaleString('en-US') + '</b> of ' + Math.pow(V, o).toLocaleString('en-US') + ' possible. Seen only once or twice: <b>' + Math.round(100 * once / t.size) + '%</b>';
+      var ctx = ctxIn.value.slice(ctxIn.value.length - o), c = t.get(o ? ctx : '') || { _n: 0 };
+      var items = alphabet.map(function (ch) { return { label: M.show(ch), p: prob(t, o ? ctx : '', ch) }; }).sort(function (a, b) { return b.p - a.p; }).slice(0, 8);
+      M.bars(bars, items, 1);
+      cap.textContent = o === 0 ? 'Order 0 ignores the context: these are plain letter frequencies.'
+        : 'What follows "' + ctx.replace(/\n/g, '⏎') + '" (seen ' + c._n + ' times)';
+    }
+    function write() {
+      var o = order.value, t = fit(o), rnd = M.rng(seed++), text = corpus.slice(0, o);
+      for (var i = 0; i < 220; i++) {
+        var c = t.get(text.slice(text.length - o));
+        if (!c) { text += corpus[Math.floor(rnd() * corpus.length)]; continue; }   // context never seen: no answer
+        var keys = Object.keys(c).filter(function (k) { return k !== '_n'; });
+        text += keys[M.pick(keys.map(function (k) { return c[k] / c._n; }), rnd)];  // roll the weighted dice
+      }
+      out.textContent = text.slice(o);
+    }
+    var cap = M.el('p', { class: 'caption' });
+    box.appendChild(M.row(order));
+    box.appendChild(info);
+    box.appendChild(M.row(M.el('label', { for: 'ng-ctx', text: 'Text so far ends with', class: 'readout' }), ctxIn));
+    box.appendChild(cap); box.appendChild(bars);
+    box.appendChild(M.row(M.button('Write 220 characters', write, 'go')));
+    box.appendChild(out);
+    ctxIn.addEventListener('input', refresh);
+    order.el.querySelector('input').addEventListener('input', write);
+    refresh(); write();
+  })();
+
+  // ---- widget 2: surprise ----
+  (function () {
+    var box = M.$('#w-surprise');
+    var start = corpus.indexOf('\n\n', 20000) + 2, seen = corpus.slice(start, start + 260);
+    var texts = { seen: seen, unseen: held, own: 'Type your own sentence here and watch where the model is surprised.' };
+    var which = 'unseen';
+    var view = M.el('div', { class: 'out', style: 'line-height:1.75' }), stat = M.el('p', { class: 'readout' });
+    var own = M.el('textarea', { id: 'sp-own', 'aria-label': 'Your own text', rows: 2, style: 'display:none' });
+    own.value = texts.own;
+    var order = M.slider({ label: 'Order', min: 0, max: 5, value: 1, oninput: draw });
+    var pick = M.select('Text', [['unseen', 'Shakespeare it never saw'], ['seen', 'Shakespeare it counted'], ['own', 'Your own text']], function (v) {
+      which = v; own.style.display = v === 'own' ? '' : 'none'; draw();
+    });
+    function draw() {
+      var o = order.value, t = fit(o), text = which === 'own' ? own.value : texts[which], total = 0, n = 0;
+      view.textContent = '';
+      for (var i = 0; i < text.length; i++) {
+        var ch = text[i], span = M.el('span', { text: ch === '\n' ? '⏎\n' : ch });
+        if (i >= o && alphabet.indexOf(ch) >= 0) {
+          var s = -Math.log(prob(t, text.slice(i - o, i), ch)); total += s; n++;
+          span.style.background = M.heat(Math.min(1, s / 7), '--grad');
+          span.title = 'surprise ' + s.toFixed(2);
+        }
+        view.appendChild(span);
+      }
+      stat.innerHTML = 'Average surprise (loss): <b>' + (n ? (total / n).toFixed(2) : '–') + '</b> nats per character. Uniform guessing: ' + Math.log(V).toFixed(2);
+    }
+    own.addEventListener('input', draw);
+    box.appendChild(M.row(order, pick));
+    box.appendChild(own); box.appendChild(view); box.appendChild(stat);
+    draw();
+  })();
+});
+</script>
+</body>
+</html>

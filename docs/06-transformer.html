@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The whole machine | microAI</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-ch="6">
+<main>
+  <p class="where">Chapter 6</p>
+  <h1>The whole machine</h1>
+  <p class="question">Attention moves information between positions, but a weighted average cannot compute anything new. What does the computing? And how do you stack many such steps without the signal degrading on the way?</p>
+
+  <p>You now have every ingredient: token vectors, attention, and a way to train. A GPT assembles them into one repeated unit, the <strong>block</strong>, and stacks it. Ours has 3 blocks. A model you download has dozens. The block is the same.</p>
+
+  <h2>A stream that everything writes into</h2>
+  <p>Picture one vector per position, 96 numbers wide, running from the bottom of the model to the top. This is the <strong>residual stream</strong>. Nothing ever replaces it. Each component reads the stream, computes something, and <em>adds</em> its result back in.</p>
+  <p>Each block makes two additions:</p>
+  <ul>
+    <li><strong>Attention</strong> lets positions exchange information, as in chapter 5. Tokens talk to each other.</li>
+    <li>The <strong>MLP</strong> then works on each position separately: it stretches the 96 numbers to 384 with one matrix, bends them through a nonlinear function, and brings them back to 96 with a second matrix. Each token thinks on its own about what it has heard.</li>
+  </ul>
+  <div class="eq"><i>x</i> ← <i>x</i> + attention(norm(<i>x</i>)) &nbsp;&nbsp;&nbsp; <i>x</i> ← <i>x</i> + mlp(norm(<i>x</i>))</div>
+  <p>The nonlinear bend matters. Without it, any stack of matrices collapses into one matrix, and the model could only draw straight lines through its inputs. With it, the 384 intermediate numbers act as detectors that switch on for particular patterns, and that is where the model stores most of what it knows. Two thirds of the parameters of every block sit in its MLP.</p>
+
+  <h2>Why add instead of replace</h2>
+  <p>Suppose each block replaced the vector with its output. Then a signal passing through 30 blocks is transformed 30 times, and so is the gradient coming back. If each step shrinks it slightly, almost nothing arrives at the first block, and the early layers never learn. This was the practical obstacle to deep networks for years.</p>
+  <p>Adding fixes it with almost no machinery. The slope of <i>x</i> + f(<i>x</i>) with respect to <i>x</i> is 1 plus something. The "1" is a direct path: the gradient reaches every block undiminished, however deep the stack. It also changes what a block has to learn. It no longer needs to rebuild the whole representation. It only contributes a correction.</p>
+  <p>The <strong>norm</strong> in front of each component is the last piece. As blocks keep adding to the stream, its numbers could drift to any size. Layer normalisation rescales each vector to a standard spread before a component reads it, so every component sees inputs in the range it was trained on. It is also what keeps the square-root argument of chapter 5 roughly valid.</p>
+
+  <section class="bench" id="w-lens">
+    <h3>Watch a prediction take shape</h3>
+    <p class="try"><b>Try this.</b> Each panel reads the stream at one depth and turns it into a guess for the next character, using the output step of chapter 4. Watch the right answer rise from block to block. Then untick a block: the model still runs, because every block reads and writes the same stream. It is just worse.</p>
+  </section>
+
+  <p>Read the first panel with care. Straight after the embedding, the stream holds nothing but the current character's own row of the table, and the row most similar to it is itself. So the "guess" is simply the character just read, with full confidence. Every bit of actual prediction is added by the blocks. With the default text, the correct <code>h</code> gets about 40% after block 1, almost 90% after block 2, and near certainty after block 3.</p>
+
+  <h2>Counting the parameters</h2>
+  <p>With width <i>d</i>, each block holds four <i>d</i>×<i>d</i> matrices for attention (queries, keys, values, output) and two matrices of <i>d</i>×4<i>d</i> for the MLP: 12<i>d</i>² numbers in all. Add the token table, vocabulary × <i>d</i>.</p>
+  <div class="eq">parameters ≈ vocabulary × <i>d</i> + layers × 12 <i>d</i>²</div>
+
+  <section class="bench" id="w-count">
+    <h3>How big is a model?</h3>
+    <p class="try"><b>Try this.</b> Press each preset. Then double the width and see the block parameters quadruple. Depth costs linearly; width costs quadratically.</p>
+  </section>
+
+  <p>The same line of arithmetic covers our toy and models five orders of magnitude larger. That is the sense in which you are learning the real thing. Open-weight models have refined the parts: a different normalisation, a gated MLP, positions encoded by rotation, queries sharing keys between heads. None of these change the anatomy of this chapter.</p>
+
+  <h2>Build it</h2>
+  <pre class="code" data-src="gpt.py#layernorm">@staticmethod
+def layernorm(x, g, b, eps=1e-5):
+    """Rescale each token vector to mean 0, variance 1, then let the model re-stretch it."""
+    xc = x - x.mean(axis=-1, keepdims=True)
+    var = (xc * xc).mean(axis=-1, keepdims=True)
+    return xc * (var + eps) ** -0.5 * g + b</pre>
+  <p class="src">From <code>code/gpt.py</code>.</p>
+  <pre class="code" data-src="gpt.py#forward">def forward(self, idx, targets=None, trace=None):
+    """idx: (B, T) array of token ids -&gt; logits (B, T, vocab), and the loss if targets given."""
+    B, T = idx.shape
+    p = self.p
+    x = p['wte'][idx] + p['wpe'][np.arange(T)]          # what the token is + where it is
+    for i in range(self.n_layer):
+        # tokens talk to each other...
+        x = x + self.attention(self.layernorm(x, p[f'h{i}.ln1.g'], p[f'h{i}.ln1.b']), i, trace)
+        # ...then each token thinks on its own
+        hidden = (self.layernorm(x, p[f'h{i}.ln2.g'], p[f'h{i}.ln2.b']) @ p[f'h{i}.mlp.w1']).gelu()
+        x = x + hidden @ p[f'h{i}.mlp.w2']
+        if trace is not None:
+            trace.setdefault('resid', []).append(x.data)
+    x = self.layernorm(x, p['ln_f.g'], p['ln_f.b'])
+    logits = x @ p['wte'].transpose(1, 0)               # compare with every token embedding
+    if targets is None:
+        return logits, None
+    loss = cross_entropy(logits.reshape(B * T, self.vocab_size), targets.reshape(B * T))
+    return logits, loss</pre>
+  <p class="src">The complete forward pass of a GPT. Together with the attention function of chapter 5 and the parameter list of chapter 4, this is the entire model.</p>
+
+  <div class="note">
+    <h3>What this chapter glossed over</h3>
+    <p><strong>Reading the stream halfway is an approximation.</strong> The model was trained to make its final vector readable, not the intermediate ones. The middle panels are a useful window, and they can also mislead.</p>
+    <p><strong>What a block "does" is not well defined.</strong> "Attention communicates, the MLP computes" is a good first picture. In a trained network the work is smeared across components, and understanding it precisely is an open research field (mechanistic interpretability).</p>
+    <p><strong>The formula is a main-terms count.</strong> It leaves out the position table and the normalisation gains. For our model it gives 338,016 against the exact 345,504.</p>
+  </div>
+
+  <h2>Check yourself</h2>
+  <details class="check"><summary>How many parameters does one block of our model have, by the formula?</summary><p>12 × 96² = 110,592. Three blocks give 331,776, which is 96% of the whole model.</p></details>
+  <details class="check"><summary>You double the width of a model and keep the depth. What happens to its file size, roughly?</summary><p>It quadruples, because the blocks scale with <i>d</i>². The token table only doubles, but for any model of useful size the blocks dominate.</p></details>
+  <details class="check"><summary>Why does removing a block not crash the model?</summary><p>Every block reads a 96-wide vector and adds a 96-wide vector. Take one out and the shapes still fit. What is lost is that block's contribution, which later blocks were trained to expect.</p></details>
+</main>
+
+<script src="assets/weights.js"></script>
+<script src="assets/micro.js"></script>
+<script>
+M.ready(function () {
+  // ---------- widget 1: reading the residual stream at every depth ----------
+  (function () {
+    var box = M.$('#w-lens'), m = M.loadModel();
+    if (!m) { box.appendChild(M.el('p', { text: 'The model weights did not load, so this experiment is unavailable.' })); return; }
+    var input = M.el('input', { type: 'text', id: 'lens-in', value: 'First Citizen:↵Before we proceed any furt', 'aria-label': 'Prompt' });
+    var skip = [false, false, false], grid = M.el('div', { style: 'display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-top:12px' });
+    var names = ['After the embedding', 'After block 1', 'After block 2', 'After block 3'], panels = [];
+    names.forEach(function (n) { var b = M.el('div'); panels.push(b); grid.appendChild(M.el('div', null, M.el('p', { class: 'caption', text: n, style: 'margin:0 0 6px' }), b)); });
+    var checks = M.el('div', { class: 'row' });
+    [0, 1, 2].forEach(function (l) {
+      var id = 'lens-b' + l, cb = M.el('input', { type: 'checkbox', id: id }); cb.checked = true;
+      cb.addEventListener('change', function () { skip[l] = !cb.checked; draw(); });
+      checks.appendChild(M.el('label', { for: id, style: 'display:flex;gap:6px;align-items:center' }, cb, 'Run block ' + (l + 1)));
+    });
+    function draw() {
+      var ids = M.encode(m, input.value.replace(/↵/g, '\n')).slice(-m.cfg.block); if (!ids.length) ids = [m.stoi['\n']];
+      var res = M.forward(m, ids, null, { skip: skip }), d = m.cfg.d_model, T = ids.length;
+      res.resid.forEach(function (x, depth) {
+        var p = M.softmax(M.unembed(m, x.subarray((T - 1) * d, T * d), 1));
+        var top = M.order(p).slice(0, 5).map(function (i) { return { label: M.show(m.chars[i]), p: p[i], hl: depth === 3 }; });
+        M.bars(panels[depth], top, 1);
+        panels[depth].style.opacity = depth > 0 && skip[depth - 1] ? 0.45 : 1;
+      });
+    }
+    input.addEventListener('input', draw);
+    box.appendChild(input); box.appendChild(checks); box.appendChild(grid);
+    box.appendChild(M.el('p', { class: 'caption', text: 'Top five guesses for the character that follows your text. Type ↵ for a line break. A faded panel means its block was skipped.' }));
+    draw();
+  })();
+
+  // ---------- widget 2: parameter counter ----------
+  (function () {
+    var box = M.$('#w-count');
+    var widths = [32, 64, 96, 128, 256, 512, 768, 1024, 2048, 4096, 8192], vocabs = [65, 1000, 32000, 50257, 128000, 262144];
+    var out = M.el('div'), stat = M.el('p', { class: 'readout' });
+    var dS = M.slider({ label: 'Width d', min: 0, max: widths.length - 1, value: 2, fmt: function (i) { return widths[i]; }, oninput: draw });
+    var lS = M.slider({ label: 'Layers', min: 1, max: 96, value: 3, oninput: draw });
+    var vS = M.slider({ label: 'Vocabulary', min: 0, max: vocabs.length - 1, value: 0, fmt: function (i) { return vocabs[i].toLocaleString('en-US'); }, oninput: draw });
+    var note = M.el('p', { class: 'caption' });
+    function big(n) { return n >= 1e9 ? (n / 1e9).toFixed(2) + ' billion' : n >= 1e6 ? (n / 1e6).toFixed(1) + ' million' : Math.round(n).toLocaleString('en-US'); }
+    function bytes(b) { return b >= 1e9 ? (b / 1e9).toFixed(1) + ' GB' : b >= 1e6 ? (b / 1e6).toFixed(1) + ' MB' : (b / 1e3).toFixed(0) + ' KB'; }
+    function draw(msg) {
+      var d = widths[dS.value], L = lS.value, V = vocabs[vS.value];
+      var emb = V * d, att = L * 4 * d * d, mlp = L * 8 * d * d, tot = emb + att + mlp;
+      M.bars(out, [{ label: 'token table', p: emb / tot, text: big(emb) }, { label: 'attention', p: att / tot, text: big(att), hl: true }, { label: 'MLPs', p: mlp / tot, text: big(mlp), hl: true }], 1);
+      stat.innerHTML = 'Total: <b>' + big(tot) + '</b> parameters. Stored at 16 bits each: <b>' + bytes(tot * 2) + '</b>. At about 4.85 bits each (chapter 9): <b>' + bytes(tot * 4.85 / 8) + '</b>.';
+      note.textContent = typeof msg === 'string' ? msg : '';
+    }
+    function preset(label, d, L, V, msg) { return M.button(label, function () { dS.value = widths.indexOf(d); lS.value = L; vS.value = vocabs.indexOf(V); draw(msg); }); }
+    box.appendChild(M.row(
+      preset('Our model', 96, 3, 65, 'Exact count with position table and normalisation: 345,504.'),
+      preset('GPT-2 small (2019)', 768, 12, 50257, 'The published model has 124.4 million; the difference is biases and the position table.'),
+      preset('An 8-billion-class local model', 4096, 32, 128000, 'Real models of this class land near 8 billion: they use a somewhat wider MLP and a separate output table.')));
+    box.appendChild(M.row(dS, lS, vS));
+    box.appendChild(out); box.appendChild(stat); box.appendChild(note);
+    draw('Exact count with position table and normalisation: 345,504.');
+  })();
+});
+</script>
+</body>
+</html>

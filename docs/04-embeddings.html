@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Meaning as direction | microAI</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-ch="4">
+<main>
+  <p class="where">Chapter 4</p>
+  <h1>Meaning as direction</h1>
+  <p class="question">To the computer a token is an ID number: <code>a</code> is 39, <code>e</code> is 43, <code>z</code> is 64. How can arithmetic on arbitrary ID numbers ever discover that <code>a</code> and <code>e</code> behave alike?</p>
+
+  <p>It cannot. The IDs are just positions in a list. If the formula multiplied them directly, it would be treating <code>z</code> as "more" than <code>a</code>, which means nothing.</p>
+  <p>So the very first step of the model throws the ID away and replaces it by a list of numbers, a <strong>vector</strong>. Our model uses 96 numbers per token. They live in a table with one row per token, and the lookup is as simple as it sounds: token 39 gets row 39. The table is called the <strong>embedding</strong>.</p>
+  <p>The important part is that the rows are parameters. They start as random noise, and gradient descent from chapter 3 adjusts them like any other weight. Nobody tells the model that vowels are alike. But if giving <code>a</code> and <code>e</code> similar rows lowers the loss, the gradient pushes them together.</p>
+
+  <h2>The one operation that compares vectors</h2>
+  <p>What does "similar rows" mean? Nearly everything a transformer does with vectors comes down to one operation, the <strong>dot product</strong>: multiply the two vectors entry by entry and add up the results. Geometrically it measures how much one arrow points along the other, scaled by their lengths.</p>
+  <div class="eq"><i>a</i> · <i>b</i> = <i>a</i><sub>1</sub><i>b</i><sub>1</sub> + <i>a</i><sub>2</sub><i>b</i><sub>2</sub> + … = |<i>a</i>| |<i>b</i>| cos(angle)</div>
+
+  <section class="bench" id="w-dot">
+    <h3>The dot product, by hand</h3>
+    <p class="try"><b>Try this.</b> Drag the arrow tips. Make the arrows perpendicular: the dot product is 0. Point them in opposite directions: it turns negative. Now stretch one arrow without turning it: the dot product grows although the angle has not changed. The cosine ignores length; the dot product does not.</p>
+  </section>
+
+  <p>Keep both readings in mind. The raw dot product is what the model computes, because it is cheap. The cosine, which divides out the lengths, is what you use when you only care about direction. Chapter 5 uses dot products to decide which tokens matter to each other, and chapter 11 uses cosines to find documents.</p>
+
+  <h2>What our model learned</h2>
+  <p>Here is the embedding table of the trained model: 65 characters, each a point in 96 dimensions. A screen has two, so the picture shows the two directions along which the points spread the most (a principal component projection). Tapping a character lists its nearest neighbours measured in the full 96 dimensions.</p>
+
+  <section class="bench" id="w-map">
+    <h3>The 65 characters, as the model sees them</h3>
+    <p class="try"><b>Try this.</b> Tap a lowercase vowel, then a capital letter, then a punctuation mark, and read who their neighbours are.</p>
+  </section>
+
+  <p>Three things stand out, and none of them was programmed. The vowels <code>a</code>, <code>e</code>, <code>i</code>, <code>o</code> are each other's nearest neighbours. The punctuation marks form the tightest group of all: to this model a full stop and a question mark are nearly the same thing (cosine 0.75), which is fair, since the same kind of text follows both. And many lowercase letters have their own capital as nearest neighbour: <code>t</code> sits next to <code>T</code>, <code>h</code> next to <code>H</code>. Nobody told the model that <code>T</code> is a capital <code>t</code>. It found out because the two are followed by similar text.</p>
+
+  <h2>Two more jobs for the same idea</h2>
+  <p><strong>Position.</strong> The computation in the next chapter treats its input as an unordered bag. To tell <code>dog bites man</code> from <code>man bites dog</code>, the model needs to know where each token sits. Our model learns a second table with one row per position, 64 rows, and simply adds the position's row to the token's row. The sum is the vector that enters the network.</p>
+  <p><strong>Output.</strong> At the far end, the network has produced one final vector per position and must turn it into 65 scores, one per possible next character. It does this by taking the dot product of the final vector with every row of the embedding table. The prediction is, quite literally, the answer to "which token's direction does my output point along?" Using the same table at both ends is called weight tying.</p>
+
+  <h2>Build it</h2>
+  <pre class="code" data-src="gpt.py#params">p = {}
+p['wte'] = w(vocab_size, d)               # token embedding  (also the output layer)
+p['wpe'] = w(block_size, d)               # position embedding
+for i in range(n_layer):
+    p[f'h{i}.ln1.g'] = Tensor(np.ones(d));  p[f'h{i}.ln1.b'] = Tensor(np.zeros(d))
+    p[f'h{i}.attn.wq'] = w(d, d)          # what am I looking for?
+    p[f'h{i}.attn.wk'] = w(d, d)          # what do I contain?
+    p[f'h{i}.attn.wv'] = w(d, d)          # what do I hand over if chosen?
+    p[f'h{i}.attn.wo'] = w(d, d, std=res_std)
+    p[f'h{i}.ln2.g'] = Tensor(np.ones(d));  p[f'h{i}.ln2.b'] = Tensor(np.zeros(d))
+    p[f'h{i}.mlp.w1'] = w(d, 4 * d)       # expand...
+    p[f'h{i}.mlp.w2'] = w(4 * d, d, std=res_std)   # ...and project back
+p['ln_f.g'] = Tensor(np.ones(d));  p['ln_f.b'] = Tensor(np.zeros(d))
+self.p = p</pre>
+  <p class="src">From <code>code/gpt.py</code>. These few lines declare every parameter of the model. <code>wte</code> and <code>wpe</code> are the two tables of this chapter; the rest belongs to chapters 5 and 6.</p>
+
+  <div class="note">
+    <h3>What this chapter glossed over</h3>
+    <p><strong>A projection is a shadow.</strong> The map keeps <span id="expl">a fraction</span> of the spread of the points and discards the rest. Two characters that sit together on the map can be far apart in the dimensions you cannot see. Trust the neighbour list over the picture.</p>
+    <p><strong>This is only the starting point of meaning.</strong> The table gives each token one fixed vector, whatever its context. The <em>p</em> in <em>spear</em> and the <em>p</em> in <em>hope</em> enter the network identical. Making them different, according to their neighbours, is the job of the layers that follow.</p>
+    <p><strong>Modern models encode position differently.</strong> Instead of adding a learned row, most current open models rotate the vectors inside the attention step by an angle that depends on position (rotary embeddings). It handles long texts better. The purpose is the same.</p>
+  </div>
+
+  <h2>Check yourself</h2>
+  <details class="check"><summary>How many parameters are in our token table? And in the table of a model with 128,000 tokens and 4,096 numbers per token?</summary><p>65 × 96 = 6,240. The large one has 128,000 × 4,096 ≈ 524 million: about 1,500 times our entire model, just for the first lookup.</p></details>
+  <details class="check"><summary>Two vectors have dot product 0. What does the model "think" of them?</summary><p>That they have nothing to do with each other along the direction being tested. In 96 dimensions there is a lot of room for vectors to be perpendicular, which is how one vector can carry many unrelated features at once.</p></details>
+  <details class="check"><summary>Why is the output layer a set of dot products with the embedding rows?</summary><p>It asks which token the final vector resembles. If the network transforms the context into something pointing along the row of <code>u</code>, then <code>u</code> gets the highest score. One table then serves two purposes: turning tokens into vectors, and vectors back into tokens.</p></details>
+</main>
+
+<script src="assets/data.js"></script>
+<script src="assets/weights.js"></script>
+<script src="assets/micro.js"></script>
+<script>
+M.ready(function () {
+  // ---------- widget 1: dot product ----------
+  (function () {
+    var box = M.$('#w-dot'), a = [2.4, 0.8], b = [1.0, 2.0], grab = null;
+    var stat = M.el('p', { class: 'readout' });
+    var cv = M.canvas(box, function (w) { return Math.min(320, Math.max(240, w * 0.6)); }, function (o) {
+      var c = o.ctx, cx = o.w / 2, cy = o.h / 2, u = Math.min(o.w, o.h) / 7.5;
+      var P = function (v) { return [cx + v[0] * u, cy - v[1] * u]; };
+      c.strokeStyle = M.css('--line'); c.lineWidth = 1;
+      for (var i = -6; i <= 6; i++) { c.beginPath(); c.moveTo(cx + i * u, 0); c.lineTo(cx + i * u, o.h); c.moveTo(0, cy + i * u); c.lineTo(o.w, cy + i * u); c.stroke(); }
+      var dot = a[0] * b[0] + a[1] * b[1], la = Math.hypot(a[0], a[1]), lb = Math.hypot(b[0], b[1]);
+      var pr = [a[0] * dot / (la * la), a[1] * dot / (la * la)];          // shadow of b on a
+      c.strokeStyle = M.css('--grad'); c.lineWidth = 7; c.globalAlpha = 0.45; c.lineCap = 'round';
+      c.beginPath(); c.moveTo(cx, cy); c.lineTo(P(pr)[0], P(pr)[1]); c.stroke(); c.globalAlpha = 1;
+      c.setLineDash([4, 4]); c.lineWidth = 1.5; c.beginPath(); c.moveTo(P(b)[0], P(b)[1]); c.lineTo(P(pr)[0], P(pr)[1]); c.stroke(); c.setLineDash([]);
+      [[a, '--fwd', 'a'], [b, '--prob', 'b']].forEach(function (it) {
+        var p = P(it[0]); c.strokeStyle = c.fillStyle = M.css(it[1]); c.lineWidth = 3;
+        c.beginPath(); c.moveTo(cx, cy); c.lineTo(p[0], p[1]); c.stroke();
+        c.beginPath(); c.arc(p[0], p[1], 9, 0, 7); c.fill();
+        c.font = 'bold 15px ' + M.css('--sans'); c.fillText(it[2], p[0] + 12, p[1] - 10);
+      });
+      var cos = dot / (la * lb + 1e-9);
+      stat.innerHTML = 'a · b = <b>' + dot.toFixed(2) + '</b> &nbsp; |a| = ' + la.toFixed(2) + ' &nbsp; |b| = ' + lb.toFixed(2) + ' &nbsp; cosine = <b>' + cos.toFixed(2) + '</b> &nbsp; angle = ' + Math.round(Math.acos(Math.max(-1, Math.min(1, cos))) * 180 / Math.PI) + '°';
+    }, true);
+    M.pointer(cv, function (x, y, phase) {
+      if (phase === 'up') { grab = null; return; }
+      var u = Math.min(cv.w, cv.h) / 7.5, v = [(x - cv.w / 2) / u, (cv.h / 2 - y) / u];
+      if (phase === 'down') grab = Math.hypot(v[0] - a[0], v[1] - a[1]) < Math.hypot(v[0] - b[0], v[1] - b[1]) ? a : b;
+      grab[0] = v[0]; grab[1] = v[1]; cv.redraw();
+    });
+    box.appendChild(stat);
+    box.appendChild(M.el('p', { class: 'caption', text: 'The thick raspberry segment is the shadow of b on a. The dot product is that shadow times the length of a.' }));
+    cv.redraw();
+  })();
+
+  // ---------- widget 2: the learned embedding map ----------
+  (function () {
+    var box = M.$('#w-map'), D = window.MICRO_DATA, m = M.loadModel(), pts = D.pca, sel = pts.findIndex(function (p) { return p[0] === 'e'; });
+    M.$('#expl').textContent = Math.round(100 * D.pca_explained) + '%';
+    var kind = function (ch) { return 'aeiou'.indexOf(ch) >= 0 ? '--grad' : /[a-z]/.test(ch) ? '--fwd' : /[A-Z]/.test(ch) ? '--prob' : '--muted'; };
+    var xs = pts.map(function (p) { return p[1]; }), ys = pts.map(function (p) { return p[2]; });
+    var x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs), y0 = Math.min.apply(null, ys), y1 = Math.max.apply(null, ys);
+    var out = M.el('p', { class: 'readout', style: 'min-height:44px' });
+    var cv = M.canvas(box, function (w) { return Math.min(460, Math.max(360, w * 0.62)); }, function (o) {
+      var c = o.ctx; c.textAlign = 'center'; c.textBaseline = 'middle';
+      pts.forEach(function (p, i) {
+        var X = 18 + (p[1] - x0) / (x1 - x0) * (o.w - 36), Y = 18 + (1 - (p[2] - y0) / (y1 - y0)) * (o.h - 36);
+        p.X = X; p.Y = Y;
+        if (i === sel) { c.strokeStyle = M.css('--ink'); c.lineWidth = 2; c.beginPath(); c.arc(X, Y, 11, 0, 7); c.stroke(); }
+        c.fillStyle = M.css(kind(p[0])); c.font = 'bold 13px ' + M.css('--mono'); c.fillText(M.show(p[0]), X, Y);
+      });
+    }, false);
+    cv.c.style.cursor = 'pointer';
+    function neighbours() {
+      if (!m) { out.textContent = ''; return; }
+      var d = m.cfg.d_model, E = m.w.wte, id = m.stoi[pts[sel][0]];
+      var norm = function (i) { var s = 0; for (var k = 0; k < d; k++) s += E[i * d + k] * E[i * d + k]; return Math.sqrt(s); };
+      var sims = [];
+      for (var j = 0; j < m.cfg.vocab; j++) { if (j === id) continue; var s = 0; for (var k = 0; k < d; k++) s += E[id * d + k] * E[j * d + k]; sims.push([m.chars[j], s / (norm(id) * norm(j))]); }
+      sims.sort(function (a, b) { return b[1] - a[1]; });
+      out.innerHTML = 'Nearest to <b>' + M.show(pts[sel][0]) + '</b> in all ' + d + ' dimensions (cosine): ' + sims.slice(0, 6).map(function (s) { return '<b>' + M.show(s[0]).replace('<', '&lt;') + '</b> ' + s[1].toFixed(2); }).join(' &nbsp; ');
+    }
+    cv.c.addEventListener('click', function (e) {
+      var r = cv.c.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top, best = 0, bd = 1e9;
+      pts.forEach(function (p, i) { var dd = Math.hypot(p.X - x, p.Y - y); if (dd < bd) { bd = dd; best = i; } });
+      sel = best; cv.redraw(); neighbours();
+    });
+    var leg = M.el('div', { class: 'legend' });
+    [['--grad', 'lowercase vowels'], ['--fwd', 'lowercase consonants'], ['--prob', 'capitals'], ['--muted', 'punctuation, space ␣, newline ⏎, digit']].forEach(function (l) {
+      leg.appendChild(M.el('span', null, M.el('i', { style: 'background:var(' + l[0] + ')' }), l[1]));
+    });
+    box.appendChild(leg); box.appendChild(out);
+    cv.redraw(); neighbours();
+  })();
+});
+</script>
+</body>
+</html>

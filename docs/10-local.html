@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A real model on your machine | microAI</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-ch="10">
+<main>
+  <p class="where">Chapter 10</p>
+  <h1>A real model on your machine</h1>
+  <p class="question">You download one file, type one command, and a capable assistant answers with the network cable unplugged. What is in the file, and what is the program doing with it?</p>
+
+  <p>Nothing you have not already built. Chapters 1 to 9 covered every moving part; a real local model has the same parts at a larger size, written in faster code. This chapter lines them up, and then you run one.</p>
+
+  <h2>Four layers</h2>
+  <section class="bench" id="w-stack">
+    <h3>The local stack, top to bottom</h3>
+    <p class="try"><b>Try this.</b> Tap each layer to see what it is, and which chapter of this course it corresponds to.</p>
+  </section>
+
+  <div class="scroll"><table>
+    <tr><th>What you built</th><th>The full-size version</th></tr>
+    <tr><td><code>runs/micro.npz</code>, 345,504 weights</td><td>a <code>.gguf</code> file, billions of weights</td></tr>
+    <tr><td>65 characters</td><td>a BPE vocabulary of 100,000 or more tokens, stored in the same file</td></tr>
+    <tr><td><code>gpt.py</code> forward pass</td><td>the runtime's forward pass, in optimised C++ for CPU and GPU</td></tr>
+    <tr><td><code>ch09_quantize.py</code></td><td>the Q4_K_M and similar formats</td></tr>
+    <tr><td><code>ch08_sample.py</code>: sampler and KV cache</td><td>the same, with more samplers</td></tr>
+    <tr><td><code>llm.py</code>, 30 lines</td><td>any client library</td></tr>
+  </table></div>
+
+  <h2>How a text predictor becomes a chat</h2>
+  <p>One piece is new. The model still does only what chapter 1 said: it continues text. It has no notion of "you" and "me". So where does a conversation come from?</p>
+  <p>From formatting. During fine-tuning, the makers of a chat model showed it a great many conversations written out as one long document, with special tokens (chapter 2) marking where each speaker starts and stops. The model learned what such documents look like. To chat with it, the server writes your messages into that same document format, ends it at the point where the assistant is about to speak, and lets the model continue. When the model produces the end-of-turn token, the server stops and hands you the text.</p>
+
+  <section class="bench" id="w-template">
+    <h3>What the model actually receives</h3>
+    <p class="try"><b>Try this.</b> Edit the messages and switch between model families. The blue pieces are special tokens. Tick the second turn and notice that the entire conversation is sent again: the model keeps no memory between calls.</p>
+  </section>
+
+  <p>Each model family has its own format, called its <strong>chat template</strong>, and it is stored inside the model file so the server can apply it for you. If the wrong template is used, the model still produces text, because it always can. It just produces worse text, since the document no longer looks like the ones it was trained on. When a local model behaves strangely, this is one of the first things to check.</p>
+
+  <h2>Do it</h2>
+  <p>The quickest route is Ollama, a free program that bundles a runtime with a server and a model downloader. Pick a model whose size fits your memory by the arithmetic of chapter 9.</p>
+  <pre class="code" data-lang="text"># 1. Install Ollama from ollama.com, then download a model and talk to it:
+ollama pull qwen3:8b        # about 5 GB; pick any model that fits your RAM
+ollama run qwen3:8b
+
+# 2. Talk to the same model from this repository, with no extra libraries:
+python code/ch10_chat.py</pre>
+  <p class="src">Model names change every few months. Browse the library on ollama.com for a current one; the arithmetic for choosing a size does not change.</p>
+  <p>If you would rather use llama.cpp directly, its <code>llama-server</code> program does the same job and listens on port 8080; LM Studio offers a graphical interface and listens on port 1234. All three speak the same HTTP dialect, so the code below works with each. Tell it where to look:</p>
+  <pre class="code" data-lang="text">export MICROAI_BASE_URL=http://localhost:8080/v1    # llama-server
+export MICROAI_BASE_URL=http://localhost:1234/v1    # LM Studio
+# default, if unset: http://localhost:11434/v1       (Ollama)</pre>
+
+  <h2>Build it</h2>
+  <pre class="code" data-src="llm.py#http">def _post(path, payload, stream=False):
+    req = urllib.request.Request(BASE_URL + path, data=json.dumps(payload).encode(),
+                                 headers={'Content-Type': 'application/json', 'Authorization': 'Bearer local'})
+    resp = urllib.request.urlopen(req, timeout=600)
+    return resp if stream else json.loads(resp.read())
+
+def default_model():
+    if os.environ.get('MICROAI_MODEL'):
+        return os.environ['MICROAI_MODEL']
+    with urllib.request.urlopen(BASE_URL + '/models', timeout=10) as r:
+        return json.loads(r.read())['data'][0]['id']       # whatever is installed
+
+def chat(messages, tools=None, model=None, **options):
+    """Send the whole conversation, get back the assistant's next message (a dict)."""
+    payload = {'model': model or default_model(), 'messages': messages, **options}
+    if tools:
+        payload['tools'] = tools
+    return _post('/chat/completions', payload)['choices'][0]['message']
+
+def stream(messages, model=None, **options):
+    """Same, but yield the text piece by piece as the model samples it."""
+    payload = {'model': model or default_model(), 'messages': messages, 'stream': True, **options}
+    for line in _post('/chat/completions', payload, stream=True):
+        line = line.decode().strip()
+        if line.startswith('data: ') and line != 'data: [DONE]':
+            delta = json.loads(line[6:])['choices'][0]['delta']
+            if delta.get('content'):
+                yield delta['content']</pre>
+  <p class="src">From <code>code/llm.py</code>. A complete client: send the list of messages as JSON, read the reply.</p>
+  <pre class="code" data-src="ch10_chat.py#chat">def main():
+    print(f'model: {default_model()} at {BASE_URL}   (ctrl-c to quit)')
+    messages = [{'role': 'system', 'content': 'You are a concise, helpful assistant.'}]
+    while True:
+        try:
+            user = input('\nyou&gt; ')
+        except (EOFError, KeyboardInterrupt):
+            break
+        messages.append({'role': 'user', 'content': user})
+        reply = ''
+        for piece in stream(messages, temperature=0.7):   # tokens arrive as they are sampled
+            reply += piece
+            print(piece, end='', flush=True)
+        print()
+        # The server keeps no memory. The "conversation" exists only because
+        # we send the whole transcript again on every turn.
+        messages.append({'role': 'assistant', 'content': reply})</pre>
+  <p class="src">From <code>code/ch10_chat.py</code>. A chat program is a list that grows and is sent whole each turn.</p>
+
+  <h2>When it misbehaves</h2>
+  <ul>
+    <li><strong>Slow.</strong> Compare your tokens per second with the ceiling from chapter 9. Far below it usually means the model is not using the graphics processor, or it does not fit and the system is swapping memory to disk.</li>
+    <li><strong>Forgets the start of long conversations.</strong> Servers often load a model with a smaller context window than it supports, to save memory. Look for the context-length setting (Ollama calls it <code>num_ctx</code>).</li>
+    <li><strong>Rambling or odd formatting.</strong> Suspect the chat template or an extreme temperature.</li>
+  </ul>
+
+  <div class="note">
+    <h3>What this chapter glossed over</h3>
+    <p><strong>How these scripts were tested.</strong> They were written against the API that Ollama documents as its OpenAI-compatible endpoint, and run end to end against the small fake server in <code>code/mock_server.py</code>. If a real server on your machine disagrees, the server is right; the fix will be a line or two in <code>llm.py</code>.</p>
+    <p><strong>"Local" means on your machine.</strong> The address <code>localhost</code> never leaves your computer. Your prompts go nowhere else unless a program you add sends them. Some of these tools also offer cloud-hosted models under the same commands, so check which model you are actually running.</p>
+    <p><strong>Small is not the same as weak, or as strong.</strong> A model that fits a laptop is far smaller than a frontier model and will make more mistakes on hard reasoning. For many bounded tasks it is plenty. The only reliable way to know is to test it on your own task.</p>
+  </div>
+
+  <h2>Check yourself</h2>
+  <details class="check"><summary>Where does the "memory" of a chat live?</summary><p>In the <code>messages</code> list held by your program. The server receives the full transcript on every turn. Its KV cache may make this cheap when the beginning is unchanged, but that is an optimisation, not memory.</p></details>
+  <details class="check"><summary>What makes the model stop talking?</summary><p>It samples the end-of-turn special token, and the server stops the loop. If that token were never produced, generation would continue until a length limit.</p></details>
+  <details class="check"><summary>A 16 GB laptop, and you want an 8-billion-weight model with an 8,192-token context. Which format?</summary><p>Q4_K_M is about 4.9 GB plus roughly 1 GB of cache: comfortable. Q8_0 at 8.5 GB plus cache would still fit, at about 60% of the speed. F16 at 16 GB will not.</p></details>
+</main>
+
+<script src="assets/micro.js"></script>
+<script>
+M.ready(function () {
+  // ---------- widget 1: the stack ----------
+  (function () {
+    var box = M.$('#w-stack');
+    var layers = [
+      ['Your program', 'Sends a list of messages as JSON over HTTP to an address on your own machine, and prints what comes back. In this repository: code/llm.py. This is the only layer you write.'],
+      ['The server', 'Keeps the model loaded, applies the chat template, queues requests and streams tokens back. Ollama, llama-server and LM Studio are all servers of this kind, and they share an HTTP dialect modelled on OpenAI\'s API. Chapter 10.'],
+      ['The runtime', 'The program that does the arithmetic: the forward pass of chapter 6, the KV cache and samplers of chapter 8, on your processor or graphics card. llama.cpp is the most widely used; MLX is an alternative on Apple hardware.'],
+      ['The file', 'One .gguf file holding the quantized weight matrices (chapters 6 and 9), the tokenizer vocabulary and merges (chapter 2), the architecture numbers such as width and depth, and the chat template. Everything the model is.']
+    ];
+    var detail = M.el('p', { style: 'margin:12px 0 0;min-height:86px' }), btns = [];
+    var col = M.el('div', { style: 'display:grid;gap:6px' });
+    layers.forEach(function (l, i) {
+      var b = M.button(l[0], function () { pick(i); }); b.style.textAlign = 'left'; b.style.padding = '12px 14px';
+      btns.push(b); col.appendChild(b);
+    });
+    function pick(i) { btns.forEach(function (b, j) { b.className = j === i ? 'go' : ''; b.setAttribute('aria-pressed', j === i); }); detail.textContent = layers[i][1]; }
+    box.appendChild(col); box.appendChild(detail); pick(3);
+  })();
+
+  // ---------- widget 2: chat templates ----------
+  (function () {
+    var box = M.$('#w-template'), fmt = 'chatml', two = false;
+    var sys = M.el('input', { type: 'text', id: 'tp-sys', value: 'You are a concise assistant.' });
+    var usr = M.el('input', { type: 'text', id: 'tp-usr', value: 'What is the capital of France?' });
+    var out = M.el('div', { class: 'out' }), stat = M.el('p', { class: 'readout' });
+    var sel = M.select('Model family', [['chatml', 'ChatML (Qwen and many others)'], ['llama3', 'Llama 3 style'], ['gemma', 'Gemma style']], function (v) { fmt = v; draw(); });
+    var cbId = 'tp-two', cb = M.el('input', { type: 'checkbox', id: cbId });
+    cb.addEventListener('change', function () { two = cb.checked; draw(); });
+    function build() {
+      var msgs = [['user', usr.value]];
+      if (two) msgs.push(['assistant', 'Paris.'], ['user', 'And of Italy?']);
+      var parts = [];                       // [text, isSpecial]
+      var S = function (t) { parts.push([t, true]); }, P = function (t) { parts.push([t, false]); };
+      if (fmt === 'chatml') {
+        S('<|im_start|>'); P('system\n' + sys.value); S('<|im_end|>'); P('\n');
+        msgs.forEach(function (mm) { S('<|im_start|>'); P(mm[0] + '\n' + mm[1]); S('<|im_end|>'); P('\n'); });
+        S('<|im_start|>'); P('assistant\n');
+      } else if (fmt === 'llama3') {
+        S('<|begin_of_text|>'); S('<|start_header_id|>'); P('system'); S('<|end_header_id|>'); P('\n\n' + sys.value); S('<|eot_id|>');
+        msgs.forEach(function (mm) { S('<|start_header_id|>'); P(mm[0]); S('<|end_header_id|>'); P('\n\n' + mm[1]); S('<|eot_id|>'); });
+        S('<|start_header_id|>'); P('assistant'); S('<|end_header_id|>'); P('\n\n');
+      } else {
+        S('<bos>');
+        msgs.forEach(function (mm, i) { S('<start_of_turn>'); P((mm[0] === 'assistant' ? 'model' : 'user') + '\n' + (i === 0 ? sys.value + '\n\n' : '') + mm[1]); S('<end_of_turn>'); P('\n'); });
+        S('<start_of_turn>'); P('model\n');
+      }
+      return parts;
+    }
+    function draw() {
+      var parts = build(), n = 0; out.textContent = '';
+      parts.forEach(function (p) { if (p[1]) { n++; out.appendChild(M.el('b', { class: 'fwd', text: p[0] })); } else out.appendChild(document.createTextNode(p[0])); });
+      out.appendChild(M.el('span', { class: 'grad', text: '▌ the model continues from here' }));
+      stat.innerHTML = '<b>' + n + '</b> special tokens. ' + (fmt === 'gemma' ? 'This family has no separate system role: the instruction is placed at the start of the first user turn.' : 'The reply ends when the model emits ' + (fmt === 'chatml' ? '&lt;|im_end|&gt;' : '&lt;|eot_id|&gt;') + '.');
+    }
+    [sys, usr].forEach(function (i) { i.addEventListener('input', draw); });
+    box.appendChild(M.row(sel, M.el('label', { for: cbId, style: 'display:flex;gap:6px;align-items:center' }, cb, 'Add a second turn')));
+    box.appendChild(M.el('label', { for: 'tp-sys', class: 'caption', text: 'System message' })); box.appendChild(sys);
+    box.appendChild(M.el('label', { for: 'tp-usr', class: 'caption', text: 'User message', style: 'display:block;margin-top:8px' })); box.appendChild(usr);
+    box.appendChild(M.el('div', { style: 'height:12px' }));
+    box.appendChild(out); box.appendChild(stat);
+    draw();
+  })();
+});
+</script>
+</body>
+</html>

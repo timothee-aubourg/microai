@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rolling the dice | microAI</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-ch="8">
+<main>
+  <p class="where">Chapter 8</p>
+  <h1>Rolling the dice</h1>
+  <p class="question">The trained model outputs 65 probabilities. Why not simply pick the most likely character every time?</p>
+
+  <p>Try it and you get a model stuck in a rut. The single most likely continuation of common text is more common text, so always taking the favourite tends to circle through the same safe phrases. The opposite policy, sampling exactly according to the probabilities, has its own flaw: the model gives a little probability to many poor options, and over hundreds of draws one of them will be picked and derail the passage.</p>
+  <p>Good text lives between these two. The settings you see in every model interface, temperature, top-k and top-p, are three ways to reshape the probabilities before rolling the dice. None of them touches the model. They act on its output.</p>
+
+  <section class="bench" id="w-play">
+    <h3>Sampling from the trained model</h3>
+    <p class="try"><b>Try this.</b> Write at temperature 0 and watch it loop. Write at 2.0 and watch it fall apart. Go back to 0.8, then set top-p to 0.9 and compare. The bars show the dice the model is about to roll: greyed rows were cut by top-k or top-p.</p>
+  </section>
+
+  <h2>What the three knobs do</h2>
+  <p><strong>Temperature</strong> divides the model's raw scores by a number <i>T</i> before the softmax of chapter 5.</p>
+  <div class="eq"><i>p</i><sub><i>i</i></sub> = softmax(score<sub><i>i</i></sub> / <i>T</i>)</div>
+  <p>Recall that the softmax turns score <em>differences</em> into probability <em>ratios</em>. Dividing by <i>T</i> = 0.5 doubles every difference, so the favourite pulls further ahead. As <i>T</i> approaches 0 the favourite takes everything. <i>T</i> = 2 halves the differences and flattens the distribution toward uniform noise. <i>T</i> = 1 leaves the model's own probabilities untouched.</p>
+  <p><strong>Top-k</strong> keeps the <i>k</i> most likely tokens and discards the rest. Simple, but blunt: sometimes only two options are sensible, sometimes fifty.</p>
+  <p><strong>Top-p</strong>, also called nucleus sampling, adapts. It keeps the smallest set of tokens whose probabilities add up to <i>p</i>, say 0.9, and discards the long tail. When the model is sure, that set is one or two tokens. When it is unsure, the set is wide.</p>
+
+  <h2>Generation is a loop, and the loop is wasteful</h2>
+  <p>To write 200 characters the model runs 200 times, each time on the text so far plus one more character. Done naively, step 200 recomputes everything for the 199 characters already processed at step 199. Almost all of that work is repeated.</p>
+  <p>The causal mask of chapter 5 makes the waste avoidable. An earlier position never looks at later ones, so nothing computed for it can change when the text grows. In particular its attention <strong>keys</strong> and <strong>values</strong> are fixed forever. Store them. Then a new token only has to compute its own query, compare it with the stored keys, and add its own key and value to the store. This is the <strong>KV cache</strong>, and every runtime uses it.</p>
+
+  <section class="bench" id="w-kv">
+    <h3>Work per token, with and without the cache</h3>
+    <p class="try"><b>Try this.</b> Each small square is one query-key comparison in one attention head. Drag the slider to generate more tokens and compare how much is computed at this step (blue) on each side.</p>
+  </section>
+
+  <p>Without the cache, the comparisons per new token grow with the square of the length and their total with its cube. With it, each token costs one row. Measured on our model with <code>code/ch08_sample.py</code>, processing the same 60 characters and getting the same outputs to within rounding: 89 milliseconds recomputing everything, 33 with the cache. The gap is modest because the model is tiny and its window short; it widens quickly with both.</p>
+  <p>The cache explains two things you will notice when running a real model in chapter 10. First, memory use grows with the length of the conversation: the cache stores a key and a value per token, per layer. Second, runtimes report two speeds. Reading your prompt is fast per token, because all positions can be processed in one parallel pass. Writing the reply is slower per token, because each one must wait for the one before.</p>
+
+  <h2>When the window is full</h2>
+  <p>Our model has 64 position rows and cannot see further back than that. The generation loop in this repository handles a full window in the bluntest way: it keeps the most recent half of the text, rebuilds the cache from it, and carries on. Real runtimes offer the same choice in more refined forms: stop, or drop the oldest part of the conversation and reprocess. Either way, what falls out of the window is gone. The model has no other memory. Chapter 11 is about living with that.</p>
+
+  <h2>Build it</h2>
+  <pre class="code" data-src="ch08_sample.py#sample">def sample_next(logits, temperature=1.0, top_k=0, top_p=1.0, rng=np.random.default_rng()):
+    if temperature == 0:
+        return int(np.argmax(logits))                 # greedy: always the favourite
+    z = logits / temperature                          # &lt;1 sharpens, &gt;1 flattens
+    if top_k:
+        z = np.where(z &lt; np.sort(z)[-top_k], -np.inf, z)   # keep the k best
+    p = np.exp(z - z.max()); p /= p.sum()             # softmax
+    if top_p &lt; 1.0:                                   # nucleus: smallest set worth top_p
+        order = np.argsort(-p)
+        before = np.cumsum(p[order]) - p[order]       # probability mass ranked ahead of each token
+        p[order[before &gt;= top_p]] = 0
+        p /= p.sum()
+    return int(rng.choice(len(p), p=p))</pre>
+  <p class="src">From <code>code/ch08_sample.py</code>. All three knobs in a dozen lines.</p>
+  <pre class="code" data-src="ch08_sample.py#kvcache">def step(self, token, cache):
+    """Process ONE new token. `cache` holds the keys and values of all earlier tokens."""
+    w, H, hd = self.w, self.H, self.d // self.H
+    pos = cache['pos']
+    x = w['wte'][token] + w['wpe'][pos]
+    for i in range(self.L):
+        a = self.ln(x, w[f'h{i}.ln1.g'], w[f'h{i}.ln1.b'])
+        q = (a @ w[f'h{i}.attn.wq']).reshape(H, hd)            # only the NEW token asks a question
+        cache['k'][i].append((a @ w[f'h{i}.attn.wk']).reshape(H, hd))
+        cache['v'][i].append((a @ w[f'h{i}.attn.wv']).reshape(H, hd))
+        K = np.stack(cache['k'][i], axis=1)                    # (H, pos+1, hd): old keys are reused
+        Vv = np.stack(cache['v'][i], axis=1)
+        s = np.einsum('hd,htd-&gt;ht', q, K) / np.sqrt(hd)        # one row of scores, not a T x T table
+        s = np.exp(s - s.max(-1, keepdims=True)); s /= s.sum(-1, keepdims=True)
+        x = x + np.einsum('ht,htd-&gt;hd', s, Vv).reshape(self.d) @ w[f'h{i}.attn.wo']
+        h = self.ln(x, w[f'h{i}.ln2.g'], w[f'h{i}.ln2.b']) @ w[f'h{i}.mlp.w1']
+        h = 0.5 * h * (1 + np.tanh(np.sqrt(2 / np.pi) * (h + 0.044715 * h * h * h)))
+        x = x + h @ w[f'h{i}.mlp.w2']
+    cache['pos'] += 1
+    return self.ln(x, w['ln_f.g'], w['ln_f.b']) @ w['wte'].T</pre>
+  <p class="src">One new token through the model, reusing the keys and values of all earlier ones.</p>
+  <pre class="code" data-src="ch08_sample.py#generate">def generate(self, prompt, n, on_token=None, **sampling):
+    ids = [self.stoi[c] for c in prompt]
+    cache = self.new_cache()
+    for t in ids[-self.block:]:                    # "prompt processing": fill the cache
+        logits = self.step(t, cache)
+    for _ in range(n):
+        nxt = sample_next(logits, **sampling)      # draw one token...
+        ids.append(nxt)
+        if on_token:
+            on_token(self.chars[nxt])
+        if cache['pos'] == self.block:             # context window full: keep the recent half
+            cache = self.new_cache()
+            for t in ids[-self.block // 2:-1]:
+                self.step(t, cache)
+        logits = self.step(nxt, cache)             # ...and feed it back in
+    return ''.join(self.chars[i] for i in ids)</pre>
+  <p class="src">The loop that turns a predictor into a writer.</p>
+
+  <div class="note">
+    <h3>What this chapter glossed over</h3>
+    <p><strong>There is no best setting.</strong> Low temperature suits tasks with one right answer, such as extracting a date. Higher temperature suits tasks where variety is the point. Defaults around 0.7 to 1.0 with a top-p near 0.9 are conventions, not laws.</p>
+    <p><strong>Same prompt, different answers.</strong> Sampling is random by design. Fixing the random seed makes a run repeatable on the same machine and software. Temperature 0 removes the dice, though tiny numerical differences between machines can still change a close call.</p>
+    <p><strong>More samplers exist.</strong> Runtimes add repetition penalties, min-p and others. Each is another small function between the scores and the dice, like the one above.</p>
+  </div>
+
+  <h2>Check yourself</h2>
+  <details class="check"><summary>Temperature 1 with top-k set to 1. What do you get?</summary><p>Greedy decoding. Only the favourite survives the cut, so it gets probability 1 whatever the temperature.</p></details>
+  <details class="check"><summary>How many numbers does the KV cache of our model hold when the window is full?</summary><p>A key and a value of 96 numbers, for each of 64 positions, in each of 3 layers: 2 × 96 × 64 × 3 = 36,864 numbers. The same sum for a large model and a long conversation reaches gigabytes, as chapter 9 shows.</p></details>
+  <details class="check"><summary>Why would the cache be wrong without the causal mask?</summary><p>If earlier positions could attend to later ones, appending a token would change what every earlier position computes, and their stored keys and values would be stale. The mask is what makes the past immutable.</p></details>
+</main>
+
+<script src="assets/weights.js"></script>
+<script src="assets/micro.js"></script>
+<script>
+M.ready(function () {
+  // ---------- widget 1: sampling playground ----------
+  (function () {
+    var box = M.$('#w-play'), m = M.loadModel();
+    if (!m) { box.appendChild(M.el('p', { text: 'The model weights did not load, so this experiment is unavailable.' })); return; }
+    var prompt = 'ROMEO:\n', gen = '', rnd = M.rng(11), timer = 0, wr = M.writer(m, prompt);
+    var promptIn = M.el('input', { type: 'text', id: 'pl-prompt', value: 'ROMEO:↵', 'aria-label': 'Prompt' });
+    var out = M.el('div', { class: 'out' }), bars = M.el('div');
+    var o = function () { return { temperature: temp.value, top_k: topk.value, top_p: topp.value }; };
+    var temp = M.slider({ label: 'Temperature', min: 0, max: 2, step: 0.05, value: 0.8, fmt: function (v) { return v.toFixed(2); }, oninput: dist });
+    var topk = M.slider({ label: 'Top-k', min: 0, max: 30, value: 0, fmt: function (v) { return v ? v : 'off'; }, oninput: dist });
+    var topp = M.slider({ label: 'Top-p', min: 0.05, max: 1, step: 0.05, value: 1, fmt: function (v) { return v >= 1 ? 'off' : v.toFixed(2); }, oninput: dist });
+    function logits() { return wr.logits(); }
+    function dist() {
+      var z = logits(), base = M.shape(z, { temperature: temp.value || 0 }), p = M.shape(z, o());
+      M.bars(bars, M.order(base).slice(0, 10).map(function (i) { return { label: M.show(m.chars[i]), p: p[i], cut: p[i] === 0, text: p[i] === 0 ? 'cut' : (100 * p[i]).toFixed(1) + '%' }; }), 1);
+      return p;
+    }
+    function render() {
+      out.textContent = ''; out.appendChild(document.createTextNode(prompt)); out.appendChild(M.el('span', { class: 'new', text: gen })); out.scrollTop = out.scrollHeight;
+    }
+    function add(p) { var nx = M.pick(p, rnd); wr.add(nx); gen += m.chars[nx]; }
+    function one() { add(dist()); render(); dist(); }
+    function many() {
+      clearInterval(timer); var n = 0;
+      if (M.reduced()) { for (; n < 200; n++) add(M.shape(logits(), o())); render(); dist(); return; }
+      timer = setInterval(function () { add(M.shape(logits(), o())); add(M.shape(logits(), o())); render(); n += 2; if (n >= 200) { clearInterval(timer); dist(); } }, 16);
+    }
+    function clear() { clearInterval(timer); prompt = promptIn.value.replace(/↵/g, '\n'); gen = ''; wr = M.writer(m, prompt); render(); dist(); }
+    promptIn.addEventListener('input', clear);
+    box.appendChild(M.row(temp, topk, topp));
+    box.appendChild(promptIn);
+    box.appendChild(M.row(M.button('Write 200 characters', many, 'go'), M.button('One character', one), M.button('Clear', clear)));
+    box.appendChild(out);
+    box.appendChild(M.el('p', { class: 'caption', text: 'The dice for the next character (ten most likely):' }));
+    box.appendChild(bars);
+    render(); dist();
+  })();
+
+  // ---------- widget 2: KV cache ----------
+  (function () {
+    var box = M.$('#w-kv'), T = 24, stat = M.el('p', { class: 'readout' });
+    var s = M.slider({ label: 'Tokens so far', min: 1, max: T, value: 8, oninput: function () { a.redraw(); b.redraw(); info(); } });
+    var grid = M.el('div', { class: 'col2' }), L = M.el('div'), R = M.el('div');
+    function tri(cached) {
+      return function (o) {
+        var c = o.ctx, n = s.value, cell = Math.min(o.w, o.h) / T, blue = M.css('--fwd'), grey = M.css('--muted');
+        for (var t = 0; t < T; t++) for (var k = 0; k <= t; k++) {
+          var done = t < n, now = cached ? t === n - 1 : t < n;
+          c.fillStyle = now ? blue : grey; c.globalAlpha = now ? 1 : done ? 0.45 : 0.1;
+          c.fillRect(k * cell + 0.5, t * cell + 0.5, cell - 1, cell - 1);
+        }
+        c.globalAlpha = 1;
+      };
+    }
+    var h = function (w) { return Math.min(w, 250); };
+    L.appendChild(M.el('p', { class: 'caption', text: 'Recompute everything', style: 'margin:0 0 6px' }));
+    R.appendChild(M.el('p', { class: 'caption', text: 'With the KV cache', style: 'margin:0 0 6px' }));
+    var a = M.canvas(L, h, tri(false)), b = M.canvas(R, h, tri(true));
+    function info() {
+      var n = s.value;
+      stat.innerHTML = 'At this step: <b>' + (n * (n + 1) / 2) + '</b> comparisons without the cache, <b>' + n + '</b> with it. In total so far: <b>' + (n * (n + 1) * (n + 2) / 6) + '</b> against <b>' + (n * (n + 1) / 2) + '</b>. At 64 tokens: 45,760 against 2,080.';
+    }
+    grid.appendChild(L); grid.appendChild(R);
+    box.appendChild(M.row(s)); box.appendChild(grid); box.appendChild(stat);
+    box.appendChild(M.el('p', { class: 'caption', text: 'Blue: computed at this step. Grey: computed earlier and, on the right, kept.' }));
+    a.redraw(); b.redraw(); info();
+  })();
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cutting text into tokens | microAI</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-ch="2">
+<main>
+  <p class="where">Chapter 2</p>
+  <h1>Cutting text into tokens</h1>
+  <p class="question">Why don't language models read letters? And why not whole words?</p>
+
+  <p>A model works on a sequence of symbols drawn from a fixed list, its <strong>vocabulary</strong>. Chapter 1 used characters. That choice has a cost you will feel later: the model has to spend its capacity on spelling, and a context window of 4,000 symbols holds only 4,000 characters, about a page.</p>
+  <p>Whole words fix that and break something else. The list of words is never finished. New names, typos, code, other languages: a word-level model meets things it has no symbol for, and can do nothing with them.</p>
+  <p>The solution used by essentially every modern language model sits in between. Common words become one symbol. Rare words are spelled out from smaller pieces. These pieces are called <strong>tokens</strong>, and the surprising part is that nobody designs them. A very simple greedy procedure finds them in the data.</p>
+
+  <h2>Glue the most common pair, repeat</h2>
+  <p>Start with the text as raw bytes, 256 possible symbols, so that any text at all can be represented. Count every pair of neighbouring symbols. Take the most frequent pair, and from now on treat it as one new symbol. Count again. Repeat a few hundred or a few hundred thousand times. This is <strong>byte-pair encoding</strong>, BPE.</p>
+
+  <section class="bench" id="w-bpe">
+    <h3>Watch a tokenizer being born</h3>
+    <p class="try"><b>Try this.</b> Drag the slider from 0 upward and watch the sentence compress as pairs get glued. Then type a word Shakespeare never used, such as <b>blockchain</b> or <b>🤖</b>. It still encodes: it just falls back to small pieces, down to single bytes (shown as x followed by a hexadecimal number).</p>
+  </section>
+
+  <p>The first merges are things like <code>e␣</code> and <code>th</code>: the commonest letter pairs in English. A few hundred merges later whole words such as <code>␣the␣</code> have their own token. Nothing in the algorithm knows what a word is. Frequency alone discovers them.</p>
+
+  <h2>The trade</h2>
+  <p>Every merge shortens the sequence and lengthens the vocabulary. Both have a price. A longer sequence means more computation per sentence and less text fitting in the context window. A larger vocabulary means a larger table of token vectors (chapter 4) and rarer tokens that the model sees too seldom to learn well.</p>
+  <p>Models you can download settle on vocabularies from a few tens of thousands to a few hundred thousand tokens. GPT-2 used 50,257. For ordinary English prose such tokenizers average roughly four characters, or three quarters of a word, per token. That ratio is the conversion rate behind every context-window size and every tokens-per-second figure you will ever read.</p>
+
+  <h2>Tokens that are not text</h2>
+  <p>A vocabulary also contains a handful of <strong>special tokens</strong> that correspond to no text at all: one for "the document starts here", one for "this speaker has finished". They look like <code>&lt;|im_end|&gt;</code> when printed, but to the model each is a single symbol. In chapter 10 these turn a plain text predictor into a chat.</p>
+
+  <h2>Build it</h2>
+  <pre class="code" data-src="ch02_bpe.py#bpe">def merge(ids, pair, new_id):
+    """Replace every occurrence of `pair` in ids with `new_id`."""
+    out, i = [], 0
+    while i &lt; len(ids):
+        if i &lt; len(ids) - 1 and (ids[i], ids[i + 1]) == pair:
+            out.append(new_id); i += 2
+        else:
+            out.append(ids[i]); i += 1
+    return out
+
+def train_bpe(text, n_merges):
+    ids = list(text.encode('utf-8'))            # start: one token per byte
+    merges = {}                                 # (a, b) -&gt; new token id, in learned order
+    for k in range(n_merges):
+        pairs = Counter(zip(ids, ids[1:]))      # count adjacent pairs
+        if not pairs:
+            break
+        best = max(pairs, key=pairs.get)        # the most frequent pair...
+        merges[best] = 256 + k                  # ...becomes a new token
+        ids = merge(ids, best, 256 + k)
+    return merges
+
+def encode(text, merges):
+    ids = list(text.encode('utf-8'))
+    for pair, new_id in merges.items():         # replay the merges in the order learned
+        ids = merge(ids, pair, new_id)
+    return ids
+
+def decode(ids, merges):
+    vocab = {i: bytes([i]) for i in range(256)}
+    for (a, b), new_id in merges.items():
+        vocab[new_id] = vocab[a] + vocab[b]
+    return b''.join(vocab[i] for i in ids).decode('utf-8', errors='replace')</pre>
+  <p class="src">From <code>code/ch02_bpe.py</code>. Training, encoding and decoding in about thirty lines.</p>
+
+  <p>For the rest of this course the small model keeps using characters, 65 of them. That keeps it small enough to run in your browser, and nothing else about it changes: swap the 65 characters for 100,000 tokens and every later chapter reads the same.</p>
+
+  <div class="note">
+    <h3>What this chapter glossed over</h3>
+    <p><strong>Greedy is not optimal.</strong> BPE never reconsiders a merge. It finds a good vocabulary, not the best one, and production tokenizers add rules of their own, such as never merging across a space.</p>
+    <p><strong>Tokens explain some odd failures.</strong> A model that sees <code>strawberry</code> as two or three opaque chunks has no direct view of its letters. Counting letters, reversing words and long arithmetic are harder for a language model than their difficulty for a person suggests, partly for this reason.</p>
+    <p><strong>Tokenizers are not interchangeable.</strong> Each model ships with its own. The same sentence is a different number of tokens for different models, so token counts and speeds are only comparable within one model family.</p>
+  </div>
+
+  <h2>Check yourself</h2>
+  <details class="check"><summary>Before any merge, how many tokens is the word "hello"? And "café"?</summary><p>"hello" is five bytes, so five tokens. "café" is five as well: the é takes two bytes in UTF-8. Starting from bytes is what guarantees every string has an encoding.</p></details>
+  <details class="check"><summary>A model has an 8,192-token context window. Roughly how many English words is that?</summary><p>About 6,000, at three quarters of a word per token. For code or for other languages the ratio is usually worse.</p></details>
+  <details class="check"><summary>Why not run a million merges and give every sentence its own token?</summary><p>You would be back at the count table of chapter 1: a huge vocabulary of items each seen once, with nothing shared between them. Tokens are useful because they recur.</p></details>
+</main>
+
+<script src="assets/data.js"></script>
+<script src="assets/micro.js"></script>
+<script>
+M.ready(function () {
+  var box = M.$('#w-bpe'), enc = new TextEncoder(), dec = new TextDecoder('utf-8', { fatal: false });
+  var MAX = 300, train = Array.from(enc.encode(window.MICRO_DATA.corpus.slice(0, 20000)));
+  // ---- train: exactly the algorithm of code/ch02_bpe.py ----
+  function merge(ids, a, b, nid) {
+    var out = [];
+    for (var i = 0; i < ids.length; i++) {
+      if (i < ids.length - 1 && ids[i] === a && ids[i + 1] === b) { out.push(nid); i++; } else out.push(ids[i]);
+    }
+    return out;
+  }
+  var merges = [], vocab = [];
+  for (var i = 0; i < 256; i++) vocab.push([i]);
+  var ids = train;
+  for (var k = 0; k < MAX; k++) {
+    var counts = new Map(), best = -1, bk = 0;
+    for (var j = 0; j < ids.length - 1; j++) { var key = ids[j] * 65536 + ids[j + 1], c = (counts.get(key) || 0) + 1; counts.set(key, c); if (c > best) { best = c; bk = key; } }
+    var a = Math.floor(bk / 65536), b = bk % 65536;
+    merges.push([a, b, best]); vocab.push(vocab[a].concat(vocab[b]));
+    ids = merge(ids, a, b, 256 + k);
+  }
+  var str = function (id) {
+    var s = dec.decode(new Uint8Array(vocab[id]));
+    if (s.indexOf('\ufffd') >= 0) return vocab[id].map(function (b) { return 'x' + b.toString(16); }).join(' ');   // a lone byte of a multi-byte character
+    return s.replace(/\n/g, '⏎').replace(/ /g, '␣');
+  };
+  function encode(text, n) {
+    var t = Array.from(enc.encode(text));
+    for (var k = 0; k < n; k++) t = merge(t, merges[k][0], merges[k][1], 256 + k);
+    return t;
+  }
+
+  var input = M.el('input', { type: 'text', id: 'bpe-in', value: 'Speak, speak. We are accounted poor citizens.', 'aria-label': 'Sentence to tokenize' });
+  var chips = M.el('div', { class: 'chips' }), stat = M.el('p', { class: 'readout' }), last = M.el('p', { class: 'caption' });
+  var slider = M.slider({ label: 'Merges learned', min: 0, max: MAX, value: 40, oninput: draw });
+  var hues = ['--fwd', '--prob-fill', '--grad', '--ok'];
+  var plot = null;
+  function draw() {
+    var n = slider.value, t = encode(input.value, n), nchar = Array.from(input.value).length;
+    chips.textContent = '';
+    t.forEach(function (id, i) {
+      var s = M.el('span', { text: str(id) });
+      s.style.background = 'color-mix(in srgb, ' + M.css(hues[i % 4]) + ' 26%, ' + M.css('--panel') + ')';
+      chips.appendChild(s);
+    });
+    stat.innerHTML = '<b>' + t.length + '</b> tokens for ' + nchar + ' characters (' + (nchar / Math.max(1, t.length)).toFixed(2) + ' characters per token). Vocabulary: <b>' + (256 + n) + '</b>';
+    last.textContent = n ? 'Most recent merges: ' + merges.slice(Math.max(0, n - 6), n).map(function (m) { return str(m[0]) + ' + ' + str(m[1]); }).reverse().join(',  ') : 'No merges yet: one token per byte.';
+    if (plot) plot.redraw();
+  }
+  box.appendChild(M.row(slider));
+  box.appendChild(input);
+  box.appendChild(M.el('div', { style: 'height:10px' }));
+  box.appendChild(chips); box.appendChild(stat); box.appendChild(last);
+  // tokens needed for the sentence as merges accumulate
+  plot = M.canvas(box, 150, function (o) {
+    var pts = [], text = input.value, t = Array.from(enc.encode(text));
+    pts.push([0, t.length]);
+    for (var k = 0; k < MAX; k++) { t = merge(t, merges[k][0], merges[k][1], 256 + k); if (k % 5 === 4) pts.push([k + 1, t.length]); }
+    var top = Math.max(10, pts[0][1]);
+    var g = M.plot(o, { xmin: 0, xmax: MAX, ymin: 0, ymax: top, xticks: [0, 100, 200, 300], yticks: [0, Math.round(top / 2), top], xlabel: 'merges learned', ylabel: 'tokens',
+      series: [{ pts: pts, color: M.css('--fwd') }] });
+    o.ctx.strokeStyle = M.css('--grad'); o.ctx.lineWidth = 2;
+    o.ctx.beginPath(); o.ctx.moveTo(g.px(slider.value), g.T); o.ctx.lineTo(g.px(slider.value), g.T + g.h); o.ctx.stroke();
+  });
+  input.addEventListener('input', draw);
+  draw();
+});
+</script>
+</body>
+</html>

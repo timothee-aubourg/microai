@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Teaching new habits | microAI</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-ch="12">
+<main>
+  <p class="where">Chapter 12</p>
+  <h1>Teaching new habits</h1>
+  <p class="question">The model is a frozen file of billions of numbers. Can you change how it behaves without retraining all of them?</p>
+
+  <p>Start by asking whether you need to. Chapter 11 gave you two ways to change a model's behaviour that leave the file alone: say what you want in the prompt, and retrieve what it needs to know. They are cheap, instant to revise, and should be tried first. Changing the weights, called <strong>fine-tuning</strong>, earns its cost when you need a habit that instructions do not produce reliably: a fixed output format, a house style, a specialised vocabulary.</p>
+  <p>Fine-tuning is the training loop of chapter 7, continued on new examples. The obstacle is size. Training needs, for every weight, the weight itself, its gradient, and the optimiser's running averages: several times the memory of the model, at full precision. An 8-billion-weight model that runs comfortably in 5 GB when quantized needs many tens of gigabytes to train this way.</p>
+
+  <h2>Train a small correction instead</h2>
+  <p>Here is the idea that made fine-tuning practical on ordinary hardware. Leave every original matrix <i>W</i> frozen. Next to it, add a correction, and train only the correction. To keep the correction small, build it as the product of two thin matrices:</p>
+  <div class="eq"><i>W</i>′ = <i>W</i> + <i>A</i> × <i>B</i> &nbsp;&nbsp; with <i>A</i> of size <i>d</i> × <i>r</i> and <i>B</i> of size <i>r</i> × <i>d</i></div>
+  <p>The number <i>r</i>, the <strong>rank</strong>, is small: 4, 8, 16. A full correction to a <i>d</i> × <i>d</i> matrix would have <i>d</i>² numbers. This one has 2<i>dr</i>. The method is called <strong>LoRA</strong>, for low-rank adaptation.</p>
+
+  <section class="bench" id="w-shapes">
+    <h3>How small is the correction?</h3>
+    <p class="try"><b>Try this.</b> The square is a frozen matrix and the two thin strips are the trainable ones, drawn to scale. Press the two presets and compare the percentages. The wider the model, the better the deal.</p>
+  </section>
+
+  <p>The saving is the ratio 2<i>r</i>/<i>d</i>, so it improves with width. On our 96-wide toy, rank 4 trains about 8% as many numbers as each square matrix it adapts, and 6% of the model overall. On a 4,096-wide model, rank 16 trains under 1%. And because <i>B</i> starts at zero, the product starts at zero: before the first training step the adapted model is exactly the original.</p>
+  <p>Why should such a restricted correction be enough? A product of thin matrices can only move the weights along <i>r</i> directions. The bet is that the change needed for one new habit is simple in that sense, even though the model as a whole is not. This is an empirical finding that has held up widely, not a theorem. When a task needs a larger change, a higher rank or full fine-tuning does better.</p>
+
+  <h2>A real adapter, on our model</h2>
+  <p>To make the effect impossible to miss, the adapter in this repository teaches a deliberately silly habit: WRITE IN CAPITALS. The base model has seen capital letters mostly in speaker names and at the start of lines. The script <code>code/ch12_lora.py</code> freezes it, attaches rank-4 corrections to its attention and MLP matrices, and trains only those for 600 steps on upper-cased text.</p>
+
+  <section class="bench" id="w-adapter">
+    <h3>Same weights, with and without the adapter</h3>
+    <p class="try"><b>Try this.</b> Press Write. Both columns use the same frozen model, the same prompt and the same random numbers. The only difference is the small add-on.</p>
+  </section>
+
+  <p>Two properties make adapters convenient. They are tiny files, megabytes for a large model, so you can keep many and swap them. And an adapter can be <strong>merged</strong>: compute <i>W</i> + <i>A</i> × <i>B</i> once, store the result, and the adapted model runs at exactly the speed of the original. The script checks that the merged model gives the same outputs. A common variant, QLoRA, trains the adapter on top of a quantized base model, which is what lets people fine-tune multi-billion-weight models on a single consumer graphics card.</p>
+
+  <h2>Build it</h2>
+  <pre class="code" data-src="ch12_lora.py#lora">frozen = {k: t.data for k, t in model.p.items()}             # never updated
+targets = [k for k in frozen if '.attn.' in k or '.mlp.' in k]
+A = {k: Tensor(rng.normal(0, 0.02, (frozen[k].shape[0], RANK))) for k in targets}
+B = {k: Tensor(np.zeros((RANK, frozen[k].shape[1]))) for k in targets}   # zero: start as a no-op
+
+def apply_adapter():
+    for k in targets:                                        # W_eff = W + (alpha/r) * A @ B
+        model.p[k] = Tensor(frozen[k]) + (A[k] @ B[k]) * (ALPHA / RANK)</pre>
+  <p class="src">From <code>code/ch12_lora.py</code>. The rest of the script is the training loop you already know, applied to <code>A</code> and <code>B</code> only.</p>
+
+  <div class="note">
+    <h3>What this chapter glossed over</h3>
+    <p><strong>Data is the hard part.</strong> The mechanics above take an afternoon. Assembling a few hundred or thousand good examples of the behaviour you want, and a held-out set to check you got it, takes most of the effort in any real project.</p>
+    <p><strong>Fine-tuning can damage as well as teach.</strong> Push hard on a narrow dataset and the model gets worse at everything else. Our capitals adapter makes the model worse at ordinary text, by design. Always measure on both.</p>
+    <p><strong>Learning from scores instead of examples.</strong> Everything in this course trains on text that shows the right answer. Sometimes you cannot write the right answer but can <em>score</em> an attempt: did the code pass its tests, did the agent finish the task. Training on scores is reinforcement learning. In outline: sample several attempts, score them, and raise the probability of those that beat the average. The estimates are noisy, so methods such as PPO limit how far one update may move the model, and GRPO compares attempts at the same prompt against each other. That is the natural next subject after this course, and it rests on every chapter here.</p>
+  </div>
+
+  <h2>Check yourself</h2>
+  <details class="check"><summary>A matrix is 4,096 × 4,096. How many numbers does a rank-16 adapter for it train?</summary><p>2 × 4,096 × 16 = 131,072, against 16.8 million in the matrix: 0.8%.</p></details>
+  <details class="check"><summary>Why is one of the two thin matrices initialised to zero, and why not both?</summary><p>With <i>B</i> at zero the correction starts at zero, so training begins from the unmodified model. If both were zero, the gradient of each would be multiplied by the other and neither could ever move.</p></details>
+  <details class="check"><summary>You want the model to answer questions about your company's products, which change monthly. Fine-tune or retrieve?</summary><p>Retrieve. Facts that change belong in documents you can update, placed in the context when needed. Fine-tuning would have to be redone every month and would still state stale facts with confidence.</p></details>
+
+  <h2>The whole path, once more</h2>
+  <p>A language model assigns probabilities to the next token (1). Text is cut into tokens (2). The model's numbers are tuned by following the gradient of the loss (3). Tokens become vectors (4) that exchange information through attention (5) inside a stack of blocks around a residual stream (6). Training is that tuning repeated on real text (7). Writing is sampling from the output, one token at a time, made fast by a cache (8). Rounding the weights makes the file fit your memory, and memory speed sets your tokens per second (9). A runtime and a server put it behind a local address, and a template turns continuation into conversation (10). What the model knows at run time is what you put in its window: history, retrieved passages, tool results (11). And when prompting is not enough, a small trained correction changes its habits (12).</p>
+  <p>Good next projects, in rising order of effort: train the small model on a text of your own by replacing <code>data/shakespeare.txt</code>; swap its character vocabulary for the BPE tokenizer of chapter 2; point the retrieval script at your own notes; give the agent a third tool that does something you actually need.</p>
+</main>
+
+<script src="assets/weights.js"></script>
+<script src="assets/micro.js"></script>
+<script>
+M.ready(function () {
+  // ---------- widget 1: shapes to scale ----------
+  (function () {
+    var box = M.$('#w-shapes'), ds = [64, 96, 256, 1024, 4096, 8192], stat = M.el('p', { class: 'readout' });
+    var dS = M.slider({ label: 'Width d', min: 0, max: ds.length - 1, value: 1, fmt: function (i) { return ds[i]; }, oninput: function () { cv.redraw(); } });
+    var rS = M.slider({ label: 'Rank r', min: 1, max: 64, value: 4, oninput: function () { cv.redraw(); } });
+    var cv = M.canvas(box, 200, function (o) {
+      var c = o.ctx, d = ds[dS.value], r = Math.min(rS.value, d), S = Math.min(150, (o.w - 110) / 2.2), t = Math.max(2, S * r / d), y = 26, x = 8;
+      c.font = '13px ' + M.css('--sans'); c.textAlign = 'center'; c.textBaseline = 'middle';
+      c.fillStyle = M.css('--muted'); c.globalAlpha = 0.35; c.fillRect(x, y, S, S); c.globalAlpha = 1;
+      c.fillStyle = M.css('--ink'); c.fillText('W, frozen', x + S / 2, y + S / 2); c.fillText('+', x + S + 16, y + S / 2);
+      var ax = x + S + 32; c.fillStyle = M.css('--grad'); c.fillRect(ax, y, t, S);
+      c.fillStyle = M.css('--ink'); c.fillText('×', ax + t + 14, y + S / 2);
+      var bx = ax + t + 28; c.fillStyle = M.css('--grad'); c.fillRect(bx, y + S / 2 - t / 2, S, t);
+      c.fillStyle = M.css('--muted'); c.fillText('A: d × r', ax + t / 2 + 10, y + S + 14); c.fillText('B: r × d', bx + S / 2, y + S / 2 + t / 2 + 14);
+      var full = d * d, lo = 2 * d * r;
+      stat.innerHTML = 'Frozen: <b>' + full.toLocaleString('en-US') + '</b> numbers. Trained: <b>' + lo.toLocaleString('en-US') + '</b>, which is <b>' + (100 * lo / full).toFixed(lo / full < 0.1 ? 2 : 1) + '%</b>.';
+    });
+    box.appendChild(M.row(M.button('Our model: d 96, r 4', function () { dS.value = 1; rS.value = 4; cv.redraw(); }), M.button('A typical setup: d 4,096, r 16', function () { dS.value = 4; rS.value = 16; cv.redraw(); })));
+    box.insertBefore(M.row(dS, rS), cv.c.parentNode);
+    box.appendChild(stat);
+    cv.redraw();
+  })();
+
+  // ---------- widget 2: the real adapter ----------
+  (function () {
+    var box = M.$('#w-adapter'), m = M.loadModel();
+    if (!m || !m.adapter) { box.appendChild(M.el('p', { text: 'No adapter was exported with the weights. Run code/ch12_lora.py and tools/export_web.py to create one.' })); return; }
+    var ad = m.adapter, merged = null, timer = 0, seed = 3;
+    var prompt = M.el('input', { type: 'text', id: 'ad-prompt', value: 'ROMEO:↵', 'aria-label': 'Prompt' });
+    var a = M.el('div', { class: 'out' }), b = M.el('div', { class: 'out' });
+    var grid = M.el('div', { class: 'col2' });
+    grid.appendChild(M.el('div', null, M.el('p', { class: 'caption', text: 'Base model', style: 'margin:0 0 6px' }), a));
+    grid.appendChild(M.el('div', null, M.el('p', { class: 'caption', text: 'Base model + adapter', style: 'margin:0 0 6px' }), b));
+    function write() {
+      clearInterval(timer);
+      if (!merged) merged = M.withAdapter(m);
+      var p = prompt.value.replace(/↵/g, '\n'), ta = '', tb = '', ra = M.rng(seed), rb = M.rng(seed++), n = 0, o = { temperature: 0.7 };
+      var wa = M.writer(m, p), wb = M.writer(m, p.toUpperCase(), merged);
+      var step = function () {
+        var x = M.pick(M.shape(wa.logits(), o), ra); wa.add(x); ta += m.chars[x];
+        var y = M.pick(M.shape(wb.logits(), o), rb); wb.add(y); tb += m.chars[y];
+        a.textContent = p + ta; b.textContent = p.toUpperCase() + tb;
+        if (++n >= 160) clearInterval(timer);
+      };
+      if (M.reduced()) { for (var i = 0; i < 160; i++) step(); } else timer = setInterval(step, 16);
+    }
+    box.appendChild(prompt);
+    box.appendChild(M.row(M.button('Write with both', write, 'go')));
+    box.appendChild(grid);
+    box.appendChild(M.el('p', { class: 'readout', html: 'Adapter: <b>' + ad.trainable.toLocaleString('en-US') + '</b> trained numbers next to <b>' + ad.total.toLocaleString('en-US') + '</b> frozen ones (' + (100 * ad.trainable / ad.total).toFixed(1) + '%). Loss on capitalised text: <b>' + ad.loss_before.toFixed(2) + '</b> before, <b>' + ad.loss_after.toFixed(2) + '</b> after.' }));
+    a.textContent = 'Press Write.'; b.textContent = 'Press Write.';
+  })();
+});
+</script>
+</body>
+</html>

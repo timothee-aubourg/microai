@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Memory, books and hands | microAI</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-ch="11">
+<main>
+  <p class="where">Chapter 11</p>
+  <h1>Memory, books and hands</h1>
+  <p class="question">The model's weights are frozen, it has never seen your documents, it forgets everything between calls, and all it can do is produce text. How do you build something useful out of that?</p>
+
+  <p>By accepting one constraint and exploiting it. At run time, the model knows exactly two things: what is baked into its weights, and what is written in its context window. You cannot change the weights from your program. So everything a system does to make a model smarter about <em>your</em> situation comes down to choosing what text to put in the window.</p>
+  <p>Conversation memory, document search and tool use sound like three features. They are one mechanism used three ways.</p>
+
+  <h2>The window is a budget</h2>
+  <p>Chapter 10 showed that a chat works by resending the transcript on every turn. That transcript shares the window with everything else you want the model to know, and the window is finite. Chapter 9 showed that making it larger costs memory, and chapter 8 that reading it costs time.</p>
+
+  <section class="bench" id="w-budget">
+    <h3>What competes for the context window</h3>
+    <p class="try"><b>Try this.</b> Lengthen the conversation until the bar overflows. Then try to fix it three ways: a bigger window, fewer or smaller retrieved passages, or dropping old turns.</p>
+  </section>
+
+  <p>When the budget is exceeded something must go, and whatever goes, the model no longer knows. Every assistant that seems to "remember" is managing this budget behind the scenes: trimming old turns, replacing them with a summary, or storing them outside and fetching back only what looks relevant. That last idea is the next section.</p>
+
+  <h2>An open book: retrieval</h2>
+  <p>You have a folder of notes, far too large for the window. For any one question only a few passages matter. So find them first, and put only those in the prompt. This is <strong>retrieval-augmented generation</strong>, RAG, and it needs nothing beyond chapter 4.</p>
+  <ol>
+    <li>Cut the documents into passages, called chunks.</li>
+    <li>Turn each chunk into a vector, with a model trained so that texts with similar meaning get vectors pointing in similar directions. Do this once and keep the vectors.</li>
+    <li>Turn the question into a vector the same way, and take the chunks with the highest cosine similarity.</li>
+    <li>Write those chunks into the prompt above the question.</li>
+  </ol>
+
+  <section class="bench" id="w-rag">
+    <h3>Search the notes of this course</h3>
+    <p class="try"><b>Try this.</b> Ask something the notes cover, in their words. Then ask <b>why is my laptop sluggish</b>. The notes do discuss speed, but this demo compares texts by shared words, and there are none. That failure is the reason real systems use learned embeddings.</p>
+  </section>
+
+  <p>The demo above builds its vectors from word counts, weighting rare words more (a classic method called TF-IDF). It is transparent and has no model to download, and it is blind to meaning: <em>sluggish</em> and <em>slow</em> are unrelated to it. An embedding model fixes that. It is a transformer like the one you built, trained so that its output vector captures what a passage is about, and your local server can run one alongside the chat model. The script in this repository uses one if you name it, and falls back to word counts otherwise.</p>
+
+  <h2>Hands: tools</h2>
+  <p>A model can only emit text. It cannot look at a clock, multiply reliably, or read a file. But your program can, so the two make a deal.</p>
+  <p>You describe each available function to the model: its name, what it does, what arguments it takes. The model has been trained so that, when a function would help, it writes a specially formatted request instead of an answer. Your program notices the request, runs the function, and appends the result to the conversation as a new message. Then it calls the model again. With the result now in its window, the model can answer, or ask for another tool.</p>
+
+  <section class="bench" id="w-agent">
+    <h3>One tool call, message by message</h3>
+    <p class="try"><b>Try this.</b> Press Next and read who wrote each message. This trace is scripted to show the flow; run <code>code/ch11_agent.py</code> to watch a real model do it.</p>
+  </section>
+
+  <p>Notice what the model did at the third message: it wrote text. It did not calculate anything. The arithmetic happened in your program. And notice that the "state" of the whole process is just the growing list of messages. Put that exchange inside a loop that continues until the model answers in plain text, and you have what is called an <strong>agent</strong>.</p>
+
+  <h2>Build it</h2>
+  <pre class="code" data-src="ch11_rag.py#retrieve">def normalize(v):
+    return v / (np.linalg.norm(v, axis=-1, keepdims=True) + 1e-9)
+
+class Index:
+    def __init__(self, chunks, embedder):
+        self.chunks, self.embedder = chunks, embedder
+        self.vectors = normalize(embedder(chunks))          # computed once, reused for every question
+
+    def search(self, question, k=2):
+        q = normalize(self.embedder([question]))[0]
+        scores = self.vectors @ q                           # cosine similarity with every chunk
+        best = np.argsort(-scores)[:k]
+        return [(float(scores[i]), self.chunks[i]) for i in best]
+
+def build_prompt(question, hits):
+    context = '\n\n'.join(f'[{n + 1}] {chunk}' for n, (_, chunk) in enumerate(hits))
+    return ('Answer the question using only the notes below. '
+            'Cite the note number. If the notes do not contain the answer, say so.\n\n'
+            f'NOTES\n{context}\n\nQUESTION\n{question}')</pre>
+  <p class="src">From <code>code/ch11_rag.py</code>. An index is a matrix of vectors; search is one matrix-vector product.</p>
+  <pre class="code" data-src="ch11_agent.py#tools"># What the model is told about the tools: a name, a description, a JSON schema.
+TOOLS = [
+    {'type': 'function', 'function': {
+        'name': 'calculator',
+        'description': 'Evaluate an arithmetic expression, e.g. "0.17 * 2340".',
+        'parameters': {'type': 'object', 'properties': {'expression': {'type': 'string'}}, 'required': ['expression']}}},
+    {'type': 'function', 'function': {
+        'name': 'search_notes',
+        'description': 'Search the course notes on local LLMs. Returns the most relevant passages.',
+        'parameters': {'type': 'object', 'properties': {'query': {'type': 'string'}}, 'required': ['query']}}},
+]</pre>
+  <p class="src">From <code>code/ch11_agent.py</code>. What the model is told about its tools.</p>
+  <pre class="code" data-src="ch11_agent.py#loop">def run_agent(question, max_steps=6, verbose=True):
+    messages = [
+        {'role': 'system', 'content': 'Use the tools when they help. Answer briefly when you are done.'},
+        {'role': 'user', 'content': question},
+    ]
+    for _ in range(max_steps):
+        reply = chat(messages, tools=TOOLS, temperature=0)
+        messages.append(reply)
+        if not reply.get('tool_calls'):            # plain text: the model is finished
+            return reply['content']
+        for call in reply['tool_calls']:           # the model asked for something
+            name, args = call['function']['name'], call['function']['arguments']
+            args = json.loads(args) if isinstance(args, str) else args
+            try:
+                result = str(REGISTRY[name](**args))
+            except Exception as e:                 # errors go back to the model: it can retry
+                result = f'error: {e}'
+            if verbose:
+                print(f'  tool  {name}({args}) -&gt; {result[:80]!r}')
+            messages.append({'role': 'tool', 'tool_call_id': call.get('id', ''), 'content': result})
+    return 'Stopped: too many steps.'              # a loop needs a brake</pre>
+  <p class="src">The agent loop, complete.</p>
+
+  <h2>What makes this hard in practice</h2>
+  <ul>
+    <li><strong>Small models make more mistakes in the format.</strong> They may call a tool that does not exist or pass malformed arguments. The loop above sends the error back as the tool's result, which often lets the model correct itself.</li>
+    <li><strong>Loops need brakes.</strong> A confused model can call tools forever. Always cap the number of steps.</li>
+    <li><strong>Tools run with your permissions.</strong> Text written by a model, possibly influenced by a web page or document it just read, ends up as arguments to your functions. Offer few tools, check their arguments, and never pass model output to <code>eval</code> or a shell.</li>
+    <li><strong>Retrieval finds similar text, not true text.</strong> If the right passage is not retrieved, or a wrong one is, the model will usually answer confidently from what it was given.</li>
+  </ul>
+  <p>One more caution, about judging such systems. An agent can score well on a published benchmark and fail on a task that looks almost the same to you. A benchmark is a fixed set of situations; a system tuned on it, or a model whose training data resembled it, can succeed through regularities that hold there and nowhere else. The dependable measure is a small set of tasks from your own work, with answers you have checked.</p>
+
+  <div class="note">
+    <h3>What this chapter glossed over</h3>
+    <p><strong>Chunking is a craft.</strong> Here each note is one chunk. Real documents must be cut, and where you cut changes what can be found. Too small and passages lose their context; too large and they dilute the vector and crowd the window.</p>
+    <p><strong>Tool calling is a convention, not a capability of the architecture.</strong> A model does it only if it was trained on that format. Check that the model you download lists tool support.</p>
+    <p><strong>How these scripts were tested.</strong> Retrieval runs fully offline and was tested as is. The agent loop was tested against the fake server in this repository, which picks tools by simple rules. A real model's behaviour will vary.</p>
+  </div>
+
+  <h2>Check yourself</h2>
+  <details class="check"><summary>A user says "as I told you last week…". What would have to be true for a local assistant to know what they mean?</summary><p>The text of last week's conversation, or a summary of it, must be put into the current window. Either the program stored it and resends it, or it retrieves the relevant part. The model itself retained nothing.</p></details>
+  <details class="check"><summary>In the tool-call trace, which messages did the model write?</summary><p>The third and the fifth: the request to use the calculator, and the final answer. The system and user messages came from you, and the tool result from your program.</p></details>
+  <details class="check"><summary>Retrieval returned two passages, neither containing the answer. What will the model probably do, and how do you reduce the harm?</summary><p>It will often produce a plausible answer anyway. Instruct it to answer only from the passages and to say when they are insufficient, show the user which passages were used, and measure how often the right passage is retrieved.</p></details>
+</main>
+
+<script src="assets/data.js"></script>
+<script src="assets/micro.js"></script>
+<script>
+M.ready(function () {
+  // ---------- widget 1: context budget ----------
+  (function () {
+    var box = M.$('#w-budget'), win = 8192;
+    var wSel = M.select('Window', [['8192', '8,192 tokens'], ['2048', '2,048'], ['4096', '4,096'], ['32768', '32,768']], function (v) { win = +v; draw(); });
+    var turns = M.slider({ label: 'Conversation turns', min: 0, max: 60, value: 12, oninput: draw });
+    var kS = M.slider({ label: 'Retrieved passages', min: 0, max: 10, value: 3, oninput: draw });
+    var cS = M.slider({ label: 'Tokens per passage', min: 100, max: 1500, step: 100, value: 500, oninput: draw });
+    var bar = M.el('div', { style: 'position:relative;display:flex;height:34px;border-radius:8px;overflow:hidden;border:1px solid var(--line);margin:12px 0 6px;background:var(--soft)' });
+    var leg = M.el('div', { class: 'legend' }), stat = M.el('p', { class: 'readout' });
+    var parts = [['instructions and tool descriptions', '--muted'], ['retrieved passages', '--prob-fill'], ['conversation so far', '--fwd'], ['room for the reply', '--ok']];
+    function draw() {
+      var vals = [750, kS.value * cS.value, turns.value * 150, 600], tot = vals.reduce(function (a, b) { return a + b; }, 0), scale = Math.max(win, tot);
+      bar.textContent = ''; leg.textContent = '';
+      parts.forEach(function (p, i) {
+        bar.appendChild(M.el('div', { style: 'width:' + (100 * vals[i] / scale) + '%;background:var(' + p[1] + ')', title: p[0] + ': ' + vals[i] }));
+        leg.appendChild(M.el('span', null, M.el('i', { style: 'background:var(' + p[1] + ')' }), p[0] + ' ' + vals[i].toLocaleString('en-US')));
+      });
+      if (tot > win) bar.appendChild(M.el('div', { style: 'position:absolute;top:0;bottom:0;width:3px;background:var(--grad);left:' + (100 * win / scale) + '%', title: 'end of the window' }));
+      bar.style.outline = tot > win ? '3px solid var(--grad)' : 'none';
+      stat.innerHTML = '<b>' + tot.toLocaleString('en-US') + '</b> of ' + win.toLocaleString('en-US') + ' tokens. ' + (tot > win ? '<span class="grad">Over by ' + (tot - win).toLocaleString('en-US') + ': something has to be dropped, and the model will not know it existed.</span>' : 'It fits, with ' + (win - tot).toLocaleString('en-US') + ' to spare.');
+    }
+    box.appendChild(M.row(wSel, turns)); box.appendChild(M.row(kS, cS));
+    box.appendChild(bar); box.appendChild(leg); box.appendChild(stat);
+    box.appendChild(M.el('p', { class: 'caption', text: 'Assumes 150 tokens per turn, 750 for instructions and tools, 600 reserved for the answer.' }));
+    draw();
+  })();
+
+  // ---------- widget 2: retrieval over the course notes (TF-IDF, as in code/ch11_rag.py) ----------
+  (function () {
+    var box = M.$('#w-rag'), notes = window.MICRO_DATA.notes;
+    var words = function (t) { return t.toLowerCase().match(/[a-z0-9]+/g) || []; };
+    var docs = notes.map(function (n) { return words(n.title + ' ' + n.text); }), df = {}, N = docs.length;
+    docs.forEach(function (d) { new Set(d).forEach(function (w) { df[w] = (df[w] || 0) + 1; }); });
+    var idf = function (w) { return Math.log((1 + N) / (1 + df[w])) + 1; };
+    function vec(ws) { var v = {}; ws.forEach(function (w) { if (df[w]) v[w] = (v[w] || 0) + idf(w); }); var n = 0; for (var k in v) n += v[k] * v[k]; n = Math.sqrt(n) || 1; for (k in v) v[k] /= n; return v; }
+    var dv = docs.map(vec);
+    var q = M.el('input', { type: 'text', id: 'rag-q', value: 'why divide attention scores by the square root', 'aria-label': 'Question' });
+    var bars = M.el('div'), out = M.el('div', { class: 'out', style: 'max-height:240px;font-size:13px' }), stat = M.el('p', { class: 'readout' });
+    function draw() {
+      var qv = vec(words(q.value));
+      var sc = dv.map(function (d, i) { var s = 0; for (var k in qv) if (d[k]) s += qv[k] * d[k]; return [i, s]; }).sort(function (a, b) { return b[1] - a[1]; });
+      M.bars(bars, sc.slice(0, 5).map(function (s, r) { return { label: notes[s[0]].title, p: s[1], hl: r < 2 && s[1] > 0, text: s[1].toFixed(2) }; }), 1);
+      bars.style.gridTemplateColumns = 'minmax(0,55%) minmax(50px,1fr) auto';
+      bars.querySelectorAll('.lab').forEach(function (l) { l.style.overflow = 'hidden'; l.style.textOverflow = 'ellipsis'; l.style.fontFamily = 'var(--sans)'; l.title = l.textContent; });
+      var hits = sc.slice(0, 2).filter(function (s) { return s[1] > 0; });
+      if (!hits.length) { stat.innerHTML = '<span class="grad">No note shares a single word with the question, so every score is 0 and nothing useful can be retrieved.</span>'; out.textContent = ''; return; }
+      stat.innerHTML = 'The two best passages go into the prompt. This is the text the model would receive:';
+      out.textContent = 'Answer the question using only the notes below. Cite the note number. If the notes do not contain the answer, say so.\n\nNOTES\n' +
+        hits.map(function (h, i) { return '[' + (i + 1) + '] ' + notes[h[0]].title + '\n' + notes[h[0]].text; }).join('\n\n') + '\n\nQUESTION\n' + q.value;
+    }
+    q.addEventListener('input', draw);
+    box.appendChild(q); box.appendChild(M.el('p', { class: 'caption', text: 'Cosine similarity between the question and each note (top five):', style: 'margin:10px 0 6px' }));
+    box.appendChild(bars); box.appendChild(stat); box.appendChild(out);
+    draw();
+  })();
+
+  // ---------- widget 3: a tool call, step by step ----------
+  (function () {
+    var box = M.$('#w-agent'), n = 2;
+    var trace = [
+      ['system', 'Use the tools when they help. Answer briefly when you are done.\n[tools: calculator(expression), search_notes(query)]', 'Written by your program, once.', '--muted'],
+      ['user', 'What is 17% of 2,340?', 'Typed by the person.', '--ink'],
+      ['assistant', '{"tool_calls": [{"name": "calculator",\n  "arguments": {"expression": "0.17 * 2340"}}]}', 'Written by the model. It is asking, not computing.', '--fwd'],
+      ['tool', '397.8', 'Your program ran calculator("0.17 * 2340") and appended the result.', '--prob'],
+      ['assistant', '17% of 2,340 is 397.8.', 'Written by the model, which can now read the result in its context.', '--fwd']
+    ];
+    var list = M.el('div', { style: 'display:grid;gap:8px;margin:10px 0' }), stat = M.el('p', { class: 'readout' });
+    function draw() {
+      list.textContent = '';
+      trace.slice(0, n).forEach(function (t) {
+        var card = M.el('div', { style: 'border:1px solid var(--line);border-left:5px solid var(' + t[3] + ');border-radius:8px;padding:8px 12px;background:var(--paper)' });
+        card.appendChild(M.el('b', { text: t[0] }));
+        card.appendChild(M.el('div', { style: 'font-family:var(--mono);font-size:13.5px;white-space:pre-wrap;margin:4px 0', text: t[1] }));
+        card.appendChild(M.el('div', { class: 'caption', text: t[2], style: 'margin:0' }));
+        list.appendChild(card);
+      });
+      next.disabled = n >= trace.length;
+      stat.textContent = n >= trace.length ? 'Done: the model replied in plain text, so the loop ends. The model was called twice.' : 'Messages in the conversation: ' + n + '. Next: ' + (n === 2 || n === 4 ? 'call the model with all of them.' : 'your program runs the tool.');
+    }
+    var next = M.button('Next', function () { n = Math.min(trace.length, n + 1); draw(); }, 'go');
+    box.appendChild(M.row(next, M.button('Start over', function () { n = 2; draw(); })));
+    box.appendChild(list); box.appendChild(stat);
+    draw();
+  })();
+});
+</script>
+</body>
+</html>

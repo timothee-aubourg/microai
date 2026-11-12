@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fitting it in your RAM | microAI</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-ch="9">
+<main>
+  <p class="where">Chapter 9</p>
+  <h1>Fitting it in your RAM</h1>
+  <p class="question">A model with 8 billion weights, stored at 16 bits each, is a 16-gigabyte file. Many laptops have 16 gigabytes of memory in total. How do people run it anyway?</p>
+
+  <p>Models are trained with weights stored as 16- or 32-bit floating-point numbers, because gradient descent needs to make very fine adjustments. Once training is over, nothing needs adjusting. The question becomes: how precisely do the weights have to be <em>stored</em> for the model to behave the same?</p>
+  <p>Much less precisely than you would guess. Storing weights with fewer bits is called <strong>quantization</strong>, and it is the single reason large models run on personal computers.</p>
+
+  <h2>Rounding to a grid</h2>
+  <p>With 4 bits you can write 16 different values. So pick a step size, and replace each weight by the nearest multiple of that step. What gets stored is a small integer per weight plus the step size, called the <strong>scale</strong>. To compute, the runtime multiplies them back together.</p>
+  <div class="eq">weight ≈ scale × integer, &nbsp; integer ∈ {−7, …, 7} for 4 bits</div>
+  <p>This throws information away. The experiment below does it to the model of this course, for real, in your browser: every matrix is rounded, and then the rounded model is tested on held-out text.</p>
+
+  <section class="bench" id="w-quant">
+    <h3>Round the weights, measure the damage</h3>
+    <p class="try"><b>Try this.</b> Step the bits down from 16 to 1 and watch the loss. Find where it stops being harmless. Then, at 4 bits, switch from one scale per block of 32 weights to one scale for a whole matrix. Last, compare 2 bits with 1 bit.</p>
+  </section>
+
+  <p>Three things explain why the first several steps cost almost nothing.</p>
+  <ul>
+    <li><strong>Weights huddle near zero.</strong> The grey histogram is a bell. A modest grid covers nearly all of it with small rounding errors.</li>
+    <li><strong>Errors average out.</strong> Each number the model computes is a sum over hundreds of weights. Rounding pushes some up and some down, and in a sum those errors largely cancel.</li>
+    <li><strong>The model is used to noise.</strong> It was trained on random batches with a jittery optimiser. Solutions that only work with exact weights do not survive that process.</li>
+  </ul>
+  <p>The cancelling has a limit. Once the rounding errors are no longer small compared with the weights themselves, they compound from layer to layer and the loss turns sharply upward. For our small model with this simple rounding, 5 bits is still nearly free, 4 bits costs a visible 0.16, and 3 bits is ruinous. Large models quantized with better methods hold up at 4 bits, and the cliff comes just below.</p>
+  <p>The comparison of 2 bits with 1 bit shows how much the method matters. With 2 bits this scheme has three levels, −1, 0 and +1, and stretches them to the largest weight in each block, so most weights round to zero. The result scores worse than guessing at random: a confidently wrong model. The 1-bit version keeps every weight's sign and one average size, and does better with half the bits.</p>
+
+  <h2>Why blocks</h2>
+  <p>One scale for a whole matrix has a weakness: a single unusually large weight stretches the grid for everyone, and the many small weights all collapse to zero. Giving each block of 32 weights its own scale lets the grid fit locally. It costs one extra 16-bit number per 32 weights, half a bit per weight.</p>
+  <p>That arithmetic is exactly where real file formats come from. Four bits plus half a bit is 4.5 bits per weight, the size of the simplest 4-bit format used by llama.cpp, called Q4_0. Eight bits plus half a bit is 8.5, its Q8_0. The formats people actually use today are refinements: the "K" variants nest small blocks inside larger ones and spend more bits on the matrices that matter most.</p>
+  <div class="scroll"><table>
+    <tr><th>Format</th><th>Bits per weight</th><th>An 8-billion-weight model</th></tr>
+    <tr><td>F16 (as trained)</td><td>16</td><td>16 GB</td></tr>
+    <tr><td>Q8_0</td><td>8.5</td><td>8.5 GB</td></tr>
+    <tr><td>Q6_K</td><td>about 6.6</td><td>6.6 GB</td></tr>
+    <tr><td>Q5_K_M</td><td>about 5.7</td><td>5.7 GB</td></tr>
+    <tr><td>Q4_K_M</td><td>about 4.85</td><td>4.9 GB</td></tr>
+    <tr><td>Q3_K_M</td><td>about 3.9</td><td>3.9 GB</td></tr>
+    <tr><td>Q2_K</td><td>about 3.35</td><td>3.4 GB</td></tr>
+  </table></div>
+  <p class="caption" style="font-family:var(--sans)">Bits per weight as reported in the llama.cpp quantization documentation and tables; the mixed formats vary slightly from model to model.</p>
+  <p>Q4_K_M is the usual default: about 3.3 times smaller than the 16-bit original for a quality loss most people cannot notice. A widely repeated rule of thumb follows: for a fixed amount of memory, a larger model at 4 bits usually beats a smaller model at 8 bits.</p>
+
+  <h2>Will it fit? How fast will it go?</h2>
+  <p>Both questions can be answered with arithmetic before downloading anything.</p>
+  <p><strong>Memory.</strong> The weights take parameters × bits ÷ 8 bytes. On top comes the KV cache of chapter 8, which grows with the length of the context.</p>
+  <p><strong>Speed.</strong> To produce one token, the computer must read every weight once. On most hardware the bottleneck is not arithmetic. It is how fast memory can deliver bytes to the processor, the <strong>memory bandwidth</strong>. If the model is 5 GB and memory delivers 100 GB per second, you cannot exceed 20 tokens per second, however many cores you have.</p>
+  <div class="eq">tokens per second ≤ <span class="frac"><span>memory bandwidth</span><span>model size</span></span></div>
+  <p>This one inequality explains most of local-model hardware. Graphics cards are fast mainly because their memory is fast. Apple's M-series laptops do well because their unified memory has between two and ten times the bandwidth of ordinary laptop RAM. And a smaller quantization is not only smaller, it is faster, because there are fewer bytes to read per token.</p>
+
+  <section class="bench" id="w-fit">
+    <h3>Memory and speed, before you download</h3>
+    <p class="try"><b>Try this.</b> Set the model size and format you are considering, and your hardware. Then lengthen the context and watch the cache grow.</p>
+  </section>
+
+  <h2>Build it</h2>
+  <pre class="code" data-src="ch09_quantize.py#quantize">def quantize(w, bits, block=32):
+    """Return w rounded to `bits` bits per weight, with one float16 scale per block."""
+    flat = w.reshape(-1)
+    pad = (-len(flat)) % block
+    blocks = np.concatenate([flat, np.zeros(pad, flat.dtype)]).reshape(-1, block)
+    if bits == 1:                                    # 1 bit: keep only the sign
+        scale = np.abs(blocks).mean(axis=1, keepdims=True).astype(np.float16)
+        deq = np.sign(blocks) * scale
+    else:
+        qmax = 2 ** (bits - 1) - 1                   # e.g. 4 bits -&gt; integers in [-7, 7]
+        scale = (np.abs(blocks).max(axis=1, keepdims=True) / qmax).astype(np.float16)
+        scale = np.maximum(scale, np.float16(1e-8))
+        q = np.clip(np.round(blocks / scale), -qmax, qmax)   # what gets stored: small ints
+        deq = q * scale                                      # what the runtime computes with
+    return deq.reshape(-1)[:len(flat)].reshape(w.shape).astype(np.float32)</pre>
+  <p class="src">From <code>code/ch09_quantize.py</code>. Its output on our model, measured on 1,024 held-out characters (the same ones the experiment above uses):</p>
+  <div class="scroll" id="qtable"><table>
+    <tr><th>Stored as</th><th>Bits per weight</th><th>Size</th><th>Held-out loss</th><th>Change</th></tr>
+    <tr><td>float32</td><td>32</td><td>1,344 KB</td><td>1.568</td><td></td></tr>
+    <tr><td>float16</td><td>16</td><td>672 KB</td><td>1.568</td><td>0.000</td></tr>
+    <tr><td>8 bits, scale per block</td><td>8.5</td><td>357 KB</td><td>1.568</td><td>+0.001</td></tr>
+    <tr><td>6 bits, scale per block</td><td>6.5</td><td>273 KB</td><td>1.576</td><td>+0.009</td></tr>
+    <tr><td>5 bits, scale per block</td><td>5.5</td><td>231 KB</td><td>1.592</td><td>+0.024</td></tr>
+    <tr><td>4 bits, scale per block</td><td>4.5</td><td>189 KB</td><td>1.727</td><td>+0.159</td></tr>
+    <tr><td>3 bits, scale per block</td><td>3.5</td><td>147 KB</td><td>2.800</td><td>+1.232</td></tr>
+    <tr><td>2 bits, scale per block</td><td>2.5</td><td>105 KB</td><td>5.557</td><td>+3.990</td></tr>
+    <tr><td>1 bit, scale per block</td><td>1.5</td><td>63 KB</td><td>3.726</td><td>+2.159</td></tr>
+    <tr><td>4 bits, one scale per matrix</td><td>4</td><td>168 KB</td><td>3.016</td><td>+1.448</td></tr>
+  </table></div>
+
+  <div class="note">
+    <h3>What this chapter glossed over</h3>
+    <p><strong>Our rounding is the naive kind.</strong> Round-to-nearest with a per-block scale is the simplest scheme. Real quantizers choose scales to minimise the error on what matters, and some use sample text to find out which weights are sensitive. They lose less than what you see here.</p>
+    <p><strong>A tiny model is a harsh test.</strong> Large models have far more redundancy and tolerate rounding better than our 345,504 weights do. The shape of the curve carries over; the exact bit count where it bends does not.</p>
+    <p><strong>The speed bound is a ceiling.</strong> Real speeds land below it, and for small models or when reading a long prompt, raw compute is the limit instead. The hardware figures in the calculator are round numbers for typical machines of each kind.</p>
+    <p><strong>The cache estimate assumes a typical layout.</strong> It guesses the depth and width of a model from its parameter count, the way chapter 6 counted parameters in reverse. Expect the real figure within a factor of two.</p>
+  </div>
+
+  <h2>Check yourself</h2>
+  <details class="check"><summary>How large is a 12-billion-weight model in Q4_K_M?</summary><p>12 × 10⁹ × 4.85 ÷ 8 ≈ 7.3 GB, plus the cache. It fits a 16 GB machine with room for the system; it does not fit an 8 GB one.</p></details>
+  <details class="check"><summary>Why does a per-block scale beat one scale per matrix, at the same number of bits?</summary><p>The grid must stretch to the largest weight it covers. One outlier in a matrix makes the steps coarse for all the others. With blocks, an outlier only spoils its own 32 neighbours.</p></details>
+  <details class="check"><summary>You switch the same model from Q8_0 to Q4_K_M. What happens to the speed ceiling?</summary><p>It rises by 8.5 ÷ 4.85 ≈ 1.75 times, because each token now requires reading that many fewer bytes.</p></details>
+</main>
+
+<script src="assets/data.js"></script>
+<script src="assets/weights.js"></script>
+<script src="assets/micro.js"></script>
+<script>
+M.ready(function () {
+  // ---------- widget 1: quantize the real model ----------
+  (function () {
+    var box = M.$('#w-quant'), m = M.loadModel(), D = window.MICRO_DATA;
+    if (!m) { box.appendChild(M.el('p', { text: 'The model weights did not load, so this experiment is unavailable.' })); return; }
+    var levels = [16, 8, 6, 5, 4, 3, 2, 1], mode = 'block', cache = {}, cur = null, timer = 0;
+    var nW = 0; for (var k in m.w) if (m.shape[k].length === 2 && k.indexOf('lora.') !== 0) nW += m.w[k].length;
+    var ref = m.w['h1.mlp.w1'], lim = 0; for (var i = 0; i < ref.length; i++) lim = Math.max(lim, Math.abs(ref[i]));
+    var stat = M.el('p', { class: 'readout', style: 'min-height:44px' }), out = M.el('div', { class: 'out', style: 'min-height:60px' });
+    var bits = M.slider({ label: 'Bits per weight', min: 0, max: 7, value: 0, fmt: function (i) { return levels[i]; }, oninput: change });
+    var modeSel = M.select('Scale', [['block', 'one per block of 32'], ['tensor', 'one per matrix']], function (v) { mode = v; change(); });
+    function weights() { var b = levels[bits.value]; return b >= 16 ? m.w : M.quantizeModel(m, b, mode === 'block' ? 32 : 0); }
+    var grid = M.el('div', { class: 'col2' }), L = M.el('div'), R = M.el('div');
+    L.appendChild(M.el('p', { class: 'caption', text: 'One matrix (block 2, MLP): original weights in grey, stored values in blue', style: 'margin:0 0 6px' }));
+    R.appendChild(M.el('p', { class: 'caption', text: 'Held-out loss for every setting you have tried', style: 'margin:0 0 6px' }));
+    var hist = M.canvas(L, 180, function (o) {
+      var c = o.ctx, nb = 121, h0 = new Float64Array(nb), h1 = new Float64Array(nb), q = cur ? cur['h1.mlp.w1'] : ref;
+      var bin = function (v) { return Math.max(0, Math.min(nb - 1, Math.round((v / lim * 0.5 + 0.5) * (nb - 1)))); };
+      for (var i = 0; i < ref.length; i++) { h0[bin(ref[i])]++; h1[bin(q[i])]++; }
+      var mx = Math.max.apply(null, h0) * 1.6, bw = o.w / nb;
+      c.fillStyle = M.css('--muted'); c.globalAlpha = 0.45;
+      for (i = 0; i < nb; i++) c.fillRect(i * bw, o.h - 4 - h0[i] / mx * (o.h - 10), bw, h0[i] / mx * (o.h - 10));
+      c.globalAlpha = 0.9; c.fillStyle = M.css('--fwd');
+      for (i = 0; i < nb; i++) { var hh = Math.min(o.h - 6, h1[i] / mx * (o.h - 10)); c.fillRect(i * bw + bw * 0.25, o.h - 4 - hh, bw * 0.5, hh); }
+      c.globalAlpha = 1;
+    });
+    var plot = M.canvas(R, 180, function (o) {
+      var X = function (b) { return levels.length - 1 - levels.indexOf(b); };
+      var ser = ['block', 'tensor'].map(function (md) {
+        var pts = []; levels.forEach(function (b) { var v = cache[md + b]; if (md === 'tensor' && b === 16) return; if (v != null) pts.push([X(b), Math.min(5.9, v)]); });
+        pts.sort(function (a, b) { return a[0] - b[0]; });
+        return { pts: pts, color: M.css(md === 'block' ? '--fwd' : '--grad'), dots: 4, width: 1.5 };
+      });
+      M.plot(o, { xmin: -0.3, xmax: 7.3, ymin: 1.2, ymax: 6, yticks: [2, 3, 4, 5, 6], xticks: [0, 1, 2, 3, 4, 5, 6, 7], xfmt: function (t) { return String(levels[7 - t]); }, xlabel: 'bits per weight', series: ser,
+        hlines: [{ y: 4.174, label: 'uniform guessing', left: true }] });
+    });
+    function change() {
+      clearTimeout(timer); cur = weights(); hist.redraw();
+      var b = levels[bits.value], key = mode + b, bpw = b >= 16 ? 16 : b + (mode === 'block' ? 0.5 : 0);
+      var head = 'Stored size: <b>' + (nW * bpw / 8 / 1024).toFixed(0) + ' KB</b> at ' + bpw + ' bits per weight. Held-out loss: ';
+      out.textContent = '';
+      if (cache[key] == null) { stat.innerHTML = head + 'measuring…'; timer = setTimeout(function () { cache[key] = M.loss(m, D.windows, cur); if (b >= 16) cache['tensor16'] = cache['block16'] = cache[key]; change(); }, 30); return; }
+      var base = cache['block16'];
+      stat.innerHTML = head + '<b>' + cache[key].toFixed(3) + '</b>' + (base != null && b < 16 ? ' (' + (cache[key] - base >= 0 ? '+' : '') + (cache[key] - base).toFixed(3) + ' against 16 bits)' : '');
+      plot.redraw();
+    }
+    grid.appendChild(L); grid.appendChild(R);
+    box.appendChild(M.row(bits, modeSel)); box.appendChild(stat); box.appendChild(grid);
+    box.appendChild(M.el('div', { class: 'legend' }, M.el('span', null, M.el('i', { style: 'background:var(--fwd)' }), 'scale per block of 32'), M.el('span', null, M.el('i', { style: 'background:var(--grad)' }), 'one scale per matrix')));
+    box.appendChild(M.row(M.button('Write 100 characters with these weights', function () {
+      out.textContent = 'writing…';
+      setTimeout(function () { out.textContent = M.generate(m, 'KING RICHARD:\n', 100, { temperature: 0.7 }, M.rng(5), cur); }, 30);
+    }, 'go')));
+    box.appendChild(out);
+    change();
+  })();
+
+  // ---------- widget 2: will it fit, how fast ----------
+  (function () {
+    var box = M.$('#w-fit');
+    var sizes = [0.5, 1, 2, 3, 4, 7, 8, 12, 14, 20, 27, 32, 49, 70, 120];
+    var quants = [['4.85', 'Q4_K_M (about 4.85 bits)'], ['16', 'F16 (16 bits)'], ['8.5', 'Q8_0 (8.5 bits)'], ['6.56', 'Q6_K (about 6.6 bits)'], ['5.7', 'Q5_K_M (about 5.7 bits)'], ['3.9', 'Q3_K_M (about 3.9 bits)'], ['3.35', 'Q2_K (about 3.35 bits)']];
+    var ctxs = [['2048', '2,048 tokens'], ['4096', '4,096'], ['8192', '8,192'], ['16384', '16,384'], ['32768', '32,768'], ['131072', '131,072']];
+    var hw = [['100', 'Apple M-series, base chip (~100 GB/s)'], ['40', 'Laptop, DDR4 memory (~40 GB/s)'], ['80', 'Desktop, DDR5 memory (~80 GB/s)'], ['200', 'Apple M-series Pro (~200 GB/s)'], ['400', 'Apple M-series Max (~400 GB/s)'], ['1000', 'High-end graphics card (~1,000 GB/s)']];
+    var bpw = 4.85, ctx = 8192, bw = 100;
+    var pS = M.slider({ label: 'Parameters', min: 0, max: sizes.length - 1, value: 6, fmt: function (i) { return sizes[i] + ' B'; }, oninput: draw });
+    var qSel = M.select('Format', quants, function (v) { bpw = +v; draw(); });
+    var cSel = M.select('Context', ctxs, function (v) { ctx = +v; draw(); }); cSel.sel.value = '8192';
+    var hSel = M.select('Hardware', hw, function (v) { bw = +v; draw(); });
+    var bars = M.el('div'), fits = M.el('div', { class: 'chips', style: 'margin:12px 0 4px;font-family:var(--sans)' }), stat = M.el('p', { class: 'readout' });
+    function draw() {
+      var P = sizes[pS.value] * 1e9, wGB = P * bpw / 8 / 1e9;
+      var d = Math.cbrt(128 * P / 13), layers = d / 128, kvGB = 2 * layers * ctx * (d / 4) * 2 / 1e9, tot = wGB + kvGB;
+      M.bars(bars, [{ label: 'weights', p: wGB, text: wGB.toFixed(1) + ' GB', hl: true }, { label: 'KV cache (estimate)', p: kvGB, text: kvGB.toFixed(1) + ' GB' }], Math.max(tot, 1));
+      fits.textContent = '';
+      [8, 16, 24, 32, 64, 128].forEach(function (ram) {
+        var ok = tot <= ram * 0.8, sp = M.el('span', { text: ram + ' GB: ' + (ok ? 'fits' : tot <= ram ? 'too tight' : 'no') });
+        sp.style.background = 'color-mix(in srgb, ' + M.css(ok ? '--ok' : '--grad') + ' ' + (ok ? 30 : 22) + '%, ' + M.css('--panel') + ')';
+        fits.appendChild(sp);
+      });
+      var tps = bw / wGB;
+      stat.innerHTML = 'Needs about <b>' + tot.toFixed(1) + ' GB</b> of memory. Speed ceiling on this hardware: <b>' + (tps >= 10 ? Math.round(tps) : tps.toFixed(1)) + ' tokens per second</b>, roughly ' + Math.round(tps * 0.75 * 60) + ' words per minute at best.';
+    }
+    box.appendChild(M.row(pS, qSel)); box.appendChild(M.row(cSel, hSel));
+    box.appendChild(bars); box.appendChild(fits);
+    box.appendChild(M.el('p', { class: 'caption', text: '"Fits" leaves a fifth of the memory free for the operating system and other programs.' }));
+    box.appendChild(stat);
+    draw();
+  })();
+});
+</script>
+</body>
+</html>
