@@ -12,28 +12,183 @@
   <h1>Cutting text into tokens</h1>
   <p class="question">Why don't language models read letters? And why not whole words?</p>
 
-  <p>A model works on a sequence of symbols drawn from a fixed list, its <strong>vocabulary</strong>. Chapter 1 used characters. That choice has a cost you will feel later: the model has to spend its capacity on spelling, and a context window of 4,000 symbols holds only 4,000 characters, about a page.</p>
-  <p>Whole words fix that and break something else. The list of words is never finished. New names, typos, code, other languages: a word-level model meets things it has no symbol for, and can do nothing with them.</p>
-  <p>The solution used by essentially every modern language model sits in between. Common words become one symbol. Rare words are spelled out from smaller pieces. These pieces are called <strong>tokens</strong>, and the surprising part is that nobody designs them. A very simple greedy procedure finds them in the data.</p>
+  <p>In chapter 1 the model read and wrote single characters. That was a choice, and not the one real models make. Before a model can do anything with text, the text has to be cut into pieces, and each piece replaced by a number, because a model computes with numbers and nothing else. How you cut matters more than it seems: it decides how much text fits in the model's view, what the model has to waste effort on, and whether it can read a word it has never met. This chapter compares the options and then builds the one every modern model uses.</p>
+
+  <h2>What the model actually sees</h2>
+  <figure class="fig">
+    <svg viewBox="0 0 760 190" role="img" aria-labelledby="f21t">
+      <title id="f21t">Text is cut into tokens, each token is replaced by its number in the vocabulary, and only the numbers go into the model.</title>
+      <defs><marker id="c2a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
+      <text x="20" y="40" class="t-small t-muted">text</text>
+      <text x="110" y="42" class="t-mono t-big">the cat sat</text>
+      <line x1="200" y1="54" x2="200" y2="72" class="ln" marker-end="url(#c2a)"/>
+      <text x="20" y="98" class="t-small t-muted">tokens</text>
+      <rect x="110" y="78" width="62" height="30" rx="5" class="bx-fwd"/><text x="141" y="98" text-anchor="middle" class="t-mono">the</text>
+      <rect x="176" y="78" width="62" height="30" rx="5" class="bx-prob"/><text x="207" y="98" text-anchor="middle" class="t-mono">␣cat</text>
+      <rect x="242" y="78" width="62" height="30" rx="5" class="bx-grad"/><text x="273" y="98" text-anchor="middle" class="t-mono">␣sat</text>
+      <line x1="200" y1="114" x2="200" y2="132" class="ln" marker-end="url(#c2a)"/>
+      <text x="20" y="158" class="t-small t-muted">token IDs</text>
+      <rect x="110" y="138" width="62" height="30" rx="5" class="bx"/><text x="141" y="158" text-anchor="middle" class="t-mono">1169</text>
+      <rect x="176" y="138" width="62" height="30" rx="5" class="bx"/><text x="207" y="158" text-anchor="middle" class="t-mono">3797</text>
+      <rect x="242" y="138" width="62" height="30" rx="5" class="bx"/><text x="273" y="158" text-anchor="middle" class="t-mono">3332</text>
+      <line x1="310" y1="153" x2="378" y2="153" class="ln" marker-end="url(#c2a)"/>
+      <rect x="380" y="128" width="110" height="50" rx="10" class="bx-fwd"/><text x="435" y="158" text-anchor="middle" class="t-bold t-fwd">model</text>
+      <rect x="530" y="20" width="210" height="158" rx="10" class="bx"/>
+      <text x="545" y="42" class="t-small t-bold">the vocabulary (excerpt)</text>
+      <g class="t-mono t-small"><text x="545" y="68">…</text><text x="545" y="90">1169 → the</text><text x="545" y="112">3332 → ␣sat</text><text x="545" y="134">3797 → ␣cat</text><text x="545" y="156">…</text></g>
+    </svg>
+    <figcaption><b>Text in, numbers out.</b> The model never sees letters, only token IDs. The IDs shown are the ones a real tokenizer (GPT-2's) assigns. <code>␣</code> marks a space: here the space before a word is part of that word's token.</figcaption>
+  </figure>
+
+  <div class="def"><span class="kind">Definitions</span>
+    <p>A <dfn>token</dfn> is one of the pieces the text is cut into. Depending on the method, a token can be a single character, a whole word, or something in between.</p>
+    <p>The <dfn>vocabulary</dfn> is the fixed list of every token the model knows. A token's position in that list is its <dfn>token ID</dfn>. The model reads and writes token IDs; it predicts the next token exactly the way chapter 1 predicted the next character, with one probability per entry in the vocabulary.</p>
+    <p>The program that turns text into token IDs (encoding) and back (decoding) is the <dfn>tokenizer</dfn>.</p>
+  </div>
+
+  <p>So the question of this chapter is: what should the vocabulary contain? There are two obvious answers, and both fail in instructive ways.</p>
+
+  <h2>Option one: characters</h2>
+  <p>This is what chapter 1 did. The vocabulary is tiny (65 entries for our Shakespeare text) and nothing is ever unknown: any English text is a sequence of those characters. The costs come from how long the sequences become.</p>
+  <ul>
+    <li><strong>Less text fits in view.</strong> A model can only look at a limited number of tokens at once. With characters, 4,000 tokens are 4,000 characters: about a page. With pieces of four characters on average, the same 4,000 tokens hold four pages.</li>
+    <li><strong>More work per sentence.</strong> Every token costs one step of computation. Writing a 1,000-word essay one character at a time takes about 5,500 steps instead of roughly 1,300.</li>
+    <li><strong>Effort wasted on spelling.</strong> A character model has to learn that <code>t</code>, <code>h</code>, <code>e</code> together make a common word before it can learn anything about how that word is used. Part of what it can learn goes on spelling.</li>
+  </ul>
+
+  <div class="def"><span class="kind">Definitions</span>
+    <p>The <dfn>context window</dfn> is the maximum number of tokens a model can look at in one go. Anything older falls out of view. Model descriptions quote it in tokens: 8,000, 128,000, a million.</p>
+    <p>A model's <dfn>capacity</dfn> is how much it can learn, roughly set by its number of parameters (chapter 1). Capacity spent on one thing, such as spelling, is not available for anything else.</p>
+  </div>
+
+  <h2>Option two: whole words</h2>
+  <p>Then make every word a token. Sequences become short, and the model never has to spell. Try it on our text: the training part of the Shakespeare file contains 183,746 words, of which 13,706 are different. That is the vocabulary.</p>
+  <p>Now read the held-out part with it. <b>6.6% of the words</b>, one in fifteen, are not in the vocabulary: names such as <i>Licio</i>, <i>Cambio</i> and <i>Vincentio</i>, but also ordinary words such as <i>affability</i>, <i>sciences</i>, <i>languages</i>, <i>packet</i> and <i>pupils</i>. A word-level model has no token for any of them. All it can do is replace each one with a catch-all "unknown" token, and it cannot write them either.</p>
+
+  <div class="def"><span class="kind">Definition</span>
+    <p>An <dfn>out-of-vocabulary word</dfn> is a word that is not in a fixed word list. However large the list, new names, typos, technical terms, code and other languages keep producing them.</p>
+  </div>
+
+  <p>There is a quieter problem too, the one from chapter 1. Half the words in the vocabulary (6,544 of 13,706) appear exactly once in the training text, so the model sees them too seldom to learn anything about them. And each word is a separate entry with no visible relation to any other: the model has no way to see that <i>science</i> and <i>sciences</i>, or <i>speak</i> and <i>speaking</i>, share most of their letters and most of their meaning.</p>
+
+  <section class="bench" id="w-three">
+    <h3>Three ways to cut the same text</h3>
+    <p class="try"><b>Try this.</b> Edit the sentence and compare the three rows. Add a name Shakespeare never used, a typo, or a word in another language, and watch what happens to the word row.</p>
+  </section>
+
+  <p><strong>What you should have seen.</strong> Characters give the longest sequence and never fail. Words give the shortest sequence, but any word missing from the list (marked in pink) becomes "unknown" and its information is lost. The third row, tokens, sits in between: common words stay whole, and unfamiliar ones are spelled from smaller pieces, so nothing is lost. The rest of the chapter shows where those pieces come from.</p>
+
+  <h2>The idea: keep the pieces that recur</h2>
+  <p>The solution used by essentially every modern language model is a compromise. Common words become one token. Rare words are built from smaller pieces that do recur: <i>sciences</i> can be <code>science</code> + <code>s</code>, and an unknown name can be spelled one letter at a time. The surprising part is that nobody designs these pieces. A very simple procedure finds them in the data, starting from the smallest pieces there are.</p>
+
+  <h2>Starting point: bytes</h2>
+  <p>To make sure that <em>any</em> text can be encoded, in any language and with any symbol, tokenizers start not from letters but from bytes, the units computers store everything in.</p>
+
+  <div class="def"><span class="kind">Definitions</span>
+    <p>A <dfn>byte</dfn> is a whole number from 0 to 255. Every file on a computer, including every text, is a sequence of bytes.</p>
+    <p><dfn>UTF-8</dfn> is the standard rule for writing text as bytes. Plain English letters, digits and punctuation take one byte each. Other characters take two, three or four.</p>
+  </div>
+
+  <figure class="fig">
+    <svg viewBox="0 0 760 210" role="img" aria-labelledby="f22t">
+      <title id="f22t">UTF-8 bytes of four characters: A is one byte, é is two, a Chinese character three, an emoji four.</title>
+      <g class="t-mono">
+        <text x="40" y="40" text-anchor="middle" class="t-big">A</text>
+        <text x="40" y="88" text-anchor="middle" class="t-big">é</text>
+        <text x="40" y="136" text-anchor="middle" class="t-big">中</text>
+        <text x="40" y="184" text-anchor="middle" class="t-big">🤖</text>
+      </g>
+      <g class="ln"><line x1="62" y1="35" x2="90" y2="35"/><line x1="62" y1="83" x2="90" y2="83"/><line x1="62" y1="131" x2="90" y2="131"/><line x1="62" y1="179" x2="90" y2="179"/></g>
+      <g class="t-mono">
+        <rect x="95" y="18" width="50" height="32" rx="5" class="bx-fwd"/><text x="120" y="40" text-anchor="middle">41</text>
+        <rect x="95" y="66" width="50" height="32" rx="5" class="bx-fwd"/><text x="120" y="88" text-anchor="middle">c3</text>
+        <rect x="149" y="66" width="50" height="32" rx="5" class="bx-fwd"/><text x="174" y="88" text-anchor="middle">a9</text>
+        <rect x="95" y="114" width="50" height="32" rx="5" class="bx-fwd"/><text x="120" y="136" text-anchor="middle">e4</text>
+        <rect x="149" y="114" width="50" height="32" rx="5" class="bx-fwd"/><text x="174" y="136" text-anchor="middle">b8</text>
+        <rect x="203" y="114" width="50" height="32" rx="5" class="bx-fwd"/><text x="228" y="136" text-anchor="middle">ad</text>
+        <rect x="95" y="162" width="50" height="32" rx="5" class="bx-fwd"/><text x="120" y="184" text-anchor="middle">f0</text>
+        <rect x="149" y="162" width="50" height="32" rx="5" class="bx-fwd"/><text x="174" y="184" text-anchor="middle">9f</text>
+        <rect x="203" y="162" width="50" height="32" rx="5" class="bx-fwd"/><text x="228" y="184" text-anchor="middle">a4</text>
+        <rect x="257" y="162" width="50" height="32" rx="5" class="bx-fwd"/><text x="282" y="184" text-anchor="middle">96</text>
+      </g>
+      <g class="t-small">
+        <text x="340" y="40">1 byte: English letters, digits, punctuation (41 = 65)</text>
+        <text x="340" y="88">2 bytes: accented letters, Greek, Cyrillic…</text>
+        <text x="340" y="136">3 bytes: Chinese, Japanese, Hindi…</text>
+        <text x="340" y="184">4 bytes: emoji and rarer symbols</text>
+      </g>
+    </svg>
+    <figcaption><b>Every character is one to four bytes.</b> Bytes are written here in hexadecimal (see the refresher below), two digits per byte. So the word <code>café</code> is five bytes: <code>63 61 66 c3 a9</code>.</figcaption>
+  </figure>
+
+  <details class="refresher"><summary>Refresher: hexadecimal, or why bytes look like "c3"</summary>
+    <p>Hexadecimal is counting in base 16 instead of base 10. It needs sixteen digits, so after 0–9 it uses a–f for ten to fifteen. Two hexadecimal digits cover exactly one byte: the first digit counts sixteens, the second counts ones.</p>
+    <p>So <code>41</code> is 4 × 16 + 1 = 65, the byte for <code>A</code>. <code>c3</code> is 12 × 16 + 3 = 195. <code>ff</code> is 15 × 16 + 15 = 255, the largest byte. Programmers use hexadecimal for bytes because every byte is then exactly two characters wide.</p>
+  </details>
+
+  <p>A tokenizer that starts from the 256 possible bytes has a vocabulary of 256 and can encode anything at all, with nothing ever out of vocabulary. It also has all the problems of option one, and worse: sequences at least as long as character sequences. The next step fixes that.</p>
 
   <h2>Glue the most common pair, repeat</h2>
-  <p>Start with the text as raw bytes, 256 possible symbols, so that any text at all can be represented. Count every pair of neighbouring symbols. Take the most frequent pair, and from now on treat it as one new symbol. Count again. Repeat a few hundred or a few hundred thousand times. This is <strong>byte-pair encoding</strong>, BPE.</p>
+  <p>Here is the whole algorithm:</p>
+  <ol>
+    <li>Write the training text as bytes. Each byte is a token.</li>
+    <li>Count every pair of neighbouring tokens.</li>
+    <li>Take the most frequent pair and give it a new token number. Replace every occurrence of the pair by the new token.</li>
+    <li>Go back to step 2. Stop after a chosen number of rounds.</li>
+  </ol>
+  <p>Each round adds one entry to the vocabulary and makes the text shorter. Rather than describe it further, watch it run on the sentence from chapter 1.</p>
+
+  <section class="bench" id="w-bpe-toy">
+    <h3>Byte-pair encoding, one step at a time</h3>
+    <p class="try"><b>Try this.</b> Press <b>Next</b> and, at each step, find the pink pair in the table, then find where it sits in the sentence before it turns green. Count the tokens as you go.</p>
+  </section>
+
+  <p><strong>What you should have seen.</strong> The first merge is <code>a</code> + <code>t</code>, the most frequent pair (in c<b>at</b>, s<b>at</b> and m<b>at</b>). Then <code>t</code> + <code>h</code>, then <code>th</code> + <code>e</code>: the word <i>the</i> is discovered in three merges without the algorithm knowing what a word is. After five merges the 22 bytes have become 11 tokens. Then something changes: from step 6 the best pair occurs only once. Merging a pair seen once is memorising the text, exactly the trap of chapter 1. On real text with millions of characters the counts stay high for many thousands of rounds, and you stop well before this happens.</p>
+
+  <div class="def"><span class="kind">Definitions</span>
+    <p>This procedure is called <dfn>byte-pair encoding</dfn>, or BPE. Each round produces a <dfn>merge</dfn>: a rule "token A followed by token B becomes token C". A trained tokenizer is the ordered list of merges, together with the 256 bytes it started from.</p>
+  </div>
 
   <section class="bench" id="w-bpe">
     <h3>Watch a tokenizer being born</h3>
-    <p class="try"><b>Try this.</b> Drag the slider from 0 upward and watch the sentence compress as pairs get glued. Then type a word Shakespeare never used, such as <b>blockchain</b> or <b>🤖</b>. It still encodes: it just falls back to small pieces, down to single bytes (shown as x followed by a hexadecimal number).</p>
+    <p class="try"><b>Try this.</b> The same algorithm, now trained on 20,000 characters of Shakespeare. Drag the slider from 0 upward and watch the sentence compress as pairs get glued. Then type a word Shakespeare never used, such as <b>blockchain</b> or <b>🤖</b>.</p>
   </section>
 
-  <p>The first merges are things like <code>e␣</code> and <code>th</code>: the commonest letter pairs in English. A few hundred merges later whole words such as <code>␣the␣</code> have their own token. Nothing in the algorithm knows what a word is. Frequency alone discovers them.</p>
+  <p><strong>What you should have seen.</strong> The first merges are the commonest pairs in English: <code>e␣</code> (an <i>e</i> ending a word), <code>th</code>, <code>t␣</code> and <code>s␣</code>. By merge 19, the whole word <code>the␣</code> has its own token. At 300 merges the example sentence needs 23 tokens instead of 45, about two characters per token: the curve under the slider falls steeply at first, then flattens, because each new merge applies to rarer and rarer pairs. Real tokenizers, with tens of thousands of merges learned on far more text, reach about four characters per token. Words Shakespeare never used still encode; they just fall back to smaller pieces. An emoji, never seen at all, falls back to its four single bytes, shown as x followed by the byte in hexadecimal.</p>
+
+  <h2>Encoding new text</h2>
+  <p>Once the merges are learned, encoding any new text is mechanical: write it as bytes, then apply the merges <em>in the order they were learned</em>, each to the whole sequence. Here is the word <i>the hat</i>, which never appeared in our toy sentence, encoded with the five merges learned above:</p>
+  <table class="mini">
+    <tr><th>Step</th><th>Merge applied</th><th>Tokens</th></tr>
+    <tr><td>start</td><td>(bytes)</td><td class="mono">t h e ␣ h a t</td></tr>
+    <tr><td>1</td><td class="mono">a + t</td><td class="mono">t h e ␣ h <b>at</b></td></tr>
+    <tr><td>2</td><td class="mono">t + h</td><td class="mono"><b>th</b> e ␣ h at</td></tr>
+    <tr><td>3</td><td class="mono">th + e</td><td class="mono"><b>the</b> ␣ h at</td></tr>
+    <tr><td>4</td><td class="mono">the + ␣</td><td class="mono"><b>the␣</b> h at</td></tr>
+    <tr><td>5</td><td class="mono">at + ␣</td><td class="mono">the␣ h at <span class="t-muted">(no match)</span></td></tr>
+  </table>
+  <p>Three tokens: <code>the␣</code>, <code>h</code>, <code>at</code>. The tokenizer has never seen <i>hat</i>, but it can still encode it from pieces it knows. Decoding goes the other way: replace each token by its bytes and glue them together.</p>
 
   <h2>The trade</h2>
-  <p>Every merge shortens the sequence and lengthens the vocabulary. Both have a price. A longer sequence means more computation per sentence and less text fitting in the context window. A larger vocabulary means a larger table of token vectors (chapter 4) and rarer tokens that the model sees too seldom to learn well.</p>
-  <p>Models you can download settle on vocabularies from a few tens of thousands to a few hundred thousand tokens. GPT-2 used 50,257. For ordinary English prose such tokenizers average roughly four characters, or three quarters of a word, per token. That ratio is the conversion rate behind every context-window size and every tokens-per-second figure you will ever read.</p>
+  <p>Every merge shortens the sequences and lengthens the vocabulary. Both have a price. Longer sequences mean more computation per sentence and less text in the context window. A larger vocabulary means a larger table of token vectors (chapter 4), a larger final layer that has to score every token, and rarer tokens that the model sees too seldom to learn well.</p>
+  <p>Models you can download settle on vocabularies from a few tens of thousands to a few hundred thousand tokens. GPT-2 used 50,257: 256 bytes, 50,000 merges and one special token. For ordinary English prose such tokenizers average roughly four characters, or three quarters of a word, per token. That ratio is the conversion rate behind every context-window size and every tokens-per-second figure you will read.</p>
 
   <h2>Tokens that are not text</h2>
-  <p>A vocabulary also contains a handful of <strong>special tokens</strong> that correspond to no text at all: one for "the document starts here", one for "this speaker has finished". They look like <code>&lt;|im_end|&gt;</code> when printed, but to the model each is a single symbol. In chapter 10 these turn a plain text predictor into a chat.</p>
+  <p>A vocabulary also contains a handful of entries that correspond to no text at all. They are added by hand, not found by merging, and they let the model see the structure of a document.</p>
+
+  <div class="def"><span class="kind">Definition</span>
+    <p>A <dfn>special token</dfn> is a vocabulary entry that stands for a signal rather than for text: "a document starts here", "this speaker has finished". It is printed with a name such as <code>&lt;|im_end|&gt;</code>, but to the model it is a single token ID, not a sequence of characters.</p>
+  </div>
+
+  <figure class="fig">
+    <div class="chips" style="font-size:15px;line-height:2" aria-label="a short chat written as one sequence with special tokens between turns">
+      <span class="born">&lt;|im_start|&gt;</span><span>user</span><span>⏎</span><span>Who</span><span>␣wrote</span><span>␣Hamlet</span><span>?</span><span class="hot">&lt;|im_end|&gt;</span><span>⏎</span><span class="born">&lt;|im_start|&gt;</span><span>assistant</span><span>⏎</span><span>Shakespeare</span><span>.</span><span class="hot">&lt;|im_end|&gt;</span>
+    </div>
+    <figcaption><b>A chat is one long sequence.</b> Green and pink chips are single special tokens marking where each turn starts and ends. When the model produces <code>&lt;|im_end|&gt;</code>, the program around it stops and hands the turn back to you. Chapter 10 builds this.</figcaption>
+  </figure>
 
   <h2>Build it</h2>
+  <p>The whole tokenizer fits in four short functions. <code>merge</code> does one replacement pass over a list of token IDs. <code>train_bpe</code> is the loop from this chapter: count the pairs, take the most frequent, give it the next free number (256, 257, …), replace it everywhere. <code>encode</code> replays the learned merges in order on new text, as in the <i>the hat</i> table. <code>decode</code> rebuilds each token's bytes and turns them back into text.</p>
   <pre class="code" data-src="ch02_bpe.py#bpe">def merge(ids, pair, new_id):
     """Replace every occurrence of `pair` in ids with `new_id`."""
     out, i = [], 0
@@ -71,6 +226,16 @@ def decode(ids, merges):
 
   <p>For the rest of this course the small model keeps using characters, 65 of them. That keeps it small enough to run in your browser, and nothing else about it changes: swap the 65 characters for 100,000 tokens and every later chapter reads the same.</p>
 
+  <div class="recap">
+    <h3>In short</h3>
+    <ul>
+      <li>A model reads and writes <a class="term" href="glossary.html#token-id">token IDs</a>: positions in a fixed <a class="term" href="glossary.html#vocabulary">vocabulary</a>. The <a class="term" href="glossary.html#tokenizer">tokenizer</a> converts between text and IDs.</li>
+      <li>Characters never fail but make sequences long, so less fits in the <a class="term" href="glossary.html#context-window">context window</a>. Whole words make sequences short but leave <a class="term" href="glossary.html#oov">out-of-vocabulary words</a> unreadable.</li>
+      <li><a class="term" href="glossary.html#bpe">Byte-pair encoding</a> starts from the 256 <a class="term" href="glossary.html#byte">bytes</a>, so anything can be encoded, then repeatedly <a class="term" href="glossary.html#merge">merges</a> the most frequent neighbouring pair. Frequent words end up as one token, rare ones as several.</li>
+      <li>English averages about four characters per token. <a class="term" href="glossary.html#special-token">Special tokens</a> mark structure, such as the end of a chat turn.</li>
+    </ul>
+  </div>
+
   <div class="note">
     <h3>What this chapter glossed over</h3>
     <p><strong>Greedy is not optimal.</strong> BPE never reconsiders a merge. It finds a good vocabulary, not the best one, and production tokenizers add rules of their own, such as never merging across a space.</p>
@@ -85,6 +250,7 @@ def decode(ids, merges):
 </main>
 
 <script src="assets/data.js"></script>
+<script src="assets/glossary.js"></script>
 <script src="assets/micro.js"></script>
 <script>
 M.ready(function () {
@@ -153,6 +319,93 @@ M.ready(function () {
   });
   input.addEventListener('input', draw);
   draw();
+  // ---- widget: three ways to cut the same text ----
+  (function () {
+    var box3 = M.$('#w-three');
+    var known = new Set((window.MICRO_DATA.corpus.match(/[A-Za-z']+/g) || []).map(function (w) { return w.toLowerCase(); }));
+    var inp = M.el('input', { type: 'text', id: 'three-in', value: 'I pray you, sir, what is a smartphone? Speak, I say!', 'aria-label': 'Sentence to cut three ways' });
+    var rows = M.el('div');
+    function row(label, pieces, note) {
+      var chips = M.el('div', { class: 'chips', style: 'margin:4px 0 2px' });
+      pieces.forEach(function (p) {
+        var sp = M.el('span', { text: p.t });
+        if (p.bad) { sp.className = 'hot'; sp.title = 'not in the word list: becomes "unknown"'; }
+        chips.appendChild(sp);
+      });
+      return M.el('div', { style: 'margin:12px 0' }, M.el('p', { class: 'readout', html: '<b>' + label + '</b>: ' + pieces.length + ' tokens' + (note ? ' · ' + note : '') }), chips);
+    }
+    function draw3() {
+      var text = inp.value;
+      var chars = Array.from(text).map(function (c) { return { t: M.show(c) }; });
+      var bad = 0;
+      var words = (text.match(/[A-Za-z']+|[^\sA-Za-z']/g) || []).map(function (w) {
+        var isWord = /[A-Za-z]/.test(w), unk = isWord && !known.has(w.toLowerCase());
+        if (unk) bad++;
+        return { t: unk ? w + ' → ?' : w, bad: unk };
+      });
+      var toks = encode(text, MAX).map(function (id) { return { t: str(id) }; });
+      rows.textContent = '';
+      rows.appendChild(row('Characters', chars, 'nothing unknown, longest'));
+      rows.appendChild(row('Words', words, bad ? bad + ' unknown word' + (bad > 1 ? 's' : '') + ' (pink): their information is lost' : 'all known'));
+      rows.appendChild(row('BPE tokens (300 merges)', toks, 'nothing unknown, in between'));
+    }
+    inp.addEventListener('input', draw3);
+    box3.appendChild(inp); box3.appendChild(rows);
+    box3.appendChild(M.el('p', { class: 'caption', text: 'The word list here is every word in the 60,000-character Shakespeare excerpt this page carries; spaces are left out of the word row. The token row uses the tokenizer trained further down this page.' }));
+    draw3();
+  })();
+
+  // ---- widget: BPE by hand on the sentence from chapter 1 ----
+  (function () {
+    var boxT = M.$('#w-bpe-toy'), TOY = 'the cat sat on the mat', STEPS = 7;
+    var states = [], tv = [];
+    for (var i = 0; i < 256; i++) tv.push([i]);
+    var cur = Array.from(enc.encode(TOY));
+    function pairCounts(ids) {             // [ [a, b, count], ... ] in order of first appearance
+      var m = new Map();
+      for (var j = 0; j < ids.length - 1; j++) { var k = ids[j] + ',' + ids[j + 1]; if (!m.has(k)) m.set(k, [ids[j], ids[j + 1], 0]); m.get(k)[2]++; }
+      return Array.from(m.values());
+    }
+    function bestOf(pc) { var b = pc[0]; pc.forEach(function (p) { if (p[2] > b[2]) b = p; }); return b; }
+    for (var s = 0; s <= STEPS; s++) {
+      var pc = pairCounts(cur), best = bestOf(pc);
+      states.push({ ids: cur, pc: pc, best: best, born: s ? 256 + s - 1 : -1 });
+      if (s < STEPS) { tv.push(tv[best[0]].concat(tv[best[1]])); cur = merge(cur, best[0], best[1], 256 + s); }
+    }
+    var show = function (id) { return dec.decode(new Uint8Array(tv[id])).replace(/ /g, '␣'); };
+    var chipsT = M.el('div', { class: 'chips', style: 'font-size:18px' }), tab = M.el('table', { class: 'pairtab' });
+    var narr = M.el('p', { class: 'narr' }), info = M.el('p', { class: 'readout' });
+    var st = M.stepper(boxT, STEPS + 1, function (k) {
+      var S = states[k], b = S.best;
+      chipsT.textContent = '';
+      var hot = new Set();
+      for (var j = 0; j < S.ids.length - 1; j++) if (S.ids[j] === b[0] && S.ids[j + 1] === b[1] && !hot.has(j)) { hot.add(j); hot.add(j + 1); j++; }
+      S.ids.forEach(function (id, j) {
+        var sp = M.el('span', { text: show(id) });
+        if (id === S.born) sp.className = 'born';
+        if (k < STEPS && hot.has(j)) sp.className = 'hot';
+        chipsT.appendChild(sp);
+      });
+      var top = S.pc.slice().sort(function (x, y) { return y[2] - x[2]; }).slice(0, 6);
+      tab.innerHTML = '<tr><th>pair</th><th>times seen</th></tr>' + top.map(function (p) {
+        return '<tr' + (p === b && k < STEPS ? ' class="top"' : '') + '><td>' + show(p[0]) + ' + ' + show(p[1]) + '</td><td>' + p[2] + '</td></tr>';
+      }).join('');
+      info.innerHTML = '<b>' + S.ids.length + '</b> tokens · vocabulary <b>' + (256 + k) + '</b>';
+      var t;
+      if (k === 0) t = 'The sentence as 22 bytes, one token each. The table counts every neighbouring pair. The most frequent, <b>a + t</b>, appears 3 times (pink): it will be merged first.';
+      else {
+        var nb = states[k - 1].best;
+        t = 'Merge ' + k + ': <b>' + show(nb[0]) + ' + ' + show(nb[1]) + '</b> becomes the new token <b>' + show(256 + k - 1) + '</b> (number ' + (256 + k - 1) + '), green below.';
+        if (k < STEPS) t += S.best[2] > 1 ? ' Next in line: <b>' + show(b[0]) + ' + ' + show(b[1]) + '</b>, seen ' + b[2] + ' times.' : ' The best pair left, <b>' + show(b[0]) + ' + ' + show(b[1]) + '</b>, occurs only once. Merging it would only memorise this one sentence.';
+        else t += ' This merge, like the one before it, was of a pair seen once: the tokenizer is now memorising, not finding patterns.';
+      }
+      narr.innerHTML = t;
+    });
+    boxT.appendChild(chipsT); boxT.appendChild(info);
+    boxT.appendChild(M.el('div', { class: 'row', style: 'align-items:flex-start' }, tab));
+    boxT.appendChild(narr);
+    st.go(0);
+  })();
 });
 </script>
 </body>

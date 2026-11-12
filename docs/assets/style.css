@@ -176,3 +176,95 @@ th { color: var(--muted); font-weight: 600; }
 select { max-width: 100%; min-width: 0; text-overflow: ellipsis; }
 .ctl { max-width: 100%; }
 .ctl select { flex: 1 1 auto; }
+
+/* ======================================================================
+   Teaching furniture (pilot: chapters 1-2)
+   ====================================================================== */
+
+/* a new term, defined where it first appears */
+dfn { font-style: normal; font-weight: 700; }
+.def { border-left: 4px solid var(--prob); background: color-mix(in srgb, var(--prob-fill) 12%, var(--panel)); border-radius: 0 10px 10px 0; padding: 12px 16px; margin: 20px auto 24px; font-size: 16.5px; line-height: 1.55; }
+.def > :last-child { margin-bottom: 0; }
+.def .kind { display: block; font-family: var(--sans); font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--prob); margin-bottom: 2px; }
+.def p { margin-bottom: 8px; }
+
+/* glossary links: dotted underline, definition pops up on hover or focus */
+a.term { color: inherit; text-decoration: underline dotted color-mix(in srgb, var(--prob) 70%, transparent); text-decoration-thickness: 2px; text-underline-offset: 4px; }
+a.term:hover { color: var(--prob); }
+.tip { position: absolute; z-index: 30; max-width: 320px; background: var(--ink); color: var(--paper); font: 14px/1.45 var(--sans); padding: 9px 12px; border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,.18); pointer-events: none; }
+.tip b { display: block; margin-bottom: 2px; }
+
+/* optional maths refresher, folded by default */
+details.refresher { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); padding: 0 16px; margin: 20px auto 24px; font-size: 16.5px; line-height: 1.55; }
+details.refresher > summary { cursor: pointer; font-family: var(--sans); font-weight: 600; font-size: 15px; padding: 11px 0; color: var(--muted); list-style: none; }
+details.refresher > summary::-webkit-details-marker { display: none; }
+details.refresher > summary::before { content: "+"; display: inline-block; width: 20px; height: 20px; line-height: 19px; text-align: center; margin-right: 8px; border-radius: 50%; background: var(--soft); color: var(--ink); font-weight: 800; }
+details.refresher[open] > summary::before { content: "−"; }
+details.refresher[open] > summary { border-bottom: 1px solid var(--line); margin-bottom: 12px; }
+details.refresher > :last-child { margin-bottom: 14px; }
+
+/* "what you should have seen" after an experiment */
+.bench .see { border-top: 1px solid var(--line); margin: 16px 0 0; padding-top: 12px; color: var(--ink); font-size: 15px; }
+.bench .see b { color: var(--ok); }
+
+/* end-of-chapter recap */
+.recap { background: var(--panel); border: 1px solid var(--line); border-top: 4px solid var(--fwd); border-radius: 10px; padding: 14px 18px 4px; margin: 30px auto; }
+.recap h3 { font-size: 15px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--fwd); margin-bottom: 8px; }
+.recap li { margin-bottom: 8px; }
+
+/* figures: inline SVG drawn with the page's own colours */
+figure.fig { margin: 26px auto 30px; max-width: 760px; }
+figure.fig svg { display: block; width: 100%; height: auto; font-family: var(--sans); }
+figure.fig figcaption { font-family: var(--sans); font-size: 13.5px; line-height: 1.45; color: var(--muted); margin-top: 8px; max-width: 680px; margin-left: auto; margin-right: auto; }
+figure.fig figcaption b { color: var(--ink); }
+.fig .bx { fill: var(--panel); stroke: var(--line); stroke-width: 1.5; }
+.fig .bx-fwd { fill: color-mix(in srgb, var(--fwd) 14%, var(--panel)); stroke: var(--fwd); stroke-width: 1.5; }
+.fig .bx-prob { fill: color-mix(in srgb, var(--prob-fill) 22%, var(--panel)); stroke: var(--prob); stroke-width: 1.5; }
+.fig .bx-grad { fill: color-mix(in srgb, var(--grad) 12%, var(--panel)); stroke: var(--grad); stroke-width: 1.5; }
+.fig .bx-soft { fill: var(--soft); stroke: none; }
+.fig .ln { stroke: var(--muted); stroke-width: 1.5; fill: none; }
+.fig .ln-fwd { stroke: var(--fwd); stroke-width: 2; fill: none; }
+.fig .ln-grad { stroke: var(--grad); stroke-width: 2; fill: none; }
+.fig .ln-dash { stroke: var(--muted); stroke-width: 1.2; stroke-dasharray: 4 4; fill: none; }
+.fig .bar-prob { fill: var(--prob-fill); }
+.fig .bar-fwd { fill: var(--fwd); }
+.fig text { fill: var(--ink); font-size: 14px; }
+.fig .t-mono { font-family: var(--mono); }
+.fig .t-muted { fill: var(--muted); }
+.fig .t-small { font-size: 12px; }
+.fig .t-big { font-size: 17px; font-weight: 700; }
+.fig .t-fwd { fill: var(--fwd); }
+.fig .t-prob { fill: var(--prob); }
+.fig .t-grad { fill: var(--grad); }
+.fig .t-bold { font-weight: 700; }
+.fig .arrowhead { fill: var(--muted); }
+.fig .arrowhead-fwd { fill: var(--fwd); }
+
+/* step-by-step walkthroughs */
+.stepper .steps-ctl { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+.stepper .steps-ctl .readout { margin-left: auto; }
+.stepper .narr { font-family: var(--serif); font-size: 16.5px; line-height: 1.55; min-height: 3.2em; margin: 10px 0 0; }
+.chips span.hot { background: color-mix(in srgb, var(--grad) 30%, var(--panel)) !important; outline: 2px solid var(--grad); }
+.chips span.born { background: color-mix(in srgb, var(--ok) 28%, var(--panel)) !important; outline: 2px solid var(--ok); }
+.pairtab { font-family: var(--mono); font-size: 13.5px; width: auto; min-width: 240px; }
+.pairtab td, .pairtab th { padding: 3px 14px 3px 0; }
+.pairtab tr.top td { color: var(--grad); font-weight: 700; }
+
+/* small inline tables used in worked examples */
+table.mini { width: auto; margin: 6px auto 20px; font-size: 15px; }
+table.mini td, table.mini th { padding: 5px 18px 5px 0; }
+table.mini .mono { font-family: var(--mono); }
+.center { text-align: center; }
+
+/* glossary page */
+.gloss dt { font-family: var(--sans); font-weight: 700; font-size: 18px; margin-top: 22px; scroll-margin-top: 60px; }
+.gloss dd { margin: 4px 0 0; }
+.gloss dd .ch { font-family: var(--sans); font-size: 13px; color: var(--muted); }
+.gloss dt:target { color: var(--prob); }
+.top .gl { font-family: var(--sans); font-size: 13px; font-weight: 600; color: var(--muted); text-decoration: none; white-space: nowrap; }
+.top .gl:hover { color: var(--fwd); }
+/* on phones, keep diagram labels readable: scroll the figure sideways instead of shrinking it */
+@media (max-width: 640px) {
+  figure.fig { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  figure.fig svg { min-width: 620px; }
+}
