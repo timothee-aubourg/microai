@@ -10,7 +10,8 @@ Checks, each reported on its own line:
 
 Exit status is 0 only if every check that ran passed.
 
-    python3 tools/check_site.py
+    python3 tools/check_site.py          # everything (about a minute)
+    python3 tools/check_site.py --fast   # skip the browser check (a few seconds)
 """
 import glob
 import os
@@ -84,7 +85,11 @@ def check_browser():
 
 def main():
     failed = False
-    for name, fn in (('links', check_links), ('glossary', check_glossary), ('parity', check_parity), ('browser', check_browser)):
+    checks = [('links', check_links), ('glossary', check_glossary), ('parity', check_parity), ('browser', check_browser)]
+    if '--fast' in sys.argv[1:]:
+        checks = checks[:-1]
+        print('browser   skipped (--fast)')
+    for name, fn in checks:
         problems = fn()
         if problems is None:
             print(f'{name:9} skipped (tool not found)')
