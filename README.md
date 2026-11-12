@@ -147,14 +147,7 @@ system. It deliberately leaves out reinforcement-learning fine-tuning (policy
 gradients, PPO, GRPO), multimodal models and evaluation methodology; chapter 12
 sketches where those begin.
 
-## Sources and credits
-
-The teaching approach is inspired by David Louapre
-([Science Étonnante](https://www.youtube.com/@ScienceEtonnante)), Grant
-Sanderson ([3Blue1Brown](https://www.3blue1brown.com/)) and Andrej Karpathy
-([micrograd](https://github.com/karpathy/micrograd),
-[nanoGPT](https://github.com/karpathy/nanoGPT)). All text, code and visuals
-here are original.
+## References
 
 - Vaswani et al., *Attention Is All You Need*, 2017: <https://arxiv.org/abs/1706.03762>
 - Hu et al., *LoRA: Low-Rank Adaptation of Large Language Models*, 2021: <https://arxiv.org/abs/2106.09685>
