@@ -45,7 +45,7 @@ must follow from the chapter's own text and numbers.
 
 Chapters 3 to 19 do not yet have all of the reference style: the definition
 boxes, glossary entries and recap of chapters 1 and 2 are still to be added
-there. Chapters 20 to 24 have it.
+there. Chapters 20 to 25 have it.
 
 Optional maths goes in a folded `<details class="refresher">`. Step-by-step
 animations use `M.stepper` (see the BPE walkthrough in chapter 2).
