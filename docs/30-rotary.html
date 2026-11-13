@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Positions that turn | microAI</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-ch="30">
+<main>
+  <p class="where">Chapter 30</p>
+  <h1>Positions that turn</h1>
+  <p class="question">Chapter 4 gave every position its own learned vector. Current models have no such table. How do they know where a token is?</p>
+
+  <p>The transformer you built in chapters 4 to 6 is the design of 2017, and most of it is still what runs today. A few parts have been replaced since, quietly, in almost every model. This chapter rebuilds the one that changed most: how a model is told the order of its tokens.</p>
+  <p>Chapter 4's answer was a table. Position 0 has a vector, position 1 has another, up to position 63, and the vector of its position is added to each token before anything else happens. That works, and it has two awkward properties. The table ends: our model has no row for position 64, so it cannot be run on a longer text at all. And the table says where a token is in the window, when what language mostly needs is how far apart two tokens are. "The word just before this one" matters in the same way at position 5 and at position 50.</p>
+
+  <h2>Turn, then compare</h2>
+  <p>Attention compares a query with a key by multiplying them number by number and adding up (chapter 5). The newer design leaves the token alone and changes that comparison. Just before comparing, it turns the query by an angle that depends on the query's position, and turns the key by an angle that depends on the key's position. Turning means what it means on paper: take two of the vector's numbers as a point, and rotate the point around the origin.</p>
+  <h3>By hand</h3>
+  <p>Take a query and a key that are both the point (1, 0), and turn each by half a radian for every position.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th></th><th>Position</th><th>Turned by</th><th>Becomes</th></tr>
+    <tr><td>Query</td><td class="mono">5</td><td class="mono">2.5</td><td class="mono">(&minus;0.80, 0.60)</td></tr>
+    <tr><td>Key</td><td class="mono">3</td><td class="mono">1.5</td><td class="mono">(0.07, 1.00)</td></tr>
+  </table></div>
+  <div class="eq">score = (&minus;0.80 &times; 0.07) + (0.60 &times; 1.00) = 0.54</div>
+  <p>Now move both four places along, to positions 9 and 7. The query is turned by 4.5 and the key by 3.5. They point somewhere else entirely, and the score is again 0.54. It has to be: the score of two arrows of length 1 is the cosine of the angle between them, and that angle is the difference of the two turns, 1.0, in both cases. Two positions apart gives the same score wherever the pair sits.</p>
+  <div class="def"><span class="kind">Definition</span>
+    <p><dfn>Rotary positions</dfn> tell a model the order of its tokens by turning each query and key by an angle proportional to its position. The comparison of the two then depends on how far apart they are, and nothing is added to the token itself.</p>
+  </div>
+
+  <figure class="fig">
+    <svg viewBox="0 0 760 220" role="img" aria-labelledby="f30a">
+      <title id="f30a">Two pairs of arrows. In each pair the query is turned further than the key by the same amount, because the two tokens are two positions apart. The pairs point in different directions, and the angle between the arrows is the same.</title>
+      <g transform="translate(170,120)"><circle r="78" class="bx-soft"/><line x1="0" y1="0" x2="-62" y2="-47" class="ln-fwd"/><line x1="0" y1="0" x2="6" y2="-78" class="ln"/><text x="-74" y="-54" text-anchor="end" class="t-small t-fwd">query, position 5</text><text x="14" y="-84" class="t-small">key, position 3</text><text x="0" y="104" text-anchor="middle" class="t-small t-muted">angle between them: 1.0</text></g>
+      <g transform="translate(560,120)"><circle r="78" class="bx-soft"/><line x1="0" y1="0" x2="-16" y2="76" class="ln-fwd"/><line x1="0" y1="0" x2="-73" y2="27" class="ln"/><text x="-10" y="96" class="t-small t-fwd">query, position 9</text><text x="-80" y="24" text-anchor="end" class="t-small">key, position 7</text><text x="0" y="-88" text-anchor="middle" class="t-small t-muted">angle between them: 1.0</text></g>
+      <text x="365" y="124" text-anchor="middle" class="t-big">same score</text>
+    </svg>
+    <figcaption><b>Two positions apart, twice.</b> The arrows have turned, the angle between them has not, and the angle is all the score depends on.</figcaption>
+  </figure>
+
+  <section class="bench" id="w-turn">
+    <h3>Turn two arrows</h3>
+    <p class="try"><b>Try this.</b> Put the query at 10 and the key at 7 and note the score. Move both along by the same amount. Then change the distance between them. Last, switch to the slow pair and repeat.</p>
+  </section>
+
+  <p><strong>What you should have seen.</strong> Moving both by the same amount spins the arrows and leaves the score untouched. Changing the distance changes it. With the fast pair the score swings between +1 and &minus;1 within a few positions, so it tells near neighbours apart and repeats itself for distant ones. With the slow pair it barely moves between neighbours and changes steadily over the whole window. A model uses many pairs at different speeds at once, like the hands of a clock: the fast ones for fine distinctions, the slow ones for far ones.</p>
+
+  <h2>In the model</h2>
+  <p>A vector of 24 numbers is treated as 12 pairs, each turning at its own speed. The whole change to chapter 5's attention is one line.</p>
+  <pre class="code" data-src="ch30_rotary.py#turn">def angles(T, hd, base=10000.0):
+    """One angle per position and per pair of numbers: slow pairs and fast pairs, as on a clock."""
+    speed = 1.0 / base ** (np.arange(0, hd, 2) / hd)              # hd/2 speeds
+    a = np.arange(T)[:, None] * speed[None, :]                    # (T, hd/2)
+    return np.repeat(np.cos(a), 2, axis=1), np.repeat(np.sin(a), 2, axis=1)   # each pair shares its angle
+
+def quarter_turn(hd):
+    """The matrix that sends each pair (a, b) to (-b, a)."""
+    P = np.zeros((hd, hd))
+    for j in range(0, hd, 2):
+        P[j + 1, j], P[j, j + 1] = -1.0, 1.0
+    return P
+
+def turn(t, cos, sin, P):
+    """Turn every pair of numbers in t by the angle of its position: (a, b) cos + (-b, a) sin."""
+    return t * cos + (t @ P) * sin</pre>
+  <pre class="code" data-src="ch30_rotary.py#attention">def attention(self, x, i, trace=None):
+    B, T, d = x.shape
+    h, hd = self.n_head, d // self.n_head
+    split = lambda t: t.reshape(B, T, h, hd).transpose(0, 2, 1, 3)
+    q, k, v = (split(x @ self.p[f'h{i}.attn.{w}']) for w in ('wq', 'wk', 'wv'))
+    if self.mode == 'rotary':
+        cos, sin = angles(T, hd)
+        q, k = turn(q, cos, sin, self.P), turn(k, cos, sin, self.P)    # the only change from chapter 5
+    scores = (q @ k.transpose(0, 1, 3, 2)) * (1.0 / np.sqrt(hd))
+    weights = scores.masked_fill(np.triu(np.ones((T, T), dtype=bool), k=1), -1e9).softmax(axis=-1)
+    mixed = (weights @ v).transpose(0, 2, 1, 3).reshape(B, T, d)
+    return mixed @ self.p[f'h{i}.attn.wo']</pre>
+  <p class="src">From <code>code/ch30_rotary.py</code>. The position table and its 6,144 weights are gone. Nothing here is learned: the angles are fixed.</p>
+
+  <h2>Measured</h2>
+  <p>The script trains the model of chapter 7 again, with the same text, the same batches and the same 5,000 steps, in two new versions: with rotary positions, and with no position information at all as a control. All three are then tested on unseen text, on the same 32 characters at the end of windows of different lengths.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Positions</th><th>Weights</th><th>Window of 32</th><th>Window of 64 (as trained)</th><th>Window of 128</th><th>Window of 256</th></tr>
+    <tr><td>learned table (chapter 7)</td><td class="mono">345,504</td><td class="mono">1.663</td><td class="mono">1.602</td><td>cannot run</td><td>cannot run</td></tr>
+    <tr><td>rotary</td><td class="mono">339,360</td><td class="mono">1.636</td><td class="mono">1.566</td><td class="mono">2.850</td><td class="mono">3.465</td></tr>
+    <tr><td>none</td><td class="mono">339,360</td><td class="mono">1.800</td><td class="mono">1.767</td><td class="mono">2.205</td><td class="mono">3.607</td></tr>
+  </table></div>
+  <p>Each figure is a loss, lower is better, and uncertain by about 0.03.</p>
+  <ul>
+    <li><strong>Order matters.</strong> With no position information the model scores 1.767 where the others score about 1.6. It can still see which characters came before, and has no idea in what order.</li>
+    <li><strong>Rotary does as well as the table, with nothing to store.</strong> 1.566 against 1.602 at the trained length is within the uncertainty of the measurement. It reaches that with 6,144 fewer weights and no learned position at all.</li>
+    <li><strong>It can run on longer text, and does it badly.</strong> The model with a table stops at 64: there is no row 65. The rotary model runs at 128 and at 256, because an angle can be computed for any position. Its loss there is 2.850 and 3.465, far worse than at 64. It never saw two tokens a hundred positions apart during training, and does not know what to make of them.</li>
+  </ul>
+  <p>The last point is the one to remember. Removing the table removes the hard wall. It does not teach the model about lengths it has not practised. Models are trained at the context lengths they are sold with, for this reason.</p>
+
+  <h2>What else changed inside</h2>
+  <p>Three other parts of the 2017 design are different in most current models. Each has already appeared in this course in passing.</p>
+  <ul>
+    <li><strong>A simpler normalisation.</strong> Chapter 6's layer normalisation subtracts the mean, divides by the spread, then applies a learned gain and offset. The current form skips the mean and the offset. Chapter 23's packed model went further and kept no learned numbers there at all.</li>
+    <li><strong>Keys and values shared between heads.</strong> Chapter 22 noted that the keys of Llama 3.1 are a quarter of the model's width. Groups of attention heads share one key and one value, which makes the KV cache several times smaller for a small loss in quality.</li>
+    <li><strong>A different shape for the MLP.</strong> Chapter 6's MLP widens, applies one curve and narrows. The current form multiplies two widened copies together, one acting as a gate on the other.</li>
+  </ul>
+  <p>None of these changes the idea of chapters 4 to 6. A token becomes a vector, vectors exchange information by attention, each is then transformed on its own, and the last one is compared with every token to predict the next.</p>
+
+  <h2>Build it</h2>
+  <pre class="code" data-lang="text">python code/ch30_rotary.py --train     # two trainings, about 20 minutes each on one core
+python code/ch30_rotary.py             # the table</pre>
+
+  <div class="note">
+    <h3>What this chapter glossed over</h3>
+    <p><strong>One run each.</strong> Each model was trained once. The difference between rotary and the table at the trained length is too small to call.</p>
+    <p><strong>Longer contexts can be taught.</strong> Methods exist to help a model use lengths beyond its training, mostly by training on some longer text or by rescaling the angles. None was tried here.</p>
+    <p><strong>The control still knows something about order.</strong> A model with no position signal can count how many tokens came before, because the first token sees one token and the tenth sees ten. That is all it has.</p>
+    <p><strong>The other three changes were described, not built.</strong> Their effect on this small model was not measured.</p>
+  </div>
+
+  <div class="recap">
+    <h3>In short</h3>
+    <ul>
+      <li><a class="term" href="glossary.html#rotary">Rotary positions</a> turn each query and key by an angle proportional to its position. The score of a pair then depends only on how far apart the two are.</li>
+      <li>Nothing is added to the token and nothing is stored: the model lost 6,144 weights and scored 1.566 where the table scored 1.602, the same within the uncertainty.</li>
+      <li>Without any position information the loss rose to 1.767. Order matters.</li>
+      <li>A rotary model can be run on text longer than it was trained on, and here it did badly there: 2.850 at twice the length. The wall is gone, the need to train at the lengths in use is not.</li>
+    </ul>
+  </div>
+
+  <h2>Check yourself</h2>
+  <details class="check"><summary>The query at position 20 and the key at position 17 get a certain score. What is the score for the same query and key at positions 50 and 47?</summary><p>The same. Both pairs are three positions apart, so the angle between the turned arrows is the same, and the score depends only on that angle.</p></details>
+  <details class="check"><summary>Why does a model need pairs that turn at different speeds?</summary><p>A fast pair comes back to the same angle after a few positions, so it cannot tell a distance of 2 from a distance of 2 plus one full turn. A slow pair does not repeat within the window and barely separates neighbours. Together they pin a distance down, as the hands of a clock pin down a time.</p></details>
+  <details class="check"><summary>The model with a learned table "cannot run" at 128. The rotary one runs and scores 2.850. Which is the better behaviour?</summary><p>Neither is good. The table fails openly. The rotary model fails quietly: it produces output, and the output is poor. The lesson is to test a model at the lengths you intend to use, whatever its design allows.</p></details>
+  <details class="check"><summary>With no position information the model still scored 1.767, far better than the 4.174 of knowing nothing. What is it using?</summary><p>Which characters appeared before, and how often. That is enough to know that "e" is common and that a play is being written, and not enough to know which letter comes after "th".</p></details>
+</main>
+
+<script src="assets/glossary.js"></script>
+<script src="assets/micro.js"></script>
+<script>
+M.ready(function () {
+  var box = M.$('#w-turn'), speed = 0.5;
+  var sS = M.select('Pair', [['0.5', 'Fast: half a radian per position'], ['0.05', 'Slow: a twentieth of a radian per position']], function (v) { speed = +v; show(); });
+  var q = M.slider({ label: 'Position of the query', min: 0, max: 63, step: 1, value: 10, fmt: function (v) { return v; }, oninput: show });
+  var k = M.slider({ label: 'Position of the key', min: 0, max: 63, step: 1, value: 7, fmt: function (v) { return v; }, oninput: show });
+  var NS = 'http://www.w3.org/2000/svg', svg = document.createElementNS(NS, 'svg'), stat = M.el('p', { class: 'readout' });
+  svg.setAttribute('viewBox', '0 0 300 190'); svg.setAttribute('role', 'img'); svg.setAttribute('style', 'max-width:300px;display:block;margin:6px auto');
+  function arrow(angle, colour, wide) {
+    var l = document.createElementNS(NS, 'line');
+    l.setAttribute('x1', 150); l.setAttribute('y1', 95); l.setAttribute('x2', (150 + 78 * Math.cos(angle)).toFixed(1)); l.setAttribute('y2', (95 - 78 * Math.sin(angle)).toFixed(1));
+    l.setAttribute('stroke', colour); l.setAttribute('stroke-width', wide); l.setAttribute('stroke-linecap', 'round');
+    return l;
+  }
+  function score(a, b, s) { return Math.cos((a - b) * s); }
+  M.turnScore = score;
+  function show() {
+    var aq = q.value * speed, ak = k.value * speed, sc = score(q.value, k.value, speed);
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    var c = document.createElementNS(NS, 'circle'); c.setAttribute('cx', 150); c.setAttribute('cy', 95); c.setAttribute('r', 82); c.setAttribute('fill', 'none'); c.setAttribute('stroke', M.css('--line')); c.setAttribute('stroke-width', 2); svg.appendChild(c);
+    svg.appendChild(arrow(ak, M.css('--ink'), 3)); svg.appendChild(arrow(aq, M.css('--fwd'), 5));
+    svg.setAttribute('aria-label', 'Query arrow turned by ' + aq.toFixed(2) + ' radians, key arrow by ' + ak.toFixed(2));
+    stat.innerHTML = 'Distance: ' + (q.value - k.value) + (Math.abs(q.value - k.value) === 1 ? ' position' : ' positions') + '. Angle between the arrows: ' + ((q.value - k.value) * speed).toFixed(2) + '. Score: <b>' + sc.toFixed(2) + '</b>.';
+  }
+  box.appendChild(M.row(sS)); box.appendChild(M.row(q)); box.appendChild(M.row(k)); box.appendChild(svg); box.appendChild(stat);
+  box.appendChild(M.el('p', { class: 'caption', text: 'Thick blue arrow: the query, turned by its position. Thin arrow: the key, turned by its own. Both start as the point (1, 0). The score is the cosine of the angle between them.' }));
+  show();
+});
+</script>
+</body>
+</html>

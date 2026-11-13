@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Many hands | microAI</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-ch="32">
+<main>
+  <p class="where">Chapter 32</p>
+  <h1>Many hands</h1>
+  <p class="question">A job is too big for one context. Can it be split among several agents, and what does the split cost?</p>
+
+  <p>Chapter 16 showed the context filling up as an agent works, and what it costs to carry everything along. Our own agent makes the limit easy to see. Its window is 73 characters, and one sum with its tool call and its answer takes about 66 of them. Ask it to "add up: 23 times 45, 17 minus 3, 8 plus 9" and no arrangement of that work fits in one window.</p>
+  <p>The way out is the one people use. Nobody holds a whole project in their head. One person splits it, hands each piece to someone who works on that piece alone, and collects the results. For agents the pieces are called sub-agents, and the idea is in every current coding and research assistant.</p>
+
+  <div class="def"><span class="kind">Definitions</span>
+    <p>A <dfn>sub-agent</dfn> is an agent started by another agent to do one part of a job. It begins with an empty context, receives only its part, and returns only its result.</p>
+    <p>The <dfn>lead</dfn> is the agent that splits the job, starts the sub-agents and combines what they return. It is also called an orchestrator.</p>
+  </div>
+
+  <h3>By hand: three parts</h3>
+  <p>The job is "add up: 23 times 45, 17 minus 3, 8 plus 9".</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Who</th><th>Sees</th><th>Does</th><th>Hands back</th></tr>
+    <tr><td>Helper 1</td><td class="mono">what is 23 times 45?</td><td>calls the calculator, writes its sentence</td><td class="mono">1035</td></tr>
+    <tr><td>Helper 2</td><td class="mono">what is 17 minus 3?</td><td>the same</td><td class="mono">14</td></tr>
+    <tr><td>Helper 3</td><td class="mono">what is 8 plus 9?</td><td>the same</td><td class="mono">17</td></tr>
+    <tr><td>Lead</td><td class="mono">the job, and 1035, 14, 17</td><td>adds them with the calculator</td><td class="mono">1066</td></tr>
+  </table></div>
+  <p>Each helper filled most of a window with its own question, call, result and sentence. None of that reaches the lead. The lead receives three numbers. Its own notes hold the job and the results, and nothing of how they were found.</p>
+
+  <figure class="fig">
+    <svg viewBox="0 0 760 230" role="img" aria-labelledby="f32a">
+      <title id="f32a">A lead splits a job into three parts. Each part goes to a helper with its own empty context. Each helper works with the tool and hands back one number. The lead adds the numbers.</title>
+      <defs><marker id="c32a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
+      <rect x="16" y="86" width="150" height="58" rx="8" class="bx-fwd"/><text x="91" y="112" text-anchor="middle" class="t-big">lead</text><text x="91" y="130" text-anchor="middle" class="t-small t-muted">splits, then adds up</text>
+      <g class="ln"><path d="M170 100 L296 46" marker-end="url(#c32a)"/><line x1="170" y1="115" x2="296" y2="115" marker-end="url(#c32a)"/><path d="M170 130 L296 184" marker-end="url(#c32a)"/></g>
+      <g><rect x="300" y="20" width="250" height="50" rx="8" class="bx"/><text x="425" y="42" text-anchor="middle" class="t-mono t-small">what is 23 times 45?</text><text x="425" y="60" text-anchor="middle" class="t-small t-muted">helper 1: its own context, 66 characters</text>
+      <rect x="300" y="90" width="250" height="50" rx="8" class="bx"/><text x="425" y="112" text-anchor="middle" class="t-mono t-small">what is 17 minus 3?</text><text x="425" y="130" text-anchor="middle" class="t-small t-muted">helper 2: its own context</text>
+      <rect x="300" y="160" width="250" height="50" rx="8" class="bx"/><text x="425" y="182" text-anchor="middle" class="t-mono t-small">what is 8 plus 9?</text><text x="425" y="200" text-anchor="middle" class="t-small t-muted">helper 3: its own context</text></g>
+      <g class="ln-fwd"><line x1="554" y1="45" x2="626" y2="45" marker-end="url(#c32a)"/><line x1="554" y1="115" x2="626" y2="115" marker-end="url(#c32a)"/><line x1="554" y1="185" x2="626" y2="185" marker-end="url(#c32a)"/></g>
+      <g class="t-mono"><rect x="630" y="28" width="80" height="34" rx="6" class="bx-prob"/><text x="670" y="50" text-anchor="middle">1035</text><rect x="630" y="98" width="80" height="34" rx="6" class="bx-prob"/><text x="670" y="120" text-anchor="middle">14</text><rect x="630" y="168" width="80" height="34" rx="6" class="bx-prob"/><text x="670" y="190" text-anchor="middle">17</text></g>
+      <text x="670" y="224" text-anchor="middle" class="t-small">only these go back</text>
+    </svg>
+    <figcaption><b>One job, three contexts.</b> Each helper sees one part and hands back one number. The working stays where it was done.</figcaption>
+  </figure>
+
+  <h2>What it does to the context</h2>
+  <p><code>code/ch32_helpers.py</code> runs jobs of one to six parts, 200 of each. The lead here is a few lines of code: it splits the request at the commas, starts a helper for each part, and adds up what comes back. The helpers are the agents of chapter 24.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Parts in the job</th><th>Largest helper context</th><th>The lead's notes</th><th>One shared context would need</th></tr>
+    <tr><td class="mono">1</td><td class="mono">70</td><td class="mono">42</td><td class="mono">81</td></tr>
+    <tr><td class="mono">2</td><td class="mono">66</td><td class="mono">63</td><td class="mono">157</td></tr>
+    <tr><td class="mono">3</td><td class="mono">66</td><td class="mono">82</td><td class="mono">230</td></tr>
+    <tr><td class="mono">4</td><td class="mono">66</td><td class="mono">103</td><td class="mono">305</td></tr>
+    <tr><td class="mono">5</td><td class="mono">66</td><td class="mono">121</td><td class="mono">378</td></tr>
+    <tr><td class="mono">6</td><td class="mono">66</td><td class="mono">140</td><td class="mono">456</td></tr>
+  </table></div>
+  <p>The window is 73 characters. With helpers, no context ever exceeds 70, however large the job. Without them, the working of every part would have to sit in one context: 230 characters for three parts, 456 for six. The lead's notes grow too, by about twenty characters a part, because a result is short. This is the first thing sub-agents buy: the working of a part is thrown away when the part is done, and only its result is kept.</p>
+
+  <h2>What it does to reliability</h2>
+  <p>A job is right only if every part is right. The same 200 jobs were run with three kinds of helper.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Parts</th><th>Careless helper: pre-trained only</th><th>Careless helper, checked and asked again</th><th>Trained helper</th></tr>
+    <tr><td class="mono">1</td><td class="mono">97</td><td class="mono">191</td><td class="mono">197</td></tr>
+    <tr><td class="mono">2</td><td class="mono">58</td><td class="mono">191</td><td class="mono">197</td></tr>
+    <tr><td class="mono">3</td><td class="mono">22</td><td class="mono">181</td><td class="mono">193</td></tr>
+    <tr><td class="mono">4</td><td class="mono">11</td><td class="mono">170</td><td class="mono">195</td></tr>
+    <tr><td class="mono">5</td><td class="mono">6</td><td class="mono">170</td><td class="mono">188</td></tr>
+    <tr><td class="mono">6</td><td class="mono">3</td><td class="mono">164</td><td class="mono">188</td></tr>
+  </table></div>
+  <h3>By hand: chances multiply</h3>
+  <p>The careless helper is right about half the time. For a job of three parts, all three must be right.</p>
+  <div class="eq">0.5 &times; 0.5 &times; 0.5 = 0.125, or 25 jobs in 200</div>
+  <p>The measurement gives 22. The trained helper is right about 98.5% of the time, which sounds like enough. Over five parts it is 0.985 multiplied by itself five times, 0.93: about 185 jobs in 200, and the measurement gives 188. A helper that is nearly always right is not nearly always right five times running.</p>
+  <p>This is the second thing to know about splitting a job. Long jobs demand far more reliable steps than short ones, and every method of the last chapters that made one step more reliable matters more here than anywhere: training (chapter 24), and a check that asks again (chapter 25), which takes the careless helper from 22 to 181 on three parts.</p>
+
+  <section class="bench" id="w-jobs">
+    <h3>Split a job</h3>
+    <p class="try"><b>Try this.</b> Run jobs of one part with the careless helper, then of three, then of six. Then switch to the trained helper and repeat.</p>
+  </section>
+
+  <p><strong>What you should have seen.</strong> With the careless helper about half the one-part jobs are right, and almost none of the six-part jobs: each extra part halves the chance again. With the trained helper nearly every job is right at one part and a few fail at six. Look at the contexts printed under a job. Each helper's is short and separate, and the lead's line holds only numbers.</p>
+
+  <h2>What it costs</h2>
+  <div class="scroll"><table class="mini">
+    <tr><th>Parts</th><th>Tokens per job: careless</th><th>careless, checked</th><th>trained</th></tr>
+    <tr><td class="mono">1</td><td class="mono">53</td><td class="mono">102</td><td class="mono">62</td></tr>
+    <tr><td class="mono">2</td><td class="mono">108</td><td class="mono">206</td><td class="mono">125</td></tr>
+    <tr><td class="mono">3</td><td class="mono">159</td><td class="mono">296</td><td class="mono">186</td></tr>
+    <tr><td class="mono">4</td><td class="mono">214</td><td class="mono">406</td><td class="mono">250</td></tr>
+    <tr><td class="mono">5</td><td class="mono">267</td><td class="mono">525</td><td class="mono">311</td></tr>
+    <tr><td class="mono">6</td><td class="mono">319</td><td class="mono">614</td><td class="mono">374</td></tr>
+  </table></div>
+  <ul>
+    <li><strong>More tokens in total.</strong> Each helper reads its own question and writes its own answer, and a check that asks again roughly doubles that. Sub-agents save the lead's context. They do not save work.</li>
+    <li><strong>Less waiting.</strong> The parts do not depend on each other, so the helpers can run at the same time, in one batch (chapter 27). The job then takes as long as its slowest part, not the sum of all of them.</li>
+    <li><strong>A narrow hand-off.</strong> A helper knows only what the lead wrote down for it. Here that is the whole of its part. In real work the lead knows things it did not think to pass on, and the helper cannot ask.</li>
+  </ul>
+
+  <h2>At full size</h2>
+  <p>In current assistants the lead is a model. It reads the request, writes a short brief for each sub-agent, and reads back their summaries. A sub-agent may read twenty files or run a long search to produce a paragraph. Those files never enter the lead's context, which is how one assistant can work through far more material than its window holds (chapter 16).</p>
+  <p>The same three facts hold. The working is thrown away and only the result is kept, so the brief and the summary have to carry everything that matters. The total cost in tokens goes up. And reliability multiplies, so systems of this kind lean on checks at every hand-off: tests that are run, results that are verified before they are combined.</p>
+  <p>When the split is fixed in advance, as here, the lead can be ordinary code, and the result is easier to predict and to test. A model as lead is for jobs whose split cannot be known beforehand.</p>
+
+  <h2>Build it</h2>
+  <pre class="code" data-src="ch32_helpers.py#helper">def helper(run, part, rng, tries=1):
+    """One helper: a fresh context, one part of the job. Returns its number (or None) and the text it used.
+    With tries &gt; 1 it is asked again until its answer rests on a tool result (the check of chapter 25)."""
+    used = 0
+    for _ in range(tries):
+        e = post.episode(run, f'what is {part}?', rng)
+        used += len(e['text'])
+        if tries == 1 or e['call'] is not None:
+            break
+    last = e['answer'].rstrip('.').split(' ')[-1]
+    return (int(last) if last.lstrip('-').isdigit() else None), used, len(e['text'])</pre>
+  <pre class="code" data-src="ch32_helpers.py#lead">def lead(run, request, rng, tries=1):
+    """The lead: split the job, hand out the parts, add up what comes back. It never sees a helper's working."""
+    parts = request[len('add up: '):].split(', ')
+    results = [helper(run, part, rng, tries) for part in parts]        # each could run at the same time
+    numbers = [r[0] for r in results]
+    total = None if None in numbers else sum(numbers)                  # the lead's own tool call
+    return {'total': total, 'tokens': sum(r[1] for r in results), 'largest': max(r[2] for r in results),
+            'lead_context': len(request) + sum(len(str(n)) + 3 for n in numbers) + len(str(total)) + 12}</pre>
+  <p class="src">From <code>code/ch32_helpers.py</code>. A helper is the agent of chapter 24 with a fresh context. The lead splits, hands out and adds up.</p>
+  <pre class="code" data-lang="text">python code/ch24_posttrain.py --train    # if not done: the helpers
+python code/ch32_helpers.py              # every table of this chapter, about 5 minutes</pre>
+
+  <div class="note">
+    <h3>What this chapter glossed over</h3>
+    <p><strong>The lead is code.</strong> Splitting at commas needs no model. Our small model could not plan a split, and a lead that is a model makes mistakes of its own: a bad split, a missing brief.</p>
+    <p><strong>The parts were independent.</strong> No helper needed another's result. When parts depend on each other they must run in order, and a mistake early on spoils everything after it.</p>
+    <p><strong>Nothing was lost in the hand-off.</strong> A sum is a complete brief. The losses of real hand-offs, where the helper lacks context the lead had, are not measured here.</p>
+    <p><strong>One run.</strong> 200 jobs for each size and each helper, one seed. Counts move by a few with another.</p>
+  </div>
+
+  <div class="recap">
+    <h3>In short</h3>
+    <ul>
+      <li>A <a class="term" href="glossary.html#sub-agent">sub-agent</a> does one part of a job in its own empty context and returns only its result. The <a class="term" href="glossary.html#lead">lead</a> splits the job and combines the results.</li>
+      <li>Contexts stay small: never more than 70 characters here, where one shared context would have needed 456 for six parts.</li>
+      <li>Reliability multiplies. A helper right half the time gets 22 of 200 three-part jobs right. A helper right 98.5% of the time gets 188 of 200 five-part jobs right.</li>
+      <li>The total number of tokens goes up, the waiting time can go down because helpers run together, and a helper knows only what the lead wrote for it.</li>
+    </ul>
+  </div>
+
+  <h2>Check yourself</h2>
+  <details class="check"><summary>The helpers did all the work with the calculator. Why does the lead's context not contain any tool calls for the parts?</summary><p>Each helper worked in its own context and handed back one number. The calls and results that produced the number stayed in the helper's context, which is discarded when it finishes.</p></details>
+  <details class="check"><summary>A helper is right 90% of the time. How often is a job of seven parts right?</summary><p>0.9 multiplied by itself seven times is 0.48: less than half. Each part must be right for the job to be right, so the chances multiply.</p></details>
+  <details class="check"><summary>Splitting a job among helpers used more tokens than doing it in one context would have. What was gained?</summary><p>The job became possible at all, since no single context could hold it, and the parts can run at the same time. Sub-agents trade tokens for context and for time.</p></details>
+  <details class="check"><summary>The lead tells a helper "fix the failing test" and nothing else. What can go wrong that could not go wrong in this chapter's jobs?</summary><p>The helper lacks what the lead knew: which test, what was already tried, what must not be changed. Here each part was a complete question. A real brief has to carry that context in words, and what is left out is lost.</p></details>
+</main>
+
+<script src="assets/post.js"></script>
+<script src="assets/glossary.js"></script>
+<script src="assets/micro.js"></script>
+<script>
+M.ready(function () {
+  var box = M.$('#w-jobs'), P = window.MICRO_POST;
+  if (!P) { box.appendChild(M.el('p', { text: 'The trained models did not load, so this experiment is unavailable.' })); return; }
+  var models = {}, kind = 'pre', presses = 0;
+  var TOOLS = { add: function (a, b) { return a + b; }, sub: function (a, b) { return a - b; }, mul: function (a, b) { return a * b; } }, WORDS = { plus: 'add', minus: 'sub', times: 'mul' }, NAMES = Object.keys(WORDS);
+  var D = '0123456789', CALL = [{ words: ['add', 'sub', 'mul'] }, [' ', 1, 1], [D, 1, 2], [' ', 1, 1], [D, 1, 2], ['\n', 1, 1]], ROLE = [{ words: ['C ', 'A '] }];
+  function moves(fmt, st) {        // the format machine of chapter 13
+    var i = st[0], s = st[1], out = {}, mayEnd;
+    while (i < fmt.length) {
+      var part = fmt[i];
+      if (part.words) {
+        part.words.forEach(function (x) { if (x.indexOf(s) === 0 && x.length > s.length && !(x[s.length] in out)) out[x[s.length]] = [i, s + x[s.length]]; });
+        mayEnd = part.words.indexOf(s) >= 0;
+      } else {
+        if (s.length < part[2]) for (var k = 0; k < part[0].length; k++) if (!(part[0][k] in out)) out[part[0][k]] = [i, s + part[0][k]];
+        mayEnd = s.length >= part[1];
+      }
+      if (!mayEnd) break;
+      i++; s = '';
+    }
+    return out;
+  }
+  function writeLine(m, wr, used, fmt, limit, rnd) {
+    var line = '', st = [0, ''];
+    while (line.slice(-1) !== '\n' && line.length < limit && used.n < m.cfg.block - 1) {
+      var z = wr.logits(), legal = null, mx = -Infinity, sum = 0, i, p = new Float64Array(z.length);
+      if (fmt) { legal = moves(fmt, st); if (!Object.keys(legal).length) break; }
+      for (i = 0; i < z.length; i++) if ((!legal || m.chars[i] in legal) && z[i] > mx) mx = z[i];
+      for (i = 0; i < z.length; i++) { p[i] = (!legal || m.chars[i] in legal) ? Math.exp(z[i] - mx) : 0; sum += p[i]; }
+      var r = rnd() * sum, pick = 0;
+      for (i = 0; i < z.length; i++) { r -= p[i]; if (r <= 0 && p[i] > 0) { pick = i; break; } pick = p[i] > 0 ? i : pick; }
+      var ch = m.chars[pick];
+      if (fmt) st = legal[ch];
+      line += ch; wr.add(pick); used.n++;
+    }
+    return line;
+  }
+  /* one helper: a fresh context, one part, one number back */
+  function helper(m, part, rnd) {
+    var prompt = '\nU what is ' + part + '?\n', wr = M.writer(m, prompt), used = { n: prompt.length }, text = 'U what is ' + part + '?';
+    if (writeLine(m, wr, used, ROLE, 2, rnd) === 'C ') {
+      var call = writeLine(m, wr, used, CALL, 14, rnd).trim(), p = call.split(' '), res = TOOLS[p[0]](+p[1], +p[2]), fed = 'R ' + res + '\nA ';
+      for (var i = 0; i < fed.length; i++) { wr.add(m.stoi[fed[i]]); used.n++; }
+      text += '\nC ' + call + '\nR ' + res;
+    }
+    var answer = writeLine(m, wr, used, null, 60, rnd).trim(), last = answer.replace(/\.$/, '').split(' ').pop();
+    return { text: text + '\nA ' + answer, number: /^-?\d+$/.test(last) ? +last : null };
+  }
+  function job(parts, rnd, m) {
+    var terms = [], total = 0;
+    for (var i = 0; i < parts; i++) { var a = Math.floor(rnd() * 100), b = Math.floor(rnd() * 100), w = NAMES[Math.floor(rnd() * 3)]; terms.push(a + ' ' + w + ' ' + b); total += TOOLS[WORDS[w]](a, b); }
+    var helpers = terms.map(function (t) { return helper(m, t, rnd); }), got = 0, bad = false;
+    helpers.forEach(function (h) { if (h.number === null) bad = true; else got += h.number; });
+    return { request: 'add up: ' + terms.join(', '), helpers: helpers, got: bad ? null : got, right: !bad && got === total, total: total };
+  }
+  M.jobsRun = function (k, parts, seed, n) { var m = models[k] || (models[k] = M.loadWeights(P.models[k])), rnd = M.rng(seed), ok = 0; for (var i = 0; i < n; i++) ok += job(parts, rnd, m).right; return ok; };
+  var kS = M.select('Helper', [['pre', 'Careless: pre-trained only'], ['rl', 'Trained (chapter 24)']], function (v) { kind = v; });
+  var nS = M.slider({ label: 'Parts in each job', min: 1, max: 6, step: 1, value: 3, fmt: function (v) { return v; } });
+  var bars = M.el('div'), stat = M.el('p', { class: 'readout', text: 'Nothing run yet.' }), show = M.el('div');
+  function go() {
+    var m = models[kind] || (models[kind] = M.loadWeights(P.models[kind])), rnd = M.rng(97 * (presses++) + 3), ok = 0, first = null;
+    for (var i = 0; i < 30; i++) { var j = job(nS.value, rnd, m); ok += j.right; if (!first) first = j; }
+    M.bars(bars, [{ label: 'jobs right', p: ok / 30, text: ok + ' of 30', hl: true }, { label: 'jobs wrong', p: (30 - ok) / 30, text: (30 - ok) + ' of 30', cut: true }], 1);
+    stat.textContent = 'Thirty jobs of ' + nS.value + (nS.value > 1 ? ' parts' : ' part') + ' each. Below: the first of them.';
+    show.textContent = '';
+    show.appendChild(M.el('div', { class: 'caption', style: 'margin:8px 0 2px', text: 'The lead\'s notes' }));
+    show.appendChild(M.el('div', { style: 'font-family:var(--mono);font-size:14px;white-space:pre-wrap;overflow-wrap:anywhere;border-left:4px solid ' + M.css('--fwd') + ';padding-left:10px', text: first.request + '\nback: ' + first.helpers.map(function (h) { return h.number === null ? '?' : h.number; }).join(', ') + '\ntotal: ' + (first.got === null ? 'none' : first.got) + (first.right ? '  (right)' : '  (wrong: it is ' + first.total + ')') }));
+    first.helpers.forEach(function (h, i) {
+      show.appendChild(M.el('div', { class: 'caption', style: 'margin:8px 0 2px', text: 'Helper ' + (i + 1) + ': its own context, ' + h.text.length + ' characters' }));
+      show.appendChild(M.el('div', { style: 'font-family:var(--mono);font-size:14px;white-space:pre-wrap;overflow-wrap:anywhere;border-left:4px solid var(--line);padding-left:10px', text: h.text }));
+    });
+  }
+  box.appendChild(M.row(kS)); box.appendChild(M.row(nS)); box.appendChild(M.row(M.button('Run thirty jobs', go, 'go'))); box.appendChild(bars); box.appendChild(stat); box.appendChild(show);
+  box.appendChild(M.el('p', { class: 'caption', text: 'The agents of chapter 24, running in your browser. Each helper answers by drawing characters from its probabilities, so each press gives different jobs and different answers.' }));
+});
+</script>
+</body>
+</html>

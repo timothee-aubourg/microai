@@ -35,6 +35,11 @@
     ['27-serving.html', 'Many people at once', 'serve'],
     ['28-classifiers.html', 'A second model that says yes or no', 'judge'],
     ['29-distilling.html', 'A large model teaches a small one', 'teach'],
+    ['30-rotary.html', 'Positions that turn', 'turn'],
+    ['31-pictures.html', 'Pictures as tokens', 'see'],
+    ['32-helpers.html', 'Many hands', 'hands'],
+    ['33-selftraining.html', 'Learning from its own answers', 'self'],
+    ['34-system2.html', 'The whole thing, again', 'whole'],
   ];
 
   // ---------- DOM helpers ----------
@@ -379,9 +384,9 @@
     const K = [], Vc = [];
     for (let l = 0; l < L; l++) { K.push(new Float32Array(B * d)); Vc.push(new Float32Array(B * d)); }
     let pos = 0, hist = [];
-    function feed(id) {
+    function feed(id, extra) {              // extra: a vector added to this token's embedding (an image patch, chapter 31)
       const x = new Float32Array(d);
-      for (let i = 0; i < d; i++) x[i] = w.wte[id * d + i] + w.wpe[pos * d + i];
+      for (let i = 0; i < d; i++) x[i] = w.wte[id * d + i] + w.wpe[pos * d + i] + (extra ? extra[i] : 0);
       for (let l = 0; l < L; l++) {
         const p = 'h' + l + '.';
         const a = layernorm(x, 1, d, w[p + 'ln1.g'], w[p + 'ln1.b']);
@@ -406,9 +411,9 @@
       return M.unembed(m, x, 1, w);
     }
     return {
-      push: function (id) {                 // returns the scores for the token after `id`
+      push: function (id, extra) {          // returns the scores for the token after `id`
         hist.push(id);
-        if (pos < B) return feed(id);
+        if (pos < B) return feed(id, extra);
         pos = 0;                            // window full: keep the recent half and rebuild the cache
         let lg = null;
         hist.slice(-(B >> 1)).forEach((t) => { lg = feed(t); });
@@ -422,7 +427,7 @@
     if (!ids.length) ids.push(m.stoi['\n']);
     let lg = null;
     ids.forEach((id) => { lg = s.push(id); });
-    return { logits: () => lg, add: (id) => { lg = s.push(id); } };
+    return { logits: () => lg, add: (id, extra) => { lg = s.push(id, extra); } };
   };
   /* generate n characters; cb(char, probs) per step. Returns the new text. */
   M.generate = function (m, prompt, n, opts, rnd, weights, cb) {
@@ -685,7 +690,7 @@
   };
   const svgIcon = (inner) => M.el('span', { class: 'ic', 'aria-hidden': 'true', html: '<svg viewBox="0 0 48 48" focusable="false">' + inner + '</svg>' });
   M.icon = (name) => svgIcon(ICONS[name] || '');
-  /* The six parts of the course. Each gets a pigment and a gesture derived from its name,
+  /* The parts of the course. Each gets a pigment and a gesture derived from its name,
      so its sign is stable and needs no drawing. [label, name, first chapter, pigment] */
   M.parts = [
     ['Part one', 'the model', 1, '#5f9b3a'], ['Part two', 'making it work', 7, '#2f8f8a'],
@@ -693,7 +698,8 @@
     ['Part five', 'the harness', 15, '#8c8a2e'], ['Part six', 'the whole machine', 18, '#8e4a9e'],
     ['Part seven', 'at full size', 20, '#4a9a6a'], ['Part eight', 'fitting the machine', 22, '#7d5b4a'],
     ['Part nine', 'shaping behaviour', 24, '#5c6b7a'], ['Part ten', 'faster, and for many', 26, '#9a5a7d'],
-    ['Part eleven', 'models that help models', 28, '#6a7f3a']
+    ['Part eleven', 'models that help models', 28, '#6a7f3a'], ['Part twelve', 'inside current models', 30, '#7a6fae'],
+    ['Part thirteen', 'the agent, further', 32, '#96806a']
   ];
   M.partOf = (ch) => { let k = 0; M.parts.forEach((p, i) => { if (ch >= p[2]) k = i; }); return k; };
   M.partIcon = function (k) {
@@ -812,7 +818,22 @@
           keep: 'A classifier catches what no rule listed, and it is wrong in two ways. The threshold chooses between them; only better examples reduce both.' },
     29: { q: 'A small model learns from only 5,000 characters. Version A is told the next character each time. Version B is told a large model\'s probabilities for the next character. Which is better on new text?', o: ['A: the real text is the truth.', 'B, by a wide margin.', 'About the same.'], a: 1,
           why: 'A memorised its 5,000 characters and scored 6.57, worse than knowing nothing. B scored 2.65: the probabilities carry what the large model learned from 200 times more text.',
-          keep: 'A large model\'s probabilities say more than the text: not only what came next, but what could have. A small model taught that way needs far less text.' }
+          keep: 'A large model\'s probabilities say more than the text: not only what came next, but what could have. A small model taught that way needs far less text.' },
+    30: { q: 'A model is trained on windows of 64 characters, with positions that turn instead of a table of positions. It is then run on windows of 128. What happens to its loss on new text?', o: ['It improves: more context helps.', 'About the same.', 'Much worse.'], a: 2,
+          why: 'It went from 1.566 to 2.850. Nothing stops the model from running at 128, but it never learned what to do with distances beyond 64.',
+          keep: 'Rotary positions put the distance between two tokens into the attention score. They remove the table, not the need to train at the length you will use.' },
+    31: { q: 'The agent now gets the first number of a sum as a picture. If the picture is hidden from it, how many of 300 sums does it get right?', o: ['About 150: it can guess from the rest.', '5.', 'All 300: the text is enough.'], a: 1,
+          why: 'Without the pixels it can only guess the number: 5 of 300. With a clean picture it gets 300 of 300, so the answers come from the picture.',
+          keep: 'A picture enters as vectors the size of token embeddings, one per patch, made by a trained matrix. After that first step the model is unchanged.' },
+    32: { q: 'A careless model gets one sum right about half the time. A job has six sums, each given to its own helper. Of 200 jobs, how many come out fully right: unchecked, and with a check that asks again?', o: ['About 100, and about 110.', '3, and 164.', '50, and 60.'], a: 1,
+          why: 'Six chances to be wrong multiply: 3 of 200. With each helper checked and asked again, 164. A trained helper gets 188 without any check.',
+          keep: 'A lead splits the job, each helper works in a short context of its own, and only results come back. Errors multiply with the number of parts unless each part is made reliable.' },
+    33: { q: 'A model answers 600 questions, its answers are added to its training data, and it trains again, four times over. Rule A keeps every answer. Rule B keeps only answers that used the calculator. Which model improves?', o: ['Both: more data.', 'Only B.', 'Neither: it only sees itself.'], a: 1,
+          why: 'Keeping everything left it where it began: 152 right of 300, then 145. Keeping the answers that used the calculator took it from 152 to 293.',
+          keep: 'A model improves on its own outputs only through a filter that knows something the model does not. What it learns is the filter.' },
+    34: { q: 'The system of chapter 19 gets every part added since: training on rewards, a check, a guard, a filter. It no longer gives out the secret. Of 108 harmless requests, how many does it now refuse?', o: ['None.', '30.', 'All 108.'], a: 1,
+          why: 'The guard that stops requests for the secret also stops 30 harmless ones. Before the guard, the trained model gave the secret 12 times of 128; after guard and filter, 0.',
+          keep: 'Each part is added to fix one measured failure and brings a cost of its own. A system is the list of those trades, and the table is how you see them.' }
   };
   function guesses(set) {
     let s = {};

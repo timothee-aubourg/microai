@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>microAI</title>
-<meta name="description" content="Build and understand a local language model and the agent around it, from first principles: twenty-nine interactive chapters with a real GPT running in your browser.">
+<meta name="description" content="Build and understand a local language model and the agent around it, from first principles: thirty-four interactive chapters with a real GPT running in your browser.">
 <link rel="stylesheet" href="assets/style.css">
 </head>
 <body data-ch="0">
@@ -30,7 +30,7 @@
   <p>Three colours mean the same thing on every page: <span class="fwd">blue for values flowing forward</span> through the model, <span class="grad">raspberry for gradients and error flowing backward</span>, <span class="prob">amber for probabilities</span>.</p>
 
   <h2>The path</h2>
-  <p>Text goes in on the left; a guess about the next token comes out on the right. Chapters 1 to 6 build that pipeline. Chapters 7 to 9 make it learn, write and shrink. Chapters 10 to 12 turn it into a system on your machine. Chapters 13 and 14 make that system dependable. Chapters 15 to 17 open up the harness that turns a model into an agent. Chapters 18 and 19 go down to the hardware and then put every part together in one system you train yourself. Chapters 20 and 21 show two ideas that full-size models add: experts, and room to think. Chapters 22 and 23 fit the model to the machine: where the weights live, and how small a working model can be made. Chapter 24 covers what comes after pre-training: how examples and rewards turn a model that imitates text into one that behaves. Chapter 25 leaves the weights alone and improves the answers at the moment of asking. Chapters 26 and 27 are about speed and scale: writing several tokens per pass, and serving many people with one model. Chapters 28 and 29 are about small models that work for a large one: a classifier that guards it, and a student that learns from it.</p>
+  <p>Text goes in on the left; a guess about the next token comes out on the right. Chapters 1 to 6 build that pipeline. Chapters 7 to 9 make it learn, write and shrink. Chapters 10 to 12 turn it into a system on your machine. Chapters 13 and 14 make that system dependable. Chapters 15 to 17 open up the harness that turns a model into an agent. Chapters 18 and 19 go down to the hardware and then put every part together in one system you train yourself. Chapters 20 and 21 show two ideas that full-size models add: experts, and room to think. Chapters 22 and 23 fit the model to the machine: where the weights live, and how small a working model can be made. Chapter 24 covers what comes after pre-training: how examples and rewards turn a model that imitates text into one that behaves. Chapter 25 leaves the weights alone and improves the answers at the moment of asking. Chapters 26 and 27 are about speed and scale: writing several tokens per pass, and serving many people with one model. Chapters 28 and 29 are about small models that work for a large one: a classifier that guards it, and a student that learns from it. Chapters 30 and 31 look inside current models: how they now mark position, and how a picture gets in. Chapters 32 to 34 take the agent further: it hands parts of a job to helpers, learns from its own answers, and is then rebuilt whole with every part added since chapter 19.</p>
   <p class="readout" id="guess-score"></p>
   <p id="offline"></p>
 
@@ -56,6 +56,10 @@
   <ol class="toc" id="toc10" style="counter-reset: ch 25"></ol>
   <p class="part">Part eleven: models that help models</p>
   <ol class="toc" id="toc11" style="counter-reset: ch 27"></ol>
+  <p class="part">Part twelve: inside current models</p>
+  <ol class="toc" id="toc12" style="counter-reset: ch 29"></ol>
+  <p class="part">Part thirteen: the agent, further</p>
+  <ol class="toc" id="toc13" style="counter-reset: ch 31"></ol>
 
   <h2>Run the code yourself</h2>
   <p>The only dependency is numpy. Training takes roughly a quarter of an hour on a laptop CPU.</p>
@@ -104,10 +108,15 @@ M.ready(function () {
     'A small model drafts and the large one checks several tokens in one pass: the same text, from fewer passes.',
     'Batches, queues and continuous batching: why one model can serve many people, measured and simulated.',
     'A rule, a small classifier and a probe on the model\'s own activations, tested on wordings none of them saw.',
-    'A small model taught by a large one\'s probabilities instead of by the text, with plenty of text and with very little.'
+    'A small model taught by a large one\'s probabilities instead of by the text, with plenty of text and with very little.',
+    'Rotary positions: attention that depends on how far apart two tokens are, trained and compared with the table of chapter 4.',
+    'The agent reads a number from a picture: patches of pixels become vectors, and the rest of the model does not change.',
+    'A lead splits a job and hands each part to a helper with its own short context: what that saves, and how errors multiply.',
+    'A model trained on its own answers, four rounds, under three rules for which answers to keep. One rule works.',
+    'The system of chapter 19 rebuilt with the parts added since, switched on one at a time and measured on 600 requests.'
   ];
   M.chapters.forEach(function (c, i) {
-    var list = M.$(i < 6 ? '#toc1' : i < 9 ? '#toc2' : i < 12 ? '#toc3' : i < 14 ? '#toc4' : i < 17 ? '#toc5' : i < 19 ? '#toc6' : i < 21 ? '#toc7' : i < 23 ? '#toc8' : i < 25 ? '#toc9' : i < 27 ? '#toc10' : '#toc11');
+    var list = M.$(i < 6 ? '#toc1' : i < 9 ? '#toc2' : i < 12 ? '#toc3' : i < 14 ? '#toc4' : i < 17 ? '#toc5' : i < 19 ? '#toc6' : i < 21 ? '#toc7' : i < 23 ? '#toc8' : i < 25 ? '#toc9' : i < 27 ? '#toc10' : i < 29 ? '#toc11' : i < 31 ? '#toc12' : '#toc13');
     list.appendChild(M.el('li', null, M.el('a', { href: c[0] }, M.el('b', { text: c[1] }), M.el('span', { text: blurbs[i] }))));
   });
 
