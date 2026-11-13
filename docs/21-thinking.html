@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Room to think | microAI</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-ch="21">
+<main>
+  <p class="where">Chapter 21</p>
+  <h1>Room to think</h1>
+  <p class="question">A model does the same amount of work for every token it writes. How can it answer a question that needs more work than that?</p>
+
+  <p>Look again at how a token is produced (chapter 6). The text goes once through the stack of blocks, from bottom to top, and a token comes out. Our models have two blocks. Large ones have a few dozen. Whatever the question, the number of steps between reading and answering is fixed by the depth of the stack.</p>
+  <p>Some questions need more steps than that. A person facing one of those reaches for paper. A model has something that works the same way. Each token it writes is fed back in and can be read by the next (chapter 8). So a model that writes down intermediate results has them in front of it for the rest of the answer. Its own text is its working memory.</p>
+
+  <h2>A question that needs steps</h2>
+  <p>Here is a small question of that kind. Given a row of twelve 0s and 1s, is the number of 1s odd or even?</p>
+  <p>Think of a lamp and a row of people. Each person holding a 1 presses the switch once. Is the lamp on at the end? You cannot tell from a glance at the row. No single position decides it, and changing any one of them changes the answer. You have to walk along the row.</p>
+  <p>Walking along it is easy, though. Keep one thing in mind, "odd so far" or "even so far", and update it at each position: a 1 flips it, a 0 leaves it.</p>
+
+  <h3>By hand</h3>
+  <p>Take the row 1 0 1 1 and write a mark after each position: 1 for "odd so far", 0 for "even so far".</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Position</th><th>Bit</th><th>What happens</th><th>Mark</th></tr>
+    <tr><td class="mono">1</td><td class="mono">1</td><td>flip: even becomes odd</td><td class="mono">1</td></tr>
+    <tr><td class="mono">2</td><td class="mono">0</td><td>stay</td><td class="mono">1</td></tr>
+    <tr><td class="mono">3</td><td class="mono">1</td><td>flip: odd becomes even</td><td class="mono">0</td></tr>
+    <tr><td class="mono">4</td><td class="mono">1</td><td>flip: even becomes odd</td><td class="mono">1</td></tr>
+  </table></div>
+  <p>The last mark is 1, so the answer is "odd". There are three 1s in the row, which agrees. Each line of the table needed only two things: the mark on the line above and one bit.</p>
+
+  <figure class="fig">
+    <svg viewBox="0 0 760 250" role="img" aria-labelledby="f21a">
+      <title id="f21a">Two ways to answer. Directly: all bits go into the model and the answer must come out in one go. With steps: the model writes one mark per bit, each computed from the previous mark and one bit, and the answer is the last mark.</title>
+      <defs><marker id="c21a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
+      <text x="16" y="24" class="t-big">Directly</text>
+      <g class="t-mono"><rect x="16" y="40" width="34" height="32" rx="5" class="bx"/><text x="33" y="62" text-anchor="middle">1</text><rect x="54" y="40" width="34" height="32" rx="5" class="bx"/><text x="71" y="62" text-anchor="middle">0</text><rect x="92" y="40" width="34" height="32" rx="5" class="bx"/><text x="109" y="62" text-anchor="middle">1</text><rect x="130" y="40" width="34" height="32" rx="5" class="bx"/><text x="147" y="62" text-anchor="middle">1</text></g>
+      <line x1="170" y1="56" x2="236" y2="56" class="ln" marker-end="url(#c21a)"/>
+      <rect x="240" y="36" width="170" height="40" rx="6" class="bx-fwd"/><text x="325" y="61" text-anchor="middle">one pass, all bits at once</text>
+      <line x1="410" y1="56" x2="476" y2="56" class="ln" marker-end="url(#c21a)"/>
+      <rect x="480" y="38" width="80" height="36" rx="6" class="bx-grad"/><text x="520" y="61" text-anchor="middle" class="t-mono">odd ?</text>
+      <text x="16" y="122" class="t-big">With steps</text>
+      <text x="16" y="158" class="t-small t-muted">bits</text><text x="16" y="212" class="t-small t-muted">marks</text>
+      <g class="t-mono"><rect x="70" y="138" width="34" height="32" rx="5" class="bx"/><text x="87" y="160" text-anchor="middle">1</text><rect x="150" y="138" width="34" height="32" rx="5" class="bx"/><text x="167" y="160" text-anchor="middle">0</text><rect x="230" y="138" width="34" height="32" rx="5" class="bx"/><text x="247" y="160" text-anchor="middle">1</text><rect x="310" y="138" width="34" height="32" rx="5" class="bx"/><text x="327" y="160" text-anchor="middle">1</text></g>
+      <g class="t-mono"><rect x="70" y="192" width="34" height="32" rx="5" class="bx-fwd"/><text x="87" y="214" text-anchor="middle">1</text><rect x="150" y="192" width="34" height="32" rx="5" class="bx-fwd"/><text x="167" y="214" text-anchor="middle">1</text><rect x="230" y="192" width="34" height="32" rx="5" class="bx-fwd"/><text x="247" y="214" text-anchor="middle">0</text><rect x="310" y="192" width="34" height="32" rx="5" class="bx-fwd"/><text x="327" y="214" text-anchor="middle">1</text></g>
+      <g class="ln"><line x1="87" y1="170" x2="87" y2="188" marker-end="url(#c21a)"/><line x1="167" y1="170" x2="167" y2="188" marker-end="url(#c21a)"/><line x1="247" y1="170" x2="247" y2="188" marker-end="url(#c21a)"/><line x1="327" y1="170" x2="327" y2="188" marker-end="url(#c21a)"/></g>
+      <g class="ln-fwd"><line x1="104" y1="208" x2="146" y2="208" marker-end="url(#c21a)"/><line x1="184" y1="208" x2="226" y2="208" marker-end="url(#c21a)"/><line x1="264" y1="208" x2="306" y2="208" marker-end="url(#c21a)"/><line x1="344" y1="208" x2="476" y2="208" marker-end="url(#c21a)"/></g>
+      <rect x="480" y="190" width="80" height="36" rx="6" class="bx-fwd"/><text x="520" y="213" text-anchor="middle" class="t-mono">odd</text>
+      <text x="580" y="204" class="t-small t-muted">the answer is</text><text x="580" y="220" class="t-small t-muted">the last mark</text>
+    </svg>
+    <figcaption><b>The same question, twice.</b> Above, the answer must come out of one pass. Below, each mark needs only the mark before it and one bit, and the model writes them one token at a time.</figcaption>
+  </figure>
+
+  <div class="def"><span class="kind">Definition</span>
+    <p><dfn>Thinking tokens</dfn>, also called reasoning tokens, are text a model writes for itself before its answer: intermediate results that it can then read back. The row of marks above is the smallest possible example.</p>
+  </div>
+
+  <h2>Two models, one difference</h2>
+  <p><code>code/ch21_think.py</code> trains two models. They have the same 103,808 weights, the same 3,000 training steps and the same rows of bits. They differ in what they are shown between the question and the answer.</p>
+  <pre class="code" data-lang="text">direct                         steps
+U 101100111010                 U 101100111010
+A odd                          T 110111010011      one mark per bit
+                               A odd               the last mark, in words</pre>
+  <p>Of the 4,096 possible rows, 410 were kept out of training. Both models are tested only on those. Below, both are running in your browser.</p>
+
+  <section class="bench" id="w-think">
+    <h3>Ask both models</h3>
+    <p class="try"><b>Try this.</b> Tap bits to flip them, or take a random row. Compare the two answers with the truth. Then watch the marks: find the positions where they change.</p>
+  </section>
+
+  <p><strong>What you should have seen.</strong> The model asked directly says "even" whatever the row. It is right when the row happens to be even. The other model writes twelve marks before it answers, and its marks follow the rule of the table: each one differs from the one before exactly where the bit is 1. Its answer is its last mark put into words.</p>
+
+  <h2>Measured</h2>
+  <div class="scroll"><table class="mini">
+    <tr><th>Model</th><th>Right, on 400 unseen rows</th><th>Tokens written per answer</th></tr>
+    <tr><td>Asked directly</td><td class="mono">224 (56%)</td><td class="mono">6</td></tr>
+    <tr><td>Writes its steps first</td><td class="mono">400 (100%)</td><td class="mono">20 or 21</td></tr>
+  </table></div>
+  <p>The first row is not a model that is sometimes wrong. It is a model that learned nothing about the question. It answered "even" to all 410 held-out rows, and 56% of those happen to be even. On rows it had trained on it got 193 of 400: it had not even memorised them. In 3,000 steps, gradient descent found no way to fit twelve flips into two blocks.</p>
+  <p>The second model wrote the correct row of marks for all 410 held-out rows. It did not memorise them either: it had never seen them. It learned the rule for one step, and the answer follows.</p>
+
+  <h2>Why writing helps</h2>
+  <p>Three things changed between the two models, and they are the three reasons this works at any size.</p>
+  <ol>
+    <li><strong>More tokens are more work.</strong> Every token is one more pass through the stack. Twenty tokens are more than three times the computation of six.</li>
+    <li><strong>Each step became easy.</strong> "Flip or stay" needs the previous mark and one bit. A two-block model can learn that. It could not learn the whole chain at once.</li>
+    <li><strong>Results are kept where attention can find them.</strong> A mark, once written, is ordinary text in the window. The next step reads it exactly as it reads the question.</li>
+  </ol>
+
+  <h2>The price, and the control</h2>
+  <p>Thinking is paid in tokens. The second model writes 20 or 21 tokens where the first writes 6, so each answer takes more than three times as long (chapter 18) and fills the window faster (chapter 16). At full size the proportions are larger: a model may write thousands of thinking tokens before a one-line answer.</p>
+  <div class="def"><span class="kind">Definition</span>
+    <p><dfn>Reasoning effort</dfn> is a setting, offered by many models and services, that limits how many thinking tokens the model may write before it answers. More effort costs more time and more tokens.</p>
+  </div>
+  <p>A model has to be trained for that setting to work. Ours was not. It only ever saw answers that came after all twelve marks. If the harness cuts it off after eleven and demands the answer, it does not give a slightly worse answer. It writes scraps such as "en" and then starts another row of marks. The script measures 0 right out of 400.</p>
+
+  <h2>At full size</h2>
+  <p>Large models are trained on examples in which thinking comes first and the answer after, the way ours was. The chat template of chapter 15 has a place for it: Qwen3, for instance, puts the thinking between two special tokens ahead of the reply. The harness can show that part, fold it away or drop it from the conversation it sends back.</p>
+  <p>In an agent, thinking sits between the tool calls. After a tool result the model writes what the result means and what to do next, and then writes the next request. Chapter 14's traces are where you read it. When an agent picks the wrong tool, the thinking just before the call usually says why.</p>
+
+  <h2>Build it</h2>
+  <pre class="code" data-src="ch21_think.py#data">def held_out(bits):
+    return int(bits, 2) % 10 == 0                 # one string in ten is never shown in training
+
+def running(bits):
+    """After each bit: is the number of 1s so far odd (1) or even (0)?"""
+    marks, odd = '', 0
+    for b in bits:
+        odd ^= int(b)                             # a 1 flips it, a 0 leaves it
+        marks += str(odd)
+    return marks
+
+def example(bits, steps):
+    answer = 'odd' if bits.count('1') % 2 else 'even'
+    thinking = f'T {running(bits)}\n' if steps else ''
+    return f'U {bits}\n{thinking}A {answer}\n\n'</pre>
+  <p class="src">From <code>code/ch21_think.py</code>. The two formats. The only difference between the models is the line beginning with T.</p>
+  <pre class="code" data-src="ch21_think.py#answer">def answer(run, bits, steps, budget=BITS):
+    """Ask one model. Returns (its answer, everything it wrote, how many tokens it wrote).
+    `budget` limits the thinking: after that many marks the answer is demanded at once."""
+    cache = run.new_cache()
+    def feed(text):
+        for c in text:
+            logits = run.step(run.stoi[c], cache)
+        return logits
+    def write(logits):
+        c = run.chars[int(np.argmax(logits))]                        # greedy: always the likeliest character
+        return c, run.step(run.stoi[c], cache)
+    logits = feed('\nU ' + bits + '\n' + ('T ' if steps else 'A '))   # the prompt ends where the model takes over
+    written, forced = '', 0
+    if steps:
+        for _ in range(budget):                                      # the thinking: one mark per bit
+            c, logits = write(logits)
+            written += c
+        if budget &lt; BITS:                                            # cut short: the harness asks for the answer now
+            logits = feed('\nA ')
+            written, forced = written + '\nA ', 3
+    while not written.endswith('\n\n') and len(written) &lt; 30 and cache['pos'] &lt; run.block:
+        c, logits = write(logits)
+        written += c
+    last = written.strip().split('\n')[-1]                           # the answer is the last line
+    return last.replace('A ', ''), written, len(written) - forced</pre>
+  <p class="src">Asking a model: feed the prompt up to the point where it takes over, then let it write. <code>budget</code> cuts the thinking short.</p>
+  <pre class="code" data-lang="text">python code/ch21_think.py --train       # two models, about 3 minutes on a laptop CPU
+python code/ch21_think.py               # the tables of this chapter
+python code/ch21_think.py 101100111010  # one row, both models</pre>
+
+  <div class="note">
+    <h3>What this chapter glossed over</h3>
+    <p><strong>The task was chosen to make the point.</strong> Counting odd or even is known to be hard for this kind of model to learn in one go and easy step by step. On most questions the gain from thinking is real and smaller.</p>
+    <p><strong>The format of the steps matters.</strong> A first version of this experiment placed the examples anywhere in a long stream of text, and the second model failed too, at 56%. It could not find "the bit above this mark". Starting every example at the same position fixed it. Steps help only if each one is something the model can do.</p>
+    <p><strong>Our steps were given.</strong> We wrote the row of marks for the model to imitate. Large models are trained to produce useful steps for questions nobody worked out in advance, partly by rewarding answers that turn out right. That training is beyond this course.</p>
+    <p><strong>Written thinking is not a window into the model.</strong> The text a model writes while thinking helps it reach the answer. It is not a guaranteed account of why it gave that answer.</p>
+    <p><strong>One run, one seed.</strong> Each model was trained once.</p>
+  </div>
+
+  <div class="recap">
+    <h3>In short</h3>
+    <ul>
+      <li>A model does a fixed amount of work per token. A question that needs more than that cannot be answered in one go.</li>
+      <li><a class="term" href="glossary.html#thinking">Thinking tokens</a> are intermediate results the model writes and then reads back. They give it more computation, and they make each step small.</li>
+      <li>Two models of 103,808 weights learned the same task. Asked directly, one scored 56% on unseen rows by always saying "even". Writing one mark per bit, the other scored 400 of 400.</li>
+      <li>The price is tokens: 20 or 21 against 6 here. <a class="term" href="glossary.html#effort">Reasoning effort</a> is the setting that limits them, and a model must be trained to honour it.</li>
+    </ul>
+  </div>
+
+  <h2>Check yourself</h2>
+  <details class="check"><summary>Both models have the same weights count and saw the same rows. Where did the second one get its extra ability?</summary><p>From the tokens it writes. Each mark is one more pass through the model, and each pass has an easy job because the previous result is written down in front of it. The ability is in the procedure, not in extra weights.</p></details>
+  <details class="check"><summary>The direct model scores 56%, not 50%. Did it learn a little?</summary><p>No. It answers "even" every time, and 230 of the 410 held-out rows are even. A fixed answer scores whatever share of the test set agrees with it. This is why chapter 14 says to look at the answers and not only at the score.</p></details>
+  <details class="check"><summary>You set a large model's reasoning effort to its lowest level to save money, and it starts failing multi-step questions. What happened?</summary><p>It has fewer tokens to work in, so fewer intermediate results fit, and questions that need many steps no longer get them. The saving and the failures come from the same cause.</p></details>
+  <details class="check"><summary>Why does the thinking have to come before the answer, and not after?</summary><p>A token can only read what was written before it. An answer written first is produced without the steps, in one go. An explanation added afterwards cannot change it.</p></details>
+</main>
+
+<script src="assets/think.js"></script>
+<script src="assets/glossary.js"></script>
+<script src="assets/micro.js"></script>
+<script>
+M.ready(function () {
+  var box = M.$('#w-think'), T = window.MICRO_THINK;
+  if (!T) { box.appendChild(M.el('p', { text: 'The two trained models did not load, so this experiment is unavailable.' })); return; }
+  var direct = M.loadWeights(T.direct), steps = M.loadWeights(T.steps), N = 12, bits = '101100111010'.split(''), rnd = M.rng(6), timer = 0;
+  /* let a model write, greedily, until it has finished its answer */
+  function write(m, prompt) {
+    var wr = M.writer(m, prompt), out = '';
+    while (out.slice(-2) !== '\n\n' && out.length < 30) {
+      var z = wr.logits(), best = 0;
+      for (var i = 1; i < z.length; i++) if (z[i] > z[best]) best = i;
+      out += m.chars[best]; wr.add(best);
+    }
+    return out;
+  }
+  var grid = M.el('div', { style: 'display:grid;grid-template-columns:auto repeat(' + N + ', minmax(20px, 1fr));gap:4px 3px;align-items:center;font-family:var(--mono);font-size:15px;margin:10px 0;max-width:520px' });
+  var a1 = M.el('p', { class: 'readout' }), a2 = M.el('p', { class: 'readout' }), truth = M.el('p', { class: 'readout' });
+  function verdict(el, label, got, want, tokens) {
+    el.textContent = '';
+    el.appendChild(M.icon(got === want ? 'right' : 'wrong'));
+    el.appendChild(M.el('span', { html: label + ': <b>' + got + '</b>, ' + (got === want ? 'right' : 'wrong') + '. It wrote ' + tokens + ' tokens.' }));
+  }
+  function ask() {
+    clearInterval(timer);
+    var row = bits.join(''), want = bits.filter(function (b) { return b === '1'; }).length % 2 ? 'odd' : 'even';
+    var d = write(direct, '\nU ' + row + '\nA '), s = write(steps, '\nU ' + row + '\nT ');
+    var marks = s.split('\n')[0], sAns = s.trim().split('\n').pop().replace('A ', ''), dAns = d.trim();
+    grid.textContent = '';
+    grid.appendChild(M.el('span', { class: 'caption', text: 'bits', style: 'margin:0 6px 0 0' }));
+    bits.forEach(function (b, i) {
+      grid.appendChild(M.el('button', { type: 'button', text: b, 'aria-label': 'bit ' + (i + 1) + ' is ' + b + ', tap to flip', style: 'min-height:44px;padding:0;text-decoration:none;border:1px solid var(--border);border-radius:var(--cut-s);background:' + (b === '1' ? 'var(--soft)' : 'var(--panel)') + ';font:600 16px var(--mono)', onclick: function () { bits[i] = bits[i] === '1' ? '0' : '1'; ask(); } }));
+    });
+    grid.appendChild(M.el('span', { class: 'caption', text: 'marks', style: 'margin:0 6px 0 0' }));
+    var cells = [];
+    for (var i = 0; i < N; i++) { var c = M.el('span', { text: '·', style: 'text-align:center;padding:6px 0;border-radius:var(--cut-s);color:var(--muted)' }); cells.push(c); grid.appendChild(c); }
+    truth.innerHTML = 'Truth: ' + bits.filter(function (b) { return b === '1'; }).length + ' ones, so <b>' + want + '</b>.';
+    verdict(a1, 'Asked directly', dAns, want, d.length);
+    a2.textContent = 'Writing its steps…';
+    var k = 0;
+    function mark() {
+      if (k < N) {
+        var changed = marks[k] !== (k ? marks[k - 1] : '0');
+        cells[k].textContent = marks[k] || '?';
+        cells[k].setAttribute('style', 'text-align:center;padding:6px 0;border-radius:var(--cut-s);font-weight:700;color:var(--ink);background:color-mix(in srgb,' + M.css('--fwd') + ' ' + (changed ? 34 : 12) + '%, ' + M.css('--panel') + ')');
+        k++;
+      } else { clearInterval(timer); verdict(a2, 'Writing its steps first', sAns, want, s.length); }
+    }
+    if (M.reduced()) { while (k <= N) mark(); } else timer = setInterval(mark, 110);
+  }
+  box.appendChild(M.row(M.button('Random row', function () { bits = bits.map(function () { return rnd() < 0.5 ? '1' : '0'; }); ask(); }, 'go'),
+    M.button('All zeros', function () { bits = bits.map(function () { return '0'; }); ask(); }), M.button('All ones', function () { bits = bits.map(function () { return '1'; }); ask(); })));
+  box.appendChild(grid); box.appendChild(truth); box.appendChild(a1); box.appendChild(a2);
+  box.appendChild(M.el('p', { class: 'caption', text: 'A mark with a darker ground differs from the one before it: that is a flip, and it sits under a 1. Both models have ' + steps.cfg.params.toLocaleString('en-US') + ' weights and were trained by code/ch21_think.py.' }));
+  ask();
+});
+</script>
+</body>
+</html>

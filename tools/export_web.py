@@ -8,7 +8,8 @@ Writes docs/assets/weights.js (float16 weights, base64) and docs/assets/data.js
 browser tests). Run after code/train.py and code/ch12_lora.py.
 Optional inputs, each copied to docs/assets/ when present: runs/evals.json
 (ch14_eval.py --save), runs/harness.json (ch15_harness.py --mock --save),
-runs/guard.json (ch17_guard.py --save) and runs/agent.npz (ch19_system.py --train).
+runs/guard.json (ch17_guard.py --save), runs/agent.npz (ch19_system.py --train),
+runs/moe.json (ch20_moe.py --train) and runs/think_*.npz (ch21_think.py --train).
 """
 import base64, json, os, sys
 import numpy as np
@@ -91,7 +92,7 @@ if os.path.exists(evals_path):
         f.write('window.MICRO_EVALS = ' + json.dumps(evals) + ';\n')
 
 # ---- recorded sessions for chapters 15 and 17 ------------------------------------------
-for name, var in [('harness', 'MICRO_HARNESS'), ('guard', 'MICRO_GUARD')]:
+for name, var in [('harness', 'MICRO_HARNESS'), ('guard', 'MICRO_GUARD'), ('moe', 'MICRO_MOE')]:
     src = os.path.join(ROOT, 'runs', name + '.json')
     if os.path.exists(src):
         with open(src) as f:
@@ -114,6 +115,23 @@ if os.path.exists(agent_path):
              'b64': base64.b64encode(ablob).decode()}
     with open(os.path.join(ROOT, 'docs', 'assets', 'agent.js'), 'w') as f:
         f.write('window.MICRO_AGENT = ' + json.dumps(agent) + ';\n')
+
+# ---- the two models of chapter 21 (answer directly, or write the steps first) ----------
+def pack(npz_path):
+    z = np.load(npz_path)
+    V, block, L, H, d = [int(v) for v in z['__config__']]
+    blob_, tensors_ = b'', []
+    for k in z.files:
+        if not k.startswith('__'):
+            tensors_.append({'name': k, 'shape': list(z[k].shape), 'offset': len(blob_) // 2})
+            blob_ += z[k].astype('<f2').tobytes()
+    return {'config': {'vocab': V, 'block': block, 'n_layer': L, 'n_head': H, 'd_model': d, 'params': len(blob_) // 2},
+            'chars': ''.join(z['__chars__']), 'tensors': tensors_, 'adapter': None, 'b64': base64.b64encode(blob_).decode()}
+
+think = {name: os.path.join(ROOT, 'runs', f'think_{name}.npz') for name in ('direct', 'steps')}
+if all(os.path.exists(p) for p in think.values()):
+    with open(os.path.join(ROOT, 'docs', 'assets', 'think.js'), 'w') as f:
+        f.write('window.MICRO_THINK = ' + json.dumps({name: pack(p) for name, p in think.items()}) + ';\n')
 
 print(f'weights.js {os.path.getsize(os.path.join(ROOT, "docs/assets/weights.js")) / 1024:.0f} KB, '
       f'data.js {os.path.getsize(os.path.join(ROOT, "docs/assets/data.js")) / 1024:.0f} KB, '

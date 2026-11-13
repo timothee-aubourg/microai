@@ -25,6 +25,8 @@
     ['17-security.html', 'Text that gives orders', 'guard'],
     ['18-hardware.html', 'The machine underneath', 'machine'],
     ['19-system.html', 'Build the whole thing', 'whole'],
+    ['20-experts.html', 'Many experts, few at work', 'experts'],
+    ['21-thinking.html', 'Room to think', 'think'],
   ];
 
   // ---------- DOM helpers ----------
@@ -522,7 +524,8 @@
   M.parts = [
     ['Part one', 'the model', 1, '#5f9b3a'], ['Part two', 'making it work', 7, '#2f8f8a'],
     ['Part three', 'the system on your machine', 10, '#a98cf0'], ['Part four', 'making it dependable', 13, '#c4543a'],
-    ['Part five', 'the harness', 15, '#8c8a2e'], ['Part six', 'the whole machine', 18, '#8e4a9e']
+    ['Part five', 'the harness', 15, '#8c8a2e'], ['Part six', 'the whole machine', 18, '#8e4a9e'],
+    ['Part seven', 'at full size', 20, '#4a9a6a']
   ];
   M.partOf = (ch) => { let k = 0; M.parts.forEach((p, i) => { if (ch >= p[2]) k = i; }); return k; };
   M.partIcon = function (k) {
@@ -611,7 +614,13 @@
           keep: 'Tokens per second is at most memory speed divided by the size of the model.' },
     19: { q: 'A model with 108,032 weights answers "23 times 45 is 1035". How?', o: ['It learned to multiply.', 'It asks a calculator and copies the result.', 'It memorised every product.'], a: 1,
           why: 'It learned when to ask and how to report. The arithmetic is done by a tool.',
-          keep: 'Every part of a large system exists in small. The weights come from training; the rest is ordinary code.' }
+          keep: 'Every part of a large system exists in small. The weights come from training; the rest is ordinary code.' },
+    20: { q: 'A model owns 47 billion weights. About how many does it use to write one token?', o: ['All 47 billion.', 'About 13 billion.', 'Fewer than 1 billion.'], a: 1,
+          why: 'A router picks 2 of 8 experts in each block for every token. The other six are not read.',
+          keep: 'A mixture of experts owns many weights and uses few per token: memory is paid for all of them, time only for the ones at work.' },
+    21: { q: 'Two identical small models learn to say whether a row of twelve bits holds an odd number of 1s. One answers at once, the other writes a running count first. On rows neither has seen?', o: ['Both score about the same.', 'The one that answers at once is right more often.', 'The one that writes first is right every time; the other does no better than a fixed answer.'], a: 2,
+          why: 'Each written mark is one more pass through the model and one small step. The answer is the last mark.',
+          keep: 'A model thinks by writing. Each token it writes is more work done and a result it can read back.' }
   };
   function guesses(set) {
     let s = {};
