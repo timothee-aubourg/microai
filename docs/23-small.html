@@ -191,13 +191,52 @@ def step(m, token, cache):
   <pre class="code" data-lang="text">python code/ch23_tiny.py --train       # about 7 minutes: train it and write runs/tiny.bin
 python code/ch23_tiny.py               # grade it on all 3,000 questions
 python code/tiny_agent.py "what is 23 times 45?"    # run it without numpy
-python code/ch23_tiny.py --sweep       # every candidate of the table (about an hour)</pre>
+python code/ch23_tiny.py --sweep       # every candidate of the table (about an hour)
+python code/ch23_signs.py --train      # the language model trained as signs, twice (about 35 minutes)
+python code/ch23_signs.py              # its table and samples</pre>
   <p>It gives the same scores as the numpy version to within 0.000002, and the same answers on all 3,000 questions. It writes 543 tokens per second in plain Python, a language about five hundred times slower than numpy at arithmetic (chapter 18).</p>
+
+  <h2>The same question for a model that writes</h2>
+  <p>The agent has one narrow job. A fair objection is that a general language model might not survive the same treatment. <code>code/ch23_signs.py</code> puts the question to the model of chapter 7, the one that learned to write from Shakespeare: 345,504 weights, three blocks, vectors of 96 numbers. Every matrix in it is replaced by its signs, &minus;1, 0 or +1, times one number per matrix.</p>
+  <p>The yardstick is the one of chapter 1: the loss on text the model never saw, here 12,800 characters of it. Lower is better. A model that knows nothing scores 4.174, and each figure below is uncertain by about 0.015.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>The language model</th><th>Weights</th><th>Size of the file</th><th>Loss on unseen text</th></tr>
+    <tr><td>trained normally, 32 bits per weight</td><td class="mono">345,504</td><td class="mono">1350 KB</td><td class="mono">1.569</td></tr>
+    <tr><td>the same, rounded to 8 bits afterwards</td><td class="mono">345,504</td><td class="mono">360 KB</td><td class="mono">1.570</td></tr>
+    <tr><td>the same, rounded to 4 bits afterwards</td><td class="mono">345,504</td><td class="mono">192 KB</td><td class="mono">1.696</td></tr>
+    <tr><td>the same, signs taken afterwards (&minus;1, 0, +1)</td><td class="mono">345,504</td><td class="mono">70 KB</td><td class="mono">3.489</td></tr>
+    <tr><td>the same, signs taken afterwards (&minus;1, +1)</td><td class="mono">345,504</td><td class="mono">45 KB</td><td class="mono">3.714</td></tr>
+    <tr><td>trained as signs, same network</td><td class="mono">345,504</td><td class="mono">70 KB</td><td class="mono">1.898</td></tr>
+    <tr><td>trained as signs, vectors of 144 numbers</td><td class="mono">767,088</td><td class="mono">153 KB</td><td class="mono">1.831</td></tr>
+  </table></div>
+  <p>Three answers come out of the table.</p>
+  <ul>
+    <li><strong>Taking the signs of a trained model destroys it.</strong> The loss goes from 1.569 to 3.489, most of the way to knowing nothing. Dropping the zero as well, and keeping only plus and minus, gives 3.714.</li>
+    <li><strong>Trained as signs, the same network learns to write, and less well.</strong> It reaches 1.898 with the same batches and the same 5,000 steps that gave 1.569. That gap is twenty times the uncertainty of the measurement. The file is 19 times smaller.</li>
+    <li><strong>Making it wider does not close the gap here.</strong> With vectors of 144 numbers the sign model has more than twice the weights and reaches 1.831. The ordinary model rounded to 4 bits is about the same size on disk, 192 KB against 153 KB, and is better at 1.696.</li>
+  </ul>
+  <p>Here is what three of them write, from the same starting point and the same random draws.</p>
+  <pre class="code" data-lang="text">trained normally:
+No Hereford the tongue of your giping: go therefore the
+for me the wife.
+And you mine own up to cut off; for that
+his 
+
+signs taken afterwards:
+Tha pustour t n tondaistoowppppollilelun fopoume tthuce fre flalen wn lunsthowsttengounshovy
+fut wprn tumenman bofoush
+
+trained as signs, same network:
+MENENIUS:
+Tare by he brothy: pries, it he oldok:
+That hath and of guiest withis the his boys
+tructure to mother rathin</pre>
+  <p>So the answer to "is it still as good" depends on the job. For the narrow agent, yes: every answer was kept. For a model of general text at this size and with this much training, no. A model made of signs can learn language, and it pays for each weight being worth less. At this scale the cheaper route to a small file is still the one of chapter 9: train normally, then round to 4 or 5 bits.</p>
 
   <h2>At full size</h2>
   <p>Most local models you download are still made the way chapter 9 described: trained at full precision, then rounded to 4 or 5 bits. That is the cheap route, because it needs no retraining, and at 4 bits it loses little.</p>
   <p>Training with the rounding in place is the route below that. In 2025 Microsoft Research published a model of 2 billion weights trained from the start with three-valued weights, BitNet b1.58 2B4T, and reports 0.4 GB for its weights outside the embedding table. Its training was the expensive part: the model had to be trained that way from the first step, on 4 trillion tokens. An existing model cannot be converted.</p>
-  <p>The measurement of this chapter shows the trade in small. At equal width, three-valued weights did worse than ordinary ones. They needed a wider model to catch up, and still came out smaller. Whether that trade pays at full size depends on what training costs, which is why rounding afterwards remains the common choice.</p>
+  <p>The measurements of this chapter show the trade in small. At equal width, three-valued weights did worse than ordinary ones. For the narrow agent a wider model caught up and still came out smaller. For the language model it did not catch up. The published results are for models thousands of times larger, trained for far longer, and this course cannot check whether the gap closes there. What it can say is why rounding afterwards remains the common choice: it costs no training at all.</p>
 
   <div class="note">
     <h3>What this chapter glossed over</h3>
@@ -206,6 +245,7 @@ python code/ch23_tiny.py --sweep       # every candidate of the table (about an 
     <p><strong>The training examples were laid out differently.</strong> Each row here is one conversation starting at position 0, as in chapter 21. Chapter 19 cut windows out of a long stream. The comparison between the two chapters is therefore not only about the weights.</p>
     <p><strong>One run each.</strong> Every row of the tables is one training run with one seed. Another run moves the counts. The width-48 model was also trained for 12,000 steps in place of 6,000, and scored 2,964, fewer than before. More training was a different run, not a better one, and a narrow model that learned nothing here might learn with another seed.</p>
     <p><strong>The activations are not rounded.</strong> The numbers flowing through the model are still ordinary floating-point numbers. Full-size systems of this kind round those as well, to 8 bits.</p>
+    <p><strong>The language-model comparison is one run each, with equal steps.</strong> The sign models were given the same 5,000 steps as the ordinary one. They may need more, and a different seed would move each figure a little. Their normalisation gains, 1,344 numbers, were kept at full precision.</p>
     <p><strong>Other ways to shrink a model.</strong> Training a small model to imitate a large one (distillation) and removing weights that matter least (pruning) are both left out.</p>
   </div>
 
@@ -216,6 +256,7 @@ python code/ch23_tiny.py --sweep       # every candidate of the table (about an 
       <li><a class="term" href="glossary.html#ternary">Ternary weights</a> are &minus;1, 0 or +1 times one scale per matrix. A matrix product becomes sums and differences, and five weights fit in a byte.</li>
       <li><a class="term" href="glossary.html#qat">Quantization-aware training</a> rounds in every forward pass and lets the gradient adjust full-precision weights kept underneath. The model learns to work rounded.</li>
       <li>The result is 20,369 bytes against 432,128, 21 times smaller, with 3,000 of 3,000 held-out questions right. It runs in plain Python with no library.</li>
+      <li>For the language model of chapter 7 the answer is different: trained as signs it reaches a loss of 1.898 where the ordinary model reaches 1.569, and 3.489 if the signs are taken afterwards.</li>
       <li>Smaller has a price that has to be measured. At width 32, three-valued weights miss 215 questions where ordinary ones miss 1, and below width 32 they learned nothing.</li>
     </ul>
   </div>

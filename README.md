@@ -134,6 +134,7 @@ python code/ch22_memory.py             # cache, RAM, split models, unified memor
 python code/ch23_tiny.py --train       # ~7 min: the chapter 19 agent with three-valued weights
 python code/ch23_tiny.py               # grade it on all 3,000 held-out questions
 python code/tiny_agent.py "what is 23 times 45?"   # run it with the standard library only
+python code/ch23_signs.py              # the Shakespeare model with its weights replaced by signs
 ```
 
 `ch15_harness.py` runs real shell commands when used with a real model. Use a
@@ -169,6 +170,7 @@ code/
   ch22_memory.py            where weights live: cache ladder, split models, KV cache size, mapping
   ch23_tiny.py              three-valued weights trained in place, packed five to a byte, graded
   tiny_agent.py             the packed model and its tool loop with no numpy (ch 23)
+  ch23_signs.py             the chapter 7 language model with sign weights: taken afterwards, and trained in
   mock_server.py            fake model server for testing without a model
 data/
   shakespeare.txt           training text (public domain, 1.1 MB)
@@ -207,6 +209,7 @@ python code/ch20_moe.py                  # optional: retrain and re-measure chap
 python code/ch21_think.py --train        # optional: retrain the two models of chapter 21
 python code/ch22_memory.py --save        # optional: re-measure the machine for chapter 22
 python code/ch23_tiny.py --train         # optional: retrain the packed model of chapter 23
+python code/ch23_signs.py --train        # optional: retrain the sign language models of chapter 23
 python tools/export_web.py    # weights and logs -> docs/assets
 python tools/build_site.py    # code snippets -> docs/*.html
 node tools/test_parity.js     # browser model == Python model?
@@ -255,6 +258,10 @@ own runs; after retraining or re-measuring those, update the tables in the pages
   `tiny_agent.py`, which uses no numpy, and the page was checked to give the
   same answers in a browser. Every row of the chapter's tables is one training
   run with one seed.
+- `ch23_signs.py` trains the chapter 7 language model with sign weights on the
+  same batches and schedule as `train.py`, and measures every variant on the
+  same 12,800 held-out characters. The sign-trained model is worse than the
+  ordinary one (loss 1.898 against 1.569), and the chapter says so.
 - The harness and injection runs of chapters 15 and 17 use a scripted model in
   `mock_server.py`; the pages say so. The GPU figures in chapter 18 are published
   specifications, not measurements.
