@@ -1,0 +1,14 @@
+{
+  "name": "microAI",
+  "short_name": "microAI",
+  "description": "Build and understand a local language model and the agent around it, from first principles.",
+  "start_url": "index.html",
+  "scope": ".",
+  "display": "standalone",
+  "background_color": "#F4ECDA",
+  "theme_color": "#F4ECDA",
+  "icons": [
+    { "src": "assets/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

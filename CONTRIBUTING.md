@@ -96,6 +96,26 @@ and cream ink by night. It is defined once, as variables at the top of
   Check every change at a width of 390 px, in light and in dark, and make sure
   the page does not scroll sideways.
 
+## Code listings, figures and phones
+
+- **A listing folds, and has an outline.** The shared script wraps every
+  `<pre class="code" data-src="...">` in a cell with two views. "Code" is the
+  listing. "Outline" is drawn from the listing itself: one box per function
+  with the first line of its docstring, one step per commented line, and loops
+  and tests with what they govern indented under them. A phone opens on the
+  outline, a wide screen on the code, and the reader's last choice is kept.
+  So the comments are the outline. Give each function a one-line docstring and
+  put a short trailing comment on the lines that carry the idea. Do not write
+  a separate summary of the code in the page.
+- **A figure opens to fill the screen.** On a phone every `<figure class="fig">`
+  gets an "Enlarge" button, and a wide diagram is turned on its side. Draw
+  figures on the usual 760-wide grid and they need nothing else.
+- **The site stays plain files.** No framework and no build step for the
+  pages: a page must open from a folder with no server. A manifest and a small
+  worker (`docs/manifest.webmanifest`, `docs/sw.js`) let a phone install the
+  course and keep it for use without a network. The worker asks the network
+  first, so it never serves an old page to a reader who is online.
+
 ## Checking your change
 
 ```bash
