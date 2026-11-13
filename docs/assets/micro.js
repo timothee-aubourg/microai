@@ -20,6 +20,11 @@
     ['12-adapting.html', 'Teaching new habits', 'adapt'],
     ['13-structured.html', 'Staying inside the lines', 'shape'],
     ['14-evaluation.html', 'Knowing whether it works', 'check'],
+    ['15-harness.html', 'The program around the model', 'harness'],
+    ['16-context.html', 'Spending the window', 'window'],
+    ['17-security.html', 'Text that gives orders', 'guard'],
+    ['18-hardware.html', 'The machine underneath', 'machine'],
+    ['19-system.html', 'Build the whole thing', 'whole'],
   ];
 
   // ---------- DOM helpers ----------
@@ -214,9 +219,11 @@
   }
   let cached = null;
   M.loadModel = function () {
-    if (cached) return cached;
-    const W = window.MICRO_WEIGHTS;
-    if (!W) return null;
+    if (!cached && window.MICRO_WEIGHTS) cached = M.loadWeights(window.MICRO_WEIGHTS);
+    return cached;
+  };
+  /* any model exported in the layout of weights.js (chapter 19 ships a second one) */
+  M.loadWeights = function (W) {
     const bin = atob(W.b64), n = bin.length / 2, all = new Float32Array(n);
     for (let i = 0; i < n; i++) all[i] = f16(bin.charCodeAt(2 * i) | (bin.charCodeAt(2 * i + 1) << 8));
     const w = {}, shape = {};
@@ -226,8 +233,7 @@
     });
     const stoi = {};
     for (let i = 0; i < W.chars.length; i++) stoi[W.chars[i]] = i;
-    cached = { cfg: W.config, chars: W.chars, stoi: stoi, w: w, shape: shape, adapter: W.adapter };
-    return cached;
+    return { cfg: W.config, chars: W.chars, stoi: stoi, w: w, shape: shape, adapter: W.adapter };
   };
   M.encode = (m, text) => Array.from(text).filter((c) => c in m.stoi).map((c) => m.stoi[c]);
 
@@ -440,7 +446,7 @@
     const ch = +document.body.getAttribute('data-ch') || 0;
     const trail = M.el('nav', { class: 'trail', 'aria-label': 'Chapters' });
     M.chapters.forEach((c, i) => {
-      if (i === 6 || i === 9 || i === 12) trail.appendChild(M.el('span', { class: 'gap' }));
+      if (i === 6 || i === 9 || i === 12 || i === 14 || i === 17) trail.appendChild(M.el('span', { class: 'gap' }));
       const a = M.el('a', { href: c[0], title: (i + 1) + '. ' + c[1], class: i + 1 === ch ? 'here' : i + 1 < ch ? 'done' : '', text: String(i + 1) });
       if (i + 1 === ch) a.setAttribute('aria-current', 'page');
       trail.appendChild(a);
@@ -448,6 +454,8 @@
     const top = M.el('header', { class: 'top' }, M.el('div', { class: 'top-in' }, M.el('a', { class: 'brand', href: 'index.html', html: 'micro<span>AI</span>' }), trail,
       M.el('a', { class: 'gl', href: 'glossary.html', text: 'Glossary' })));
     document.body.insertBefore(top, document.body.firstChild);
+    const here = trail.querySelector('.here');       // on a narrow screen the trail scrolls: bring the current chapter into view
+    if (here) trail.scrollLeft = here.offsetLeft - trail.offsetLeft - (trail.clientWidth - here.clientWidth) / 2;
     const main = M.$('main');
     if (ch && main) {
       const where = M.$('.where');

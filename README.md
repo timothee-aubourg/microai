@@ -2,7 +2,7 @@
 
 **Build and understand a local language model from first principles.**
 
-An interactive course in fourteen chapters. Each chapter starts from a question,
+An interactive course in nineteen chapters. Each chapter starts from a question,
 gives you an experiment to play with in the browser, and ends with the few
 lines of code that implement the idea. One small GPT, trained from scratch with
 numpy, runs through the whole course: you watch it learn, look inside its
@@ -38,6 +38,11 @@ branch `main`, folder `/docs`, and save. The course appears at
 | 12 | Teaching new habits | Can you change a model without retraining all of it? |
 | 13 | Staying inside the lines | Can you make a broken output format impossible instead of unlikely? |
 | 14 | Knowing whether it works | Where did the agent go wrong, and did your change make it better? |
+| 15 | The program around the model | What is a harness such as Claude Code or Pi made of? |
+| 16 | Spending the window | What does each agent step cost, and what do you do when the context is full? |
+| 17 | Text that gives orders | What happens when text the agent reads contains instructions? |
+| 18 | The machine underneath | Why a GPU, and what decides your tokens per second? |
+| 19 | Build the whole thing | Can you build every part yourself and run it as an agent? |
 
 ## Run the code
 
@@ -85,6 +90,21 @@ python code/ch14_trace.py --mock "What is (3 + 4) * 12?"   # every model call an
 python code/ch14_eval.py --mock                            # nine tasks, graded, with a standard error
 ```
 
+Chapters 15 to 19 build the harness, measure the hardware and assemble the
+whole system:
+
+```bash
+python code/ch15_harness.py --mock     # a four-tool coding harness, on a small demo project
+python code/ch16_context.py            # prefix cache on our model; cost of the recorded session
+python code/ch17_guard.py              # prompt injection, with the gate off and on
+python code/ch18_hardware.py           # loop vs block, batching, memory speed on your CPU
+python code/ch19_system.py --train     # ~5 min: train a tiny tool-calling model from scratch
+python code/ch19_system.py "what is 23 times 45?"
+```
+
+`ch15_harness.py` runs real shell commands when used with a real model. Use a
+folder you can afford to lose and read chapter 17 first.
+
 ## What is in the repository
 
 ```
@@ -105,6 +125,11 @@ code/
   ch13_constrain.py         constrained decoding: a format as a mask on the scores
   ch14_trace.py             spans and traces around the agent loop
   ch14_eval.py              tasks, graders, pass rate and standard error
+  ch15_harness.py           a coding harness: read, write, edit, bash, and the loop
+  ch16_context.py           prefix cache, trimming and compaction
+  ch17_guard.py             prompt-injection runs and a permission gate
+  ch18_hardware.py          CPU measurements: loops vs blocks, batching, memory speed
+  ch19_system.py            the whole system: data, training, harness, trace, evaluation
   mock_server.py            fake model server for testing without a model
 data/
   shakespeare.txt           training text (public domain, 1.1 MB)
@@ -114,6 +139,9 @@ docs/                       the course website (plain HTML, CSS and JavaScript)
   assets/weights.js         the trained weights, float16
   assets/data.js            training log, embedding map, text excerpts
   assets/evals.js           the recorded evaluation and its traces (ch 14)
+  assets/harness.js         the recorded harness session (ch 15)
+  assets/guard.js           the recorded injection runs (ch 17)
+  assets/agent.js           the tool-calling model trained in chapter 19, float16
 runs/                       trained weights and the training log
 tools/
   export_web.py             pack weights and logs for the website
@@ -130,6 +158,9 @@ always show what actually runs. After editing code or retraining:
 python code/train.py          # optional: retrain (edit sizes at the top of gpt.py / train.py)
 python code/ch12_lora.py      # optional: retrain the adapter
 python code/ch14_eval.py --mock --save   # optional: re-record the evaluation shown in chapter 14
+python code/ch15_harness.py --mock --save   # optional: re-record the session of chapters 15 and 16
+python code/ch17_guard.py --save         # optional: re-record the runs of chapter 17
+python code/ch19_system.py --train       # optional: retrain the agent of chapter 19
 python tools/export_web.py    # weights and logs -> docs/assets
 python tools/build_site.py    # code snippets -> docs/*.html
 node tools/test_parity.js     # browser model == Python model?
@@ -152,6 +183,12 @@ and quote its measured numbers; after retraining, check them against yours.
   reproduces the Python model's outputs and held-out loss.
 - Every page was loaded in a headless browser at phone and desktop widths with
   no script errors, and each experiment was exercised.
+- `ch16_context.py` asserts that the prefix cache gives the same scores as a
+  computation from scratch. `ch19_system.py --eval` grades the trained agent on
+  number pairs held out of its training data.
+- The harness and injection runs of chapters 15 and 17 use a scripted model in
+  `mock_server.py`; the pages say so. The GPU figures in chapter 18 are published
+  specifications, not measurements.
 - The chat, retrieval, agent, tracing and evaluation scripts were run end to end against
   `mock_server.py`. They follow the OpenAI-compatible API that Ollama
   documents, but **they have not been run against a real Ollama, llama.cpp or
@@ -161,10 +198,31 @@ and quote its measured numbers; after retraining, check them against yours.
 ## Scope
 
 This course covers the path from next-token prediction to a working local
-system, and how to check that system on your own tasks. It deliberately leaves
-out reinforcement-learning fine-tuning (policy gradients, PPO, GRPO),
-multimodal models and the benchmarking of models themselves; chapter 12
-sketches where those begin.
+agent: the model, its training, inference, the harness around it, the hardware
+under it, and how to check and bound the result. Chapter 19 assembles all of
+it into one small system.
+
+Not covered yet, in rough order of how much an agent builder would miss them:
+
+- how a base model is turned into a chat and tool-calling model at scale
+  (instruction tuning, then reinforcement learning); chapter 19 shows the idea
+  on synthetic data only
+- reasoning ("thinking") tokens and planning
+- the Model Context Protocol in detail, and agents that call other agents
+- serving many users: batching, queues, cost
+- data collection and cleaning, scaling laws, architecture variants
+  (rotary positions, mixture of experts)
+- multimodal models and the benchmarking of models themselves
+
+## Further study
+
+- Stanford CS336, *Language Modeling from Scratch* (tokenizer to systems, GPUs, inference): <https://cs336.stanford.edu>
+- Stanford CS329Z, *Engineering AI Agents* (tools, memory, harness, evaluation, safety): <https://cs329z.stanford.edu/>
+- Hugging Face Agents Course: <https://huggingface.co/learn/agents-course>
+- Pi, a minimal open-source coding harness with four default tools: <https://pi.dev>
+- Claude Code tools reference: <https://code.claude.com/docs/en/tools-reference>
+- KV cache reuse in llama.cpp's server: <https://github.com/ggml-org/llama.cpp/discussions/13606>
+- Qwen documentation on its chat template and tool-call format: <https://qwen.readthedocs.io/en/latest/getting_started/concepts.html>
 
 ## References
 

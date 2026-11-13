@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Build the whole thing | microAI</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-ch="19">
+<main>
+  <p class="where">Chapter 19</p>
+  <h1>Build the whole thing</h1>
+  <p class="question">Can you build every part yourself, from random numbers to an agent that uses a tool, on a laptop, in one sitting?</p>
+
+  <p>Yes. This chapter is one file, <code>code/ch19_system.py</code>, that bolts together the engines of the earlier chapters. It writes its own training data, trains a model of 108,032 weights on your CPU in about five minutes, and runs that model inside a harness with three tools. The result is a very small assistant that answers questions like "what is 23 times 45?" by asking a calculator.</p>
+  <p>It is limited on purpose, and it is complete. Every part that a large system has is here in a form you can read in one evening, and the model below is running in your browser now.</p>
+
+  <section class="bench" id="w-agent">
+    <h3>The whole system, live</h3>
+    <p class="try"><b>Try this.</b> Ask for a sum with two numbers under 100. Watch who writes each line. Then ask something it was never taught and see what it does.</p>
+  </section>
+
+  <h2>The map</h2>
+  <p>Here is every part of the system, where this course built it, and what plays that part in a full-size system.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Part</th><th>What it does</th><th>Here</th><th>At full size</th></tr>
+    <tr><td>Data</td><td>Text that shows the behaviour you want</td><td>A 15-line generator, ch 19</td><td>Web-scale text, then curated conversations</td></tr>
+    <tr><td>Tokenizer</td><td>Text to numbers and back</td><td>One id per character, ch 2</td><td>Byte-pair encoding, about 100,000 tokens</td></tr>
+    <tr><td>Model</td><td>Scores for the next token</td><td><code>gpt.py</code>, 108,032 weights, ch 4–6</td><td>The same design, billions of weights</td></tr>
+    <tr><td>Training</td><td>Finds the weights</td><td><code>engine.py</code> and a loop, ch 3 and 7</td><td>The same loop on many GPUs for weeks</td></tr>
+    <tr><td>Weights file</td><td>The model at rest</td><td>A numpy archive, ch 9</td><td>A quantized file of gigabytes</td></tr>
+    <tr><td>Inference engine</td><td>Runs the model fast</td><td>KV cache and sampler, ch 8</td><td>llama.cpp and similar runtimes</td></tr>
+    <tr><td>Hardware</td><td>Does the arithmetic</td><td>One CPU core, ch 18</td><td>GPUs with fast memory</td></tr>
+    <tr><td>Conversation format</td><td>Says who is speaking</td><td>Four letters: U, C, R, A</td><td>A chat template with special tokens, ch 15</td></tr>
+    <tr><td>Output format</td><td>Keeps tool calls parseable</td><td>The mask, ch 13</td><td>Grammars built from JSON Schema</td></tr>
+    <tr><td>Harness</td><td>Turns requests into actions</td><td>Forty lines, ch 11 and 15</td><td>Claude Code, Pi and others</td></tr>
+    <tr><td>Context</td><td>Decides what the model sees</td><td>One short conversation, ch 16</td><td>Prefix caches, compaction, memory files</td></tr>
+    <tr><td>Tracing</td><td>Records what happened</td><td>One span per line and per tool, ch 14</td><td>Tracing services</td></tr>
+    <tr><td>Evaluation</td><td>Says whether it works</td><td>200 unseen questions, ch 14</td><td>Task suites run on every change</td></tr>
+    <tr><td>Safety</td><td>Bounds the damage</td><td>Tools that can only compute, ch 17</td><td>Permissions and sandboxes</td></tr>
+  </table></div>
+  <p>Nothing in the right-hand column is a different kind of thing from its neighbour on the left. It is larger, faster and more careful.</p>
+
+  <h2>The format is the design</h2>
+  <p>The model was trained on conversations that look like this:</p>
+  <pre class="code" data-lang="text">U what is 23 times 45?        the user
+C mul 23 45                   the model asks for a tool
+R 1035                        the harness answers
+A 23 times 45 is 1035.        the model reports</pre>
+  <p>Each line starts with a letter that says who is speaking. That is this system's chat template, and the model learned it the only way a model learns anything: by predicting the next character of thousands of examples. Nobody programmed "when you see a sum, write C". It is the likeliest continuation of the text it was shown.</p>
+  <p>This is what "a model trained for tool calling" means at any size. The training data contains requests in an agreed layout at the moments where a tool helps. Note what the model does not learn: arithmetic. The line beginning with R was never its to write. During training it only saw results appear. In use, the harness writes that line.</p>
+
+  <h2>Where the weights come from</h2>
+  <p>A question that comes up: could a large model simply write out the weights of a small one? Not usefully. The weights of even this model are 108,032 numbers whose values only make sense together, and nobody, person or model, can write them down by thinking. They are found by training.</p>
+  <p>What can be written is the program that finds them, and it is short. The training function in this chapter is twenty-five lines. Run it and five minutes later you hold a file of weights that works on any computer with Python, and in a browser on a phone. The recipe is the product. The weights are what the recipe leaves behind.</p>
+
+  <h2>What it learned, and what it did not</h2>
+  <p>One pair of numbers in ten was kept out of the training data. The evaluation asks 200 questions using only those pairs.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>On 200 questions with unseen number pairs</th><th>Correct</th></tr>
+    <tr><td>The tool call</td><td class="mono">200 of 200</td></tr>
+    <tr><td>The call and the final answer</td><td class="mono">200 of 200</td></tr>
+  </table></div>
+  <p>So it did not memorise sums. It learned a procedure: copy the two numbers into a request, wait, copy the result into a sentence. A caution from chapter 14 applies even to a perfect score: the standard-error formula gives ± 0 here, which is wrong. Zero failures in 200 tries is compatible with a true failure rate of up to about 1.5%.</p>
+  <p>Step outside what it was shown and it breaks, confidently.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Question</th><th>What it did</th></tr>
+    <tr><td>what is 123 plus 4?</td><td>Called <code>add 12 4</code> and answered "12 plus 4 is 16."</td></tr>
+    <tr><td>what is 5 plus 5 plus 5?</td><td>Called <code>add 5 5</code> and answered "5 plus 5 is 10."</td></tr>
+    <tr><td>what is the capital of france?</td><td>Called <code>sub 9 3</code> and answered "9 minus 3 is 6."</td></tr>
+  </table></div>
+  <p>It has no way to say "I do not know", because no example ever showed it that sentence. It produces the nearest thing it has a shape for. This is the small, fully visible version of what is called hallucination in large models: fluent output in a learned form, with nothing behind it.</p>
+
+  <h2>Make it yours</h2>
+  <p>The file is meant to be changed. Each of these is under an hour, and each teaches the part it touches.</p>
+  <ol>
+    <li><strong>Add a tool.</strong> Put <code>'max'</code> in the tool table, add "what is the larger of 12 and 7?" to the generator, extend the call format, retrain.</li>
+    <li><strong>Teach it to decline.</strong> Add questions it cannot answer to the data, with the answer "i only know arithmetic." Retrain and ask about France again.</li>
+    <li><strong>Widen its world.</strong> Allow three-digit numbers. Watch how much more training it needs, and why the window had to grow.</li>
+    <li><strong>Remove the mask.</strong> Run the evaluation with free sampling at temperature 1 and count the calls that no longer parse.</li>
+    <li><strong>Shrink it.</strong> Round the weights to 8 bits, then 4 (chapter 9), and run the evaluation after each.</li>
+    <li><strong>Break it on purpose.</strong> Train for 300 steps and read the traces of the failures. Which part fails first: choosing the tool, copying a number, or the sentence?</li>
+  </ol>
+
+  <h2>Build it</h2>
+  <pre class="code" data-src="ch19_system.py#data">def held_out(a, b):
+    return (7 * a + b) % 10 == 0            # one pair of numbers in ten is never shown in training
+
+def conversation(rng, test=False):
+    if not test and rng.random() &lt; 0.1:     # small talk: answer directly, no tool
+        q, a = CHAT[rng.integers(len(CHAT))]
+        return f'U {q}\nA {a}\n\n'
+    while True:
+        a, b = int(rng.integers(100)), int(rng.integers(100))
+        if held_out(a, b) == test:
+            break
+    word = list(WORDS)[rng.integers(3)]
+    result = TOOLS[WORDS[word]](a, b)
+    return (f'U what is {a} {word} {b}?\n'      # the user asks
+            f'C {WORDS[word]} {a} {b}\n'         # the model writes a request
+            f'R {result}\n'                      # the harness runs it and writes the result
+            f'A {a} {word} {b} is {result}.\n\n')   # the model reports</pre>
+  <p class="src">From <code>code/ch19_system.py</code>. The data generator. The format of these lines decides what the model will be able to do.</p>
+  <pre class="code" data-src="ch19_system.py#harness">def write_line(run, cache, logits, fmt=None, limit=70, **sampling):
+    """Let the model write up to the end of a line. With `fmt`, only characters the format allows."""
+    line, state = '', START
+    while not line.endswith('\n') and len(line) &lt; limit and cache['pos'] &lt; run.block:
+        if fmt:
+            legal = moves(fmt, state)
+            if not legal:
+                break                                     # the format is complete
+            mask = np.full(run.vocab, -np.inf)
+            mask[[run.stoi[c] for c in legal]] = 0
+            logits = logits + mask
+        c = run.chars[sample_next(logits, **sampling)]
+        if fmt:
+            state = legal[c]
+        line += c
+        logits = run.step(run.stoi[c], cache)             # one token through the model, cache kept
+    return line, logits
+
+def feed(run, cache, text):
+    for c in text:
+        logits = run.step(run.stoi[c], cache)
+    return logits
+
+def answer(run, question, tracer=None, **sampling):
+    tracer = tracer or Tracer()
+    with tracer.span('agent', 'answer', input=question) as root:
+        cache = run.new_cache()
+        logits = feed(run, cache, '\nU ' + question + '\n')           # the prompt
+        with tracer.span('model', 'choose', input='C or A?') as s:    # does it want a tool, or to answer?
+            role, logits = write_line(run, cache, logits, fmt=[['C ', 'A ']], **sampling)
+            s['output'] = role
+        if role == 'C ':
+            with tracer.span('model', 'write call') as s:
+                call, logits = write_line(run, cache, logits, fmt=CALL, **sampling)   # always parseable
+                s['output'] = call
+            name, a, b = call.split()
+            with tracer.span('tool', name, input=[int(a), int(b)]) as s:
+                s['output'] = TOOLS[name](int(a), int(b))                              # the harness acts
+            logits = feed(run, cache, f"R {s['output']}\nA ")                         # the result becomes context
+        with tracer.span('model', 'write answer') as s:
+            text, logits = write_line(run, cache, logits, **sampling)
+            s['output'] = text
+        root['output'] = text.strip()
+    return root['output'], tracer.spans</pre>
+  <p class="src">The harness: let the model choose between a tool and an answer, keep the request parseable with the mask of chapter 13, run the tool, hand back the result, let the model finish.</p>
+  <pre class="code" data-src="ch19_system.py#evaluate">def evaluate(run, n=200, seed=1):
+    rng = np.random.default_rng(seed)
+    rows = []
+    for _ in range(n):
+        lines = conversation(rng, test=True).split('\n')
+        question, want_call, want_answer = lines[0][2:], lines[1][2:], lines[3][2:]
+        got, spans = answer(run, question, temperature=0)
+        calls = [s['output'].strip() for s in spans if s['name'] == 'write call']
+        rows.append({'q': question, 'call ok': calls == [want_call], 'answer ok': got == want_answer})
+    p = sum(r['call ok'] and r['answer ok'] for r in rows) / n
+    return rows, p, math.sqrt(p * (1 - p) / n)</pre>
+  <p class="src">The evaluation on number pairs kept out of training.</p>
+  <pre class="code" data-lang="text">python code/ch19_system.py --train                  # about five minutes on a laptop CPU
+python code/ch19_system.py "what is 23 times 45?"   # one question, with its trace
+python code/ch19_system.py --eval                   # 200 unseen questions</pre>
+
+  <div class="note">
+    <h3>What this chapter glossed over</h3>
+    <p><strong>Scale changes what is possible, not what is there.</strong> This model copies two numbers and fills a sentence. A large model does things no one can yet fully explain. The parts list is the same. What emerges from the model part is not.</p>
+    <p><strong>The data is synthetic and tiny.</strong> Real models learn language first, from enormous text, and tool use afterwards, from far fewer examples. Here one small file teaches both, which only works because the "language" has a dozen sentences.</p>
+    <p><strong>One turn, one tool call.</strong> A real conversation has many of each, and the harness loops until the model stops asking.</p>
+    <p><strong>The tools are harmless.</strong> Three pure functions. The questions of chapter 17 begin when a tool can change something.</p>
+    <p><strong>Training time varies.</strong> Five minutes was measured on the machine that built this page. A run with a different random seed can land slightly differently, so check yours with <code>--eval</code>.</p>
+  </div>
+
+  <h2>Check yourself</h2>
+  <details class="check"><summary>The model answers "23 times 45 is 1035." It was never taught to multiply. Where did 1035 come from?</summary><p>From the harness. The model wrote <code>mul 23 45</code>, the harness ran the function and wrote <code>R 1035</code> into the context, and the model copied that number into its sentence. Attention pointing at a few earlier characters is all it needs.</p></details>
+  <details class="check"><summary>Why does it call a tool for "what is the capital of france?"</summary><p>After a line starting with "U what is", every training example continued with a tool call. That continuation is overwhelmingly likely, so it is produced, with whatever numbers the model finds most plausible. It was never shown an alternative.</p></details>
+  <details class="check"><summary>You add a fourth tool to the table in the code and do not retrain. What happens when you ask for it?</summary><p>Nothing useful. The harness could run it, but the model has never seen its name in a request and gives it almost no probability. A large model can read a new tool's description and use it at once, because it learned to follow descriptions in general. This one learned three names.</p></details>
+  <details class="check"><summary>Which parts of this system would you have to change to move it from your CPU to a GPU, and which would stay as they are?</summary><p>Only the arithmetic underneath: the matrix products of training and inference would be handed to a library that runs on the GPU. The data, the format, the mask, the harness, the tracing and the evaluation do not care where the multiply-adds happen.</p></details>
+</main>
+
+<script src="assets/agent.js"></script>
+<script src="assets/micro.js"></script>
+<script>
+M.ready(function () {
+  var box = M.$('#w-agent');
+  if (!window.MICRO_AGENT) { box.appendChild(M.el('p', { text: 'The trained agent did not load, so this experiment is unavailable.' })); return; }
+  var m = M.loadWeights(window.MICRO_AGENT), timer = 0;
+  var TOOLS = { add: function (a, b) { return a + b; }, sub: function (a, b) { return a - b; }, mul: function (a, b) { return a * b; } };
+  var D = '0123456789', CALL = [{ words: ['add', 'sub', 'mul'] }, [' ', 1, 1], [D, 1, 2], [' ', 1, 1], [D, 1, 2], ['\n', 1, 1]], ROLE = [{ words: ['C ', 'A '] }];
+  function moves(fmt, st) {        // the format machine of chapter 13
+    var i = st[0], s = st[1], out = {}, mayEnd;
+    while (i < fmt.length) {
+      var part = fmt[i];
+      if (part.words) {
+        part.words.forEach(function (w) { if (w.indexOf(s) === 0 && w.length > s.length && !(w[s.length] in out)) out[w[s.length]] = [i, s + w[s.length]]; });
+        mayEnd = part.words.indexOf(s) >= 0;
+      } else {
+        if (s.length < part[2]) for (var k = 0; k < part[0].length; k++) if (!(part[0][k] in out)) out[part[0][k]] = [i, s + part[0][k]];
+        mayEnd = s.length >= part[1];
+      }
+      if (!mayEnd) break;
+      i++; s = '';
+    }
+    return out;
+  }
+  /* the model writes one line, greedily; with fmt, only characters the format allows */
+  function writeLine(wr, used, fmt, limit) {
+    var line = '', st = [0, ''];
+    while (line.slice(-1) !== '\n' && line.length < limit && used.n < m.cfg.block) {
+      var z = wr.logits(), best = -1, legal = null;
+      if (fmt) { legal = moves(fmt, st); if (!Object.keys(legal).length) break; }
+      for (var i = 0; i < z.length; i++) if ((!legal || m.chars[i] in legal) && (best < 0 || z[i] > z[best])) best = i;
+      var ch = m.chars[best];
+      if (fmt) st = legal[ch];
+      line += ch; wr.add(best); used.n++;
+    }
+    return line;
+  }
+  function feed(wr, used, text) { for (var i = 0; i < text.length; i++) { wr.add(m.stoi[text[i]]); used.n++; } }
+  function ask(question, useMask) {
+    var prompt = '\nU ' + question + '\n', wr = M.writer(m, prompt), used = { n: prompt.length }, lines = [['U', question, 'user', 'you']];
+    var role = writeLine(wr, used, useMask ? ROLE : null, 2);
+    if (role === 'C ') {
+      var call = writeLine(wr, used, useMask ? CALL : null, 14), p = call.trim().split(' ');
+      lines.push(['C', call.trim(), 'model', 'the model asks for a tool']);
+      if (p.length === 3 && TOOLS[p[0]] && /^\d+$/.test(p[1]) && /^\d+$/.test(p[2])) {
+        var result = TOOLS[p[0]](+p[1], +p[2]);
+        lines.push(['R', String(result), 'tool', 'the harness ran ' + p[0] + '(' + p[1] + ', ' + p[2] + ')']);
+        feed(wr, used, 'R ' + result + '\nA ');
+        lines.push(['A', writeLine(wr, used, null, 60).trim(), 'model', 'the model reports']);
+      } else lines.push(['!', 'the harness could not parse this request', 'err', 'no tool was run']);
+    } else if (role === 'A ') lines.push(['A', writeLine(wr, used, null, 60).trim(), 'model', 'the model answers directly']);
+    else lines.push(['!', 'the model wrote "' + role.replace('\n', '⏎') + '" where C or A was expected', 'err', 'the harness stops']);
+    return { lines: lines, tokens: used.n };
+  }
+  var input = M.el('input', { type: 'text', id: 'agent-q', value: 'what is 23 times 45?', maxlength: '30', 'aria-label': 'Your question', autocapitalize: 'off', autocomplete: 'off', spellcheck: 'false' });
+  var mask = M.el('input', { type: 'checkbox', id: 'agent-mask', checked: 'checked' });
+  var out = M.el('div', { 'aria-live': 'polite' }), stat = M.el('p', { class: 'readout', text: 'Nothing asked yet.' });
+  var COLOR = { user: '--ink', model: '--fwd', tool: '--prob-fill', err: '--grad' };
+  function go() {
+    clearInterval(timer);
+    var q = input.value.toLowerCase().split('').filter(function (c) { return c in m.stoi && c !== '\n'; }).join('').slice(0, 30);
+    if (!q) return;
+    var t0 = performance.now(), r = ask(q, mask.checked), ms = performance.now() - t0, k = 0;
+    out.textContent = '';
+    function line() {
+      var l = r.lines[k++];
+      out.appendChild(M.el('div', { style: 'border-left:4px solid ' + M.css(COLOR[l[2]]) + ';padding:4px 0 4px 10px;margin:6px 0' },
+        M.el('div', { style: 'font-family:var(--mono);font-size:15px;overflow-wrap:anywhere', text: l[0] + ' ' + l[1] }), M.el('div', { class: 'caption', style: 'margin:0', text: l[3] })));
+      if (k >= r.lines.length) { clearInterval(timer); stat.innerHTML = 'The model processed <b>' + r.tokens + '</b> characters of its 96-character window, in <b>' + ms.toFixed(0) + ' ms</b> on this device.'; }
+    }
+    if (M.reduced()) { while (k < r.lines.length) line(); } else { line(); if (k < r.lines.length) timer = setInterval(line, 450); }
+  }
+  input.addEventListener('keydown', function (e) { if (e.key === 'Enter') go(); });
+  var chips = M.el('div', { class: 'row' });
+  ['what is 23 times 45?', 'what is 7 minus 60?', 'what is 99 plus 99?', 'hello', 'who are you?', 'what is 123 plus 4?', 'what is the capital of france?'].forEach(function (e) {
+    chips.appendChild(M.button(e, function () { input.value = e; go(); }));
+  });
+  box.appendChild(input);
+  box.appendChild(M.row(M.button('Ask', go, 'go'), M.el('label', { class: 'ctl', 'for': 'agent-mask', style: 'flex:0 1 auto;min-width:0' }, mask, ' Keep tool calls in the format (chapter 13)')));
+  box.appendChild(out); box.appendChild(stat); box.appendChild(chips);
+  box.appendChild(M.el('p', { class: 'caption', text: 'Dark: you. Blue: written by the model, one character at a time. Amber: written by the harness after running a tool. The model has ' + m.cfg.params.toLocaleString('en-US') + ' weights and was trained from random numbers by code/ch19_system.py. It knows lowercase letters, digits and a few marks.' }));
+  go();
+});
+</script>
+</body>
+</html>

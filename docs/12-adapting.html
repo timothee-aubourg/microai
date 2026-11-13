@@ -64,6 +64,7 @@ def apply_adapter():
   <h2>The whole path, once more</h2>
   <p>A language model assigns probabilities to the next token (1). Text is cut into tokens (2). The model's numbers are tuned by following the gradient of the loss (3). Tokens become vectors (4) that exchange information through attention (5) inside a stack of blocks around a residual stream (6). Training is that tuning repeated on real text (7). Writing is sampling from the output, one token at a time, made fast by a cache (8). Rounding the weights makes the file fit your memory, and memory speed sets your tokens per second (9). A runtime and a server put it behind a local address, and a template turns continuation into conversation (10). What the model knows at run time is what you put in its window: history, retrieved passages, tool results (11). And when prompting is not enough, a small trained correction changes its habits (12).</p>
   <p>Good next projects, in rising order of effort: train the small model on a text of your own by replacing <code>data/shakespeare.txt</code>; swap its character vocabulary for the BPE tokenizer of chapter 2; point the retrieval script at your own notes; give the agent a third tool that does something you actually need.</p>
+  <p>The course goes on from here. Chapters 13 and 14 make the agent dependable, chapters 15 to 17 open up the harness around it, chapter 18 goes down to the hardware, and chapter 19 puts every part into one small system that you train yourself.</p>
 </main>
 
 <script src="assets/weights.js"></script>

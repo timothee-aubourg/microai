@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The program around the model | microAI</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-ch="15">
+<main>
+  <p class="where">Chapter 15</p>
+  <h1>The program around the model</h1>
+  <p class="question">A coding assistant lists your files, runs your tests and edits a line. A model can only write text. What is the rest made of?</p>
+
+  <p>Chapter 11 showed the trick in miniature: the model writes a request, and your program carries it out. Tools that do real work on a real project, such as Claude Code or Pi, are that same trick with more care around it. The program that provides the care has a name: the <strong>harness</strong>.</p>
+  <p>A harness is ordinary software. Nothing in it is learned. It consists of five things: a system prompt, a set of tools, a loop, rules about what may run without asking, and some care for the context window. This chapter builds one in a hundred lines and shows exactly what travels between it and the model.</p>
+
+  <h2>Four tools are enough to start</h2>
+  <p>Our harness gives the model four tools.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Tool</th><th>What the harness does when asked</th></tr>
+    <tr><td class="mono">read</td><td>Returns the content of a file in the project.</td></tr>
+    <tr><td class="mono">write</td><td>Creates a file, or replaces its whole content.</td></tr>
+    <tr><td class="mono">edit</td><td>Replaces one passage in a file. The model quotes the old text, which must occur exactly once.</td></tr>
+    <tr><td class="mono">bash</td><td>Runs a shell command in the project folder and returns its output.</td></tr>
+  </table></div>
+  <p>The first three cover files. The fourth covers everything else a computer can do: run the tests, search, install a package, use git. A model that can write shell commands can use any program that already exists.</p>
+  <p>This short list is a real design. Pi, an open-source harness by Mario Zechner, gives the model exactly these four tools by default, with a system prompt of under a thousand tokens. Claude Code makes the other choice and builds in more: next to Bash, Read, Edit and Write it has tools to find files and search their content, to fetch web pages, to keep a to-do list and to start a helper agent, among others. Few general tools keep the request small and leave the model to combine them. Many special tools cost more room in every request and are easier to control one by one.</p>
+  <p>Note how <code>edit</code> works. The model has no cursor. It can only quote. So it names the place to change by quoting the text that is there now, and the harness refuses if that text is missing or occurs twice.</p>
+
+  <h2>What the model actually receives</h2>
+  <p>The model takes one sequence of tokens (chapter 6). It has no second input for tools and no third one for results. So before each call the server flattens everything, the system prompt, the tool descriptions and every message so far, into one text. The layout of that text is the model's <strong>chat template</strong>: the layout it saw in training, with special tokens that mark who is speaking.</p>
+  <p>The way back is the same. When the model "calls a tool" it writes text in an agreed layout, and the server parses that text into the structured request your loop receives. Below is one task, start to finish, with each request shown as the model gets it.</p>
+
+  <section class="bench" id="w-wire">
+    <h3>One task, five requests</h3>
+    <p class="try"><b>Try this.</b> Step through the five calls. Watch what the first request is mostly made of, and how each later one is the previous one plus a little.</p>
+  </section>
+
+  <p>Three things to take from this. The first request is 2,050 characters, and 1,921 of them are the system prompt and the tool descriptions: the model has read a manual before the user has said eighty characters. Every later request repeats all of it and adds about 250. And the model never ran anything. The word <code>bash</code> only ever appears as text. The harness did the running.</p>
+
+  <h2>The loop</h2>
+  <p>The loop has four beats, and it is the loop of chapter 11.</p>
+  <ol>
+    <li><strong>The model writes.</strong> Either a request for a tool, or a final answer.</li>
+    <li><strong>The harness decides.</strong> May this request run? The next chapter but one is about this line.</li>
+    <li><strong>The harness acts.</strong> It runs the tool. If the tool fails, the error message is the result.</li>
+    <li><strong>The result becomes context.</strong> It is appended to the conversation, cut down if it is long, and the loop goes around.</li>
+  </ol>
+  <p>Two details matter more than they look. Errors are returned to the model as text, because a model that sees "no such file" can try another path, while a crashed loop cannot. And results are clipped before they go in. One command that prints fifty thousand lines would otherwise fill the window by itself. Our <code>clip</code> keeps the start and the end, which is where commands put what matters.</p>
+
+  <h2>What real harnesses add</h2>
+  <p>Everything below is more of the same five things.</p>
+  <p><strong>Instructions from the project.</strong> A file in the repository, named <code>CLAUDE.md</code> or <code>AGENTS.md</code> by convention, is read at the start and placed in the system prompt: how to run the tests, what not to touch.</p>
+  <p><strong>Tools from elsewhere.</strong> A protocol called MCP lets a separate program offer tools. The harness asks it for their descriptions and adds them to the request. Each one costs room in every request, used or not.</p>
+  <p><strong>Helper agents.</strong> A tool whose implementation is another loop, with its own fresh window. It does a side task and returns only a summary, so the main window stays small.</p>
+  <p><strong>Housekeeping.</strong> Shortening the conversation when it grows (chapter 16), permissions and a sandbox (chapter 17), traces (chapter 14), and an interface that streams text, shows changes and lets you interrupt.</p>
+  <p>Pi leaves most of these out on purpose and lets you add them as extensions. Reading a small harness like it is the fastest way to see that there is no further secret.</p>
+
+  <h2>Build it</h2>
+  <pre class="code" data-src="ch15_harness.py#tools">def inside(root, path):
+    """Resolve `path` inside the project folder, or refuse."""
+    root, full = os.path.realpath(root), os.path.realpath(os.path.join(root, path))
+    if os.path.commonpath([root, full]) != root:
+        raise PermissionError(f'{path} is outside the project folder')
+    return full
+
+def read(root, path):
+    with open(inside(root, path)) as f:
+        return f.read()
+
+def write(root, path, content):
+    full = inside(root, path)
+    os.makedirs(os.path.dirname(full), exist_ok=True)
+    with open(full, 'w') as f:
+        f.write(content)
+    return f'wrote {len(content)} characters to {path}'
+
+def edit(root, path, old, new):
+    text = read(root, path)
+    if text.count(old) != 1:                              # the model must point at exactly one place
+        raise ValueError(f'the old text occurs {text.count(old)} times in {path}; it must occur once')
+    return write(root, path, text.replace(old, new))
+
+def bash(root, command):
+    r = subprocess.run(command, shell=True, cwd=root, capture_output=True, text=True, timeout=60)
+    return f'exit code {r.returncode}\n{r.stdout}{r.stderr}'
+
+REGISTRY = {'read': read, 'write': write, 'edit': edit, 'bash': bash}</pre>
+  <p class="src">From <code>code/ch15_harness.py</code>. The four tools are plain functions. File tools refuse paths outside the project.</p>
+  <pre class="code" data-src="ch15_harness.py#describe">TOOLS = [
+    tool('read', 'Read a text file in the project.', path='File path, relative to the project folder.'),
+    tool('write', 'Create a file, or replace its whole content.', path='File path.', content='The complete new content.'),
+    tool('edit', 'Replace one passage of a file. The old text must occur exactly once.',
+         path='File path.', old='The exact text to replace.', new='The text to put in its place.'),
+    tool('bash', 'Run a shell command in the project folder. Returns the exit code and the output.',
+         command='The command line.'),
+]
+SYSTEM = ('You are a coding assistant working in a project folder on the user\'s machine. '
+          'Look before you change anything, and check your work after. '
+          'When the task is done, reply with a short summary and no tool call.')</pre>
+  <p class="src">What the model is told: the tool descriptions and the system prompt. This text is the model's whole knowledge of the harness.</p>
+  <pre class="code" data-src="ch15_harness.py#loop">def clip(text, limit=4000):
+    """A tool result goes into the context window, so it gets a budget: keep the start and the end."""
+    if len(text) &lt;= limit:
+        return text
+    return text[:limit // 2] + f'\n[... {len(text) - limit} characters left out ...]\n' + text[-limit // 2:]
+
+def run(task, root, approve=lambda name, args: True, max_steps=12, on_step=None):
+    messages = [{'role': 'system', 'content': SYSTEM}, {'role': 'user', 'content': task}]
+    for _ in range(max_steps):
+        reply = llm.chat(messages, tools=TOOLS, temperature=0)       # 1. the model writes
+        if on_step:
+            on_step(messages, reply)
+        messages.append(reply)
+        if not reply.get('tool_calls'):
+            return reply['content'], messages                        # no request: the model is done
+        for call in reply['tool_calls']:
+            name, args = call['function']['name'], call['function']['arguments']
+            try:
+                args = json.loads(args) if isinstance(args, str) else args
+                if approve(name, args):                              # 2. the harness decides
+                    result = REGISTRY[name](root, **args)            # 3. the harness acts
+                else:
+                    result = 'denied: this action was not allowed'
+            except Exception as e:
+                result = f'error: {type(e).__name__}: {e}'           # a failure is also just text
+            messages.append({'role': 'tool', 'tool_call_id': call.get('id', ''),
+                             'content': clip(str(result))})          # 4. the result becomes context
+    return 'Stopped: too many steps.', messages</pre>
+  <p class="src">The loop, with the four beats numbered.</p>
+  <pre class="code" data-src="ch15_harness.py#render">def segments(messages, tools):
+    """The request as the model receives it: ONE text, cut here into labelled pieces.
+    This follows the layout that Qwen 2.5 models were trained on. Each model family has
+    its own, called its chat template, and the server applies it for you."""
+    out = [('system prompt', '&lt;|im_start|&gt;system\n' + messages[0]['content']),
+           ('tool descriptions',
+            '\n\n# Tools\n\nYou may call one or more functions to assist with the user query.\n\n'
+            'You are provided with function signatures within &lt;tools&gt;&lt;/tools&gt; XML tags:\n&lt;tools&gt;\n'
+            + '\n'.join(json.dumps(t) for t in tools) + '\n&lt;/tools&gt;\n\n'
+            'For each function call, return a json object with function name and arguments within '
+            '&lt;tool_call&gt;&lt;/tool_call&gt; XML tags:\n&lt;tool_call&gt;\n'
+            '{"name": &lt;function-name&gt;, "arguments": &lt;args-json-object&gt;}\n&lt;/tool_call&gt;&lt;|im_end|&gt;\n')]
+    for m in messages[1:]:
+        if m['role'] == 'tool':
+            out.append(('tool result', '&lt;|im_start|&gt;user\n&lt;tool_response&gt;\n' + m['content'] + '\n&lt;/tool_response&gt;&lt;|im_end|&gt;\n'))
+        elif m.get('tool_calls'):
+            calls = [{'name': c['function']['name'], 'arguments': json.loads(c['function']['arguments'])} for c in m['tool_calls']]
+            out.append(('model', '&lt;|im_start|&gt;assistant\n' + '\n'.join(
+                '&lt;tool_call&gt;\n' + json.dumps(c) + '\n&lt;/tool_call&gt;' for c in calls) + '&lt;|im_end|&gt;\n'))
+        else:
+            out.append(('user' if m['role'] == 'user' else 'model', f"&lt;|im_start|&gt;{m['role']}\n{m['content']}&lt;|im_end|&gt;\n"))
+    return out + [('cue', '&lt;|im_start|&gt;assistant\n')]                # the model continues from here</pre>
+  <p class="src">The flattening shown in the experiment. With a real server you never write this: the server applies the model's own template.</p>
+  <pre class="code" data-lang="text">python code/ch15_harness.py --mock                       # the recorded run above
+python code/ch15_harness.py --dir scratch "Write a script that prints the first ten primes, and run it."</pre>
+
+  <div class="note">
+    <h3>What this chapter glossed over</h3>
+    <p><strong>The "model" above is a script.</strong> The fake server plays one fixed routine: run the tests, read, fix one known bug, run again. It shows what the harness does and says nothing about what a model can do. The harness has not been run against a real model for this course.</p>
+    <p><strong>Templates differ.</strong> The layout shown is the one Qwen 2.5 models were trained on. Other families use other markers and other ways of writing a tool call. Use the wrong one and the model sees a layout it never learned.</p>
+    <p><strong>With a real model, <code>bash</code> is real.</strong> It can delete files and reach the network. Work in a folder you can afford to lose until you have read chapter 17.</p>
+    <p><strong>Left out.</strong> Streaming, interrupting a run, several tool calls in one reply, long-running commands, images.</p>
+  </div>
+
+  <h2>Check yourself</h2>
+  <details class="check"><summary>The model has never been told what <code>edit</code> does in any special way. How does it know?</summary><p>From the tool description: a name, one sentence and the argument names, which the server writes into the request as text. The model reads it the way it reads anything. A vague description gives a model that misuses the tool.</p></details>
+  <details class="check"><summary>You connect a server that offers forty more tools. The agent uses two of them. What did the other thirty-eight cost?</summary><p>Their descriptions are in every request of the session, so they take room in the window and time to read at every step. They can also distract: more choices, more wrong choices. Offer the tools a task needs.</p></details>
+  <details class="check"><summary>Why does a failed command go back to the model as text, when the harness could stop with an error?</summary><p>Because the model can often recover: a missing file suggests another path, a failed test says what to fix. Stopping throws away the work so far. The brake against endless retries is the step limit.</p></details>
+  <details class="check"><summary>Two harnesses use the same model and give different results on the same task. Name three places the difference can come from.</summary><p>The system prompt, the tool descriptions and which tools exist, how results are clipped or summarised, the step limit, what is loaded from the project at the start. All of it is text in the request, and the request is all the model has.</p></details>
+</main>
+
+<script src="assets/harness.js"></script>
+<script src="assets/micro.js"></script>
+<script>
+M.ready(function () {
+  var box = M.$('#w-wire'), H = window.MICRO_HARNESS;
+  if (!H) { box.appendChild(M.el('p', { text: 'The recorded session did not load, so this experiment is unavailable.' })); return; }
+  var KIND = { 'system prompt': ['System prompt', '--muted'], 'tool descriptions': ['Tool descriptions', '--muted'], 'user': ['The user', '--ink'],
+               'model': ['The model, earlier', '--fwd'], 'tool result': ['A tool result', '--prob-fill'], 'cue': ['Cue: the model writes from here', '--fwd'] };
+  var k = 0, n = H.steps.length, label = M.el('span', { class: 'ms', style: 'font-family:var(--mono);font-size:14px' });
+  var bar = M.el('div', { style: 'display:flex;height:14px;border-radius:4px;overflow:hidden;margin:10px 0 4px;background:var(--soft)', role: 'img' });
+  var stat = M.el('p', { class: 'readout' }), parts = M.el('div'), wrote = M.el('div'), did = M.el('div');
+  function block(title, text, color, open) {
+    var d = M.el('details', { class: 'span', style: 'border-top:0;border-left:4px solid ' + M.css(color) + ';padding:4px 0 4px 10px;margin:6px 0' },
+      M.el('summary', null, M.el('span', null, M.el('b', { text: title })), M.el('span', { class: 'ms', text: text.length + ' chars' })),
+      M.el('div', { class: 'out', style: 'min-height:0;max-height:220px;overflow:auto;font-size:12.5px;margin-top:6px', text: text }));
+    if (open) d.setAttribute('open', '');
+    return d;
+  }
+  function show() {
+    var s = H.steps[k], total = 0, fixed = 0, fresh = 0, before = k ? H.steps[k - 1].segments.length - 1 : 0;
+    label.textContent = 'call ' + (k + 1) + ' of ' + n;
+    bar.textContent = ''; parts.textContent = ''; wrote.textContent = ''; did.textContent = '';
+    s.segments.forEach(function (seg, i) {
+      var info = KIND[seg[0]], isNew = k > 0 && i >= before && seg[0] !== 'cue';
+      total += seg[1].length;
+      if (seg[0] === 'system prompt' || seg[0] === 'tool descriptions') fixed += seg[1].length;
+      if (isNew) fresh += seg[1].length;
+      bar.appendChild(M.el('span', { style: 'width:' + seg[1].length + 'px;flex-grow:' + seg[1].length + ';background:' + M.css(info[1]) + (seg[0] === 'tool descriptions' ? ';opacity:.55' : '') }));
+      parts.appendChild(block(info[0] + (isNew ? ' (new in this request)' : ''), seg[1], info[1], isNew || (k === 0 && seg[0] === 'user')));
+    });
+    bar.setAttribute('aria-label', 'Composition of request ' + (k + 1));
+    stat.innerHTML = 'This request: <b>' + total.toLocaleString('en-US') + '</b> characters. System prompt and tool descriptions: <b>' + fixed.toLocaleString('en-US') + '</b>. ' + (k ? 'New since the last request: <b>' + fresh + '</b>.' : 'Everything is new.');
+    var calls = s.reply.tool_calls || [];
+    wrote.appendChild(M.el('p', { class: 'caption', text: 'Then the model wrote', style: 'margin:14px 0 4px' }));
+    wrote.appendChild(M.el('div', { class: 'out', style: 'min-height:0;font-size:13px;border-left:4px solid ' + M.css('--fwd'),
+      text: calls.length ? calls.map(function (c) { return '<tool_call>\n{"name": "' + c['function'].name + '", "arguments": ' + c['function'].arguments + '}\n</tool_call>'; }).join('\n') : s.reply.content }));
+    did.appendChild(M.el('p', { class: 'caption', text: calls.length ? 'And the harness ran it. The result will be part of the next request' : 'No tool call: the loop ends and this text goes to the user', style: 'margin:12px 0 4px' }));
+    if (calls.length) did.appendChild(M.el('div', { class: 'out', style: 'min-height:0;max-height:200px;overflow:auto;font-size:13px;border-left:4px solid ' + M.css('--prob-fill'), text: s.results.join('\n') }));
+  }
+  box.appendChild(M.el('p', { class: 'readout', html: 'Task: <b>' + H.task.replace(/</g, '&lt;') + '</b>' }));
+  box.appendChild(M.row(M.button('Previous', function () { if (k > 0) { k--; show(); } }), M.button('Next', function () { if (k < n - 1) { k++; show(); } }, 'go'), label));
+  box.appendChild(bar);
+  box.appendChild(M.el('p', { class: 'caption', text: 'The request, to scale. Grey: system prompt and tool descriptions. Dark: the user. Blue: the model. Amber: tool results.' }));
+  box.appendChild(stat); box.appendChild(parts); box.appendChild(wrote); box.appendChild(did);
+  box.appendChild(M.el('p', { class: 'caption', text: 'Recorded with the fake server, which plays a scripted model. Tap any block to open or close it.' }));
+  show();
+});
+</script>
+</body>
+</html>
