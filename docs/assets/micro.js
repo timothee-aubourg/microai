@@ -30,6 +30,7 @@
     ['22-memory.html', 'Where the weights live', 'memory'],
     ['23-small.html', 'As small as it goes', 'small'],
     ['24-posttraining.html', 'From text to behaviour', 'behave'],
+    ['25-inference.html', 'Better without retraining', 'infer'],
   ];
 
   // ---------- DOM helpers ----------
@@ -791,7 +792,10 @@
           keep: 'Rounding a finished model has a floor. Below it, the model has to be trained with the rounding in place.' },
     24: { q: 'A model read conversations in which half the sums are guessed without a calculator. You never show it a correct example. You only score its answers: 1 if the sum is right, 0 if not. After 4,800 scored answers, how often does it use the calculator?', o: ['About half the time, as before.', 'Almost always.', 'Never: it has no example to copy.'], a: 1,
           why: 'Answers that used the calculator scored 1 and guesses mostly 0. Making well-scored answers more likely took it from 149 uses in 300 to 298.',
-          keep: 'Pre-training gives a model every habit in its text. Post-training chooses among them, by showing examples or by scoring answers.' }
+          keep: 'Pre-training gives a model every habit in its text. Post-training chooses among them, by showing examples or by scoring answers.' },
+    25: { q: 'A model answers a sum right about half the time, and its weights cannot be changed. You ask the same sum 15 times and keep the answer given most often. How often is that answer right?', o: ['About half the time: it is the same model.', 'Nearly always.', 'Less often: more answers, more mistakes.'], a: 1,
+          why: 'Wrong guesses disagree with each other and right answers agree. Here the vote was right on 300 sums of 300, for fifteen times the tokens.',
+          keep: 'With fixed weights, better answers can still be bought at the moment of asking: ask more, check, steer. The price is paid on every request.' }
   };
   function guesses(set) {
     let s = {};

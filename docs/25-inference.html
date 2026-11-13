@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Better without retraining | microAI</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-ch="25">
+<main>
+  <p class="where">Chapter 25</p>
+  <h1>Better without retraining</h1>
+  <p class="question">The weights are fixed. What can still be done, at the moment of asking, to get a better answer?</p>
+
+  <p>Chapter 24 improved a model by training it further. That is not always possible. You may not have the weights, or the data, or the time. And once a model is released its weights do not change until the next release, however many conversations it has in between.</p>
+  <p>Everything that happens when a finished model is used is called inference. This chapter changes nothing in the model and looks only at that. It takes the pre-trained model of chapter 24, before any post-training: the one that reaches for the calculator half the time and guesses the rest. Asked 300 sums it has never seen, once each, it gets 148 right. The question is how far that number can be moved from outside.</p>
+
+  <div class="def"><span class="kind">Definition</span>
+    <p><dfn>Inference</dfn> is the use of a trained model to produce output. The weights are read and never changed.</p>
+  </div>
+
+  <h2>Ask several times and vote</h2>
+  <p>The model's answers are drawn at random (chapter 8), so asking again can give a different answer. That looks like a weakness. It can be used.</p>
+  <h3>By hand</h3>
+  <p>Ask "what is 47 times 51?" five times and write down the five final answers.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Try</th><th>How</th><th>Answer</th></tr>
+    <tr><td class="mono">1</td><td>calculator</td><td class="mono">2397</td></tr>
+    <tr><td class="mono">2</td><td>guess</td><td class="mono">2524</td></tr>
+    <tr><td class="mono">3</td><td>calculator</td><td class="mono">2397</td></tr>
+    <tr><td class="mono">4</td><td>guess</td><td class="mono">2371</td></tr>
+    <tr><td class="mono">5</td><td>guess</td><td class="mono">2412</td></tr>
+  </table></div>
+  <p>Three of the five are guesses, so a single try is more likely wrong than right. But the three guesses are wrong in three different ways, and the two right answers are the same. The answer given most often is 2397. There are many ways to be wrong and one way to be right, so wrong answers scatter and right ones pile up.</p>
+  <div class="def"><span class="kind">Definition</span>
+    <p><dfn>Self-consistency</dfn> is asking a model the same question several times and keeping the answer it gives most often.</p>
+  </div>
+
+  <section class="bench" id="w-vote">
+    <h3>Ask, count, keep the winner</h3>
+    <p class="try"><b>Try this.</b> Ask once, a few times over, and note how often the kept answer is right. Then raise the number of tries to 5, then 15, and ask again each time.</p>
+  </section>
+
+  <p><strong>What you should have seen.</strong> With one try the answer is right about every other time. With five tries the vote is usually right, and now and then a tie between a right answer and a guess goes the wrong way. With fifteen tries the right answer wins every time, with about half of the votes against a scatter of guesses that mostly got one vote each. The model did not change between your presses. You paid fifteen times the tokens.</p>
+
+  <h2>Check, and ask again</h2>
+  <p>Voting treats every answer alike. Often the harness can tell a good answer from a bad one without knowing the right answer. Here there is a simple test: did the number come from the calculator, or from nowhere?</p>
+  <div class="def"><span class="kind">Definition</span>
+    <p>A <dfn>verifier</dfn> is a check that accepts or rejects an answer. It can be a rule, a test that is run, or another model.</p>
+  </div>
+  <p>The harness accepts an answer only if it followed a tool call, and otherwise asks again, up to five times. A check is worth more than a vote because it throws away the bad tries. It needs fewer of them.</p>
+
+  <h2>Lean on one score</h2>
+  <p>The third way reaches into the moment of choice. Just before the model writes "C" to call the tool or "A" to answer, it has a score for each (chapter 1). The harness can add a number to one of them.</p>
+  <h3>By hand</h3>
+  <p>Say the two scores are equal, 1.0 and 1.0. Then each has a probability of one half. Add 2 to the score of "C".</p>
+  <div class="eq">p(C) = e<sup>3</sup> / (e<sup>3</sup> + e<sup>1</sup>) = 20.1 / (20.1 + 2.7) = 0.88</div>
+  <p>One addition moved the choice from 50% to 88%. Measured on the 300 sums, leaning by 2 gives 258 right, which is 86%.</p>
+  <div class="def"><span class="kind">Definition</span>
+    <p><dfn>Steering</dfn> is changing a model's output at inference by adding to its scores or to the numbers inside it, without changing a weight.</p>
+  </div>
+
+  <section class="bench" id="w-lean">
+    <h3>Lean toward the calculator</h3>
+    <p class="try"><b>Try this.</b> Move the slider from 0 to 4 and watch how many of 40 tries call the calculator. Then go below 0.</p>
+  </section>
+
+  <p><strong>What you should have seen.</strong> At 0 a little under half of the 40 tries call the calculator. At 2 most do, and at 4 nearly all. Below 0 the model is pushed the other way, and at &minus;4 it almost never calls. The format mask of chapter 13 is the same idea taken to the limit: it adds minus infinity to every score that is not allowed.</p>
+
+  <h2>What each one bought, and what it cost</h2>
+  <p><code>code/ch25_infer.py</code> grades each method on the same 300 unseen sums and counts the tokens the model had to process for each question.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Same weights, different way of asking</th><th>Right, of 300</th><th>Tokens per question</th></tr>
+    <tr><td>ask once</td><td class="mono">148</td><td class="mono">54</td></tr>
+    <tr><td>ask 3 times and vote</td><td class="mono">196</td><td class="mono">161</td></tr>
+    <tr><td>ask 5 times and vote</td><td class="mono">244</td><td class="mono">268</td></tr>
+    <tr><td>ask 9 times and vote</td><td class="mono">291</td><td class="mono">481</td></tr>
+    <tr><td>ask 15 times and vote</td><td class="mono">300</td><td class="mono">802</td></tr>
+    <tr><td>ask again until a tool was used</td><td class="mono">296</td><td class="mono">102</td></tr>
+    <tr><td>lean toward the tool by 2</td><td class="mono">258</td><td class="mono">60</td></tr>
+    <tr><td>lean toward the tool by 4</td><td class="mono">294</td><td class="mono">62</td></tr>
+  </table></div>
+  <p>A model that is right half the time was taken to 300 of 300 with no training at all. The three methods are not equally expensive. Voting is the most general, because it needs to know nothing about the task, and it is the dearest: fifteen times the tokens. The check reaches 296 for twice the tokens, because it knows what a good answer looks like. Leaning costs almost nothing, and needs access to the scores and someone who knows which one to push.</p>
+  <p>Compare with chapter 24. Training reached 297 and 298 of 300 at 54 tokens per question, after a cost paid once. Inference methods are paid on every question, for ever. The more often a model is asked, the more it is worth paying once.</p>
+
+  <h2>Keeping the secret from outside</h2>
+  <p>The same model gives the secret away nine times in ten. Chapter 17's answer was a guard in the harness. Here it is an output filter: a reply that contains the code is thrown away and the question asked again, up to ten times.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Of 300 requests for the secret, with the filter</th><th></th></tr>
+    <tr><td>the model declined</td><td class="mono">192</td></tr>
+    <tr><td>ten tries, ten leaks: the harness returned nothing</td><td class="mono">103</td></tr>
+    <tr><td>the secret reached the user</td><td class="mono">0</td></tr>
+    <tr><td>tries per request</td><td class="mono">6.4</td></tr>
+  </table></div>
+  <p>The secret never got out, and that guarantee comes from the filter, which is ordinary code. The model is as willing to tell as before: it took 6.4 tries on average to find a reply that did not, and a third of the time there was none. A filter makes a system safe at the exit. It does not make the model behave, and it costs tokens every time.</p>
+
+  <h2>What inference cannot buy</h2>
+  <p>Every method above chooses among answers the model is able to give. None adds an ability. Asked for sums with a three-digit number, which it never saw, the model gets 0 of 50 right with fifteen votes each. Fifteen wrong answers have no right one to agree on.</p>
+  <p>What can be added at inference is information, through the context: a document that was looked up, the result of a tool, notes kept from earlier sessions. That is the subject of chapters 11, 15 and 16, and it is the largest inference-time lever of all, because the model reads its context afresh on every token.</p>
+
+  <h2>At full size</h2>
+  <ul>
+    <li><strong>Thinking</strong> (chapter 21) is inference-time compute inside one answer: more tokens written before the answer, on the same weights.</li>
+    <li><strong>Several tries and a judge.</strong> Systems sample several answers and keep one, by vote or by asking a model to choose. Coding agents use the strongest verifier available: they run the tests (chapter 15) and try again when they fail.</li>
+    <li><strong>Memory outside the weights.</strong> Retrieval, files of notes and saved instructions let a system know tomorrow what it learned today, without a weight changing. The model has not learned anything. Its context has.</li>
+    <li><strong>Steering inside the model.</strong> The same addition can be made to the numbers flowing between blocks instead of the final scores, to push a model toward or away from a behaviour.</li>
+    <li><strong>Speed.</strong> The KV cache (chapter 8), the prefix cache (chapter 16), fewer bits (chapter 9) and the choice of memory (chapter 22) are all inference too: the same answer, sooner or cheaper.</li>
+  </ul>
+  <h3>Learning while running</h3>
+  <p>There is one more possibility, and it is a research question and not a technique. A model could keep learning from what happens during use, changing its weights a little after every exchange, so that there is no longer a training phase and then a use phase. Some researchers argue that this, and not a larger frozen model, is what intelligence requires.</p>
+  <p>Chapter 24 shows the mechanism in small: its reinforcement stage is exactly a model learning from the scores of its own answers. It also shows the difficulty. That stage disturbed a small-talk reply nobody was grading. A network that keeps learning tends to overwrite what it knew, and after long enough tends to stop learning well at all. Neither problem is solved, which is why the systems you can use today keep their weights fixed and put what they learn into the context.</p>
+  <div class="def"><span class="kind">Definition</span>
+    <p><dfn>Continual learning</dfn> is learning that goes on during use, with no separate training phase, without losing what was learned before.</p>
+  </div>
+
+  <h2>Build it</h2>
+  <pre class="code" data-src="ch25_infer.py#vote">def vote(run, question, rng, n):
+    """Ask n times. Different guesses disagree with each other; answers that are right agree."""
+    episodes = [post.episode(run, question, rng) for _ in range(n)]
+    answer, _ = collections.Counter(e['answer'] for e in episodes).most_common(1)[0]
+    return answer, sum(len(e['text']) for e in episodes)</pre>
+  <pre class="code" data-src="ch25_infer.py#check">def check(run, question, rng, tries=5):
+    """Accept an answer only if it rests on a tool result. Otherwise ask again."""
+    tokens = 0
+    for attempt in range(1, tries + 1):
+        e = post.episode(run, question, rng)
+        tokens += len(e['text'])
+        if e['call'] is not None:                 # the check: did the number come from the calculator?
+            break
+    return e['answer'], tokens, attempt</pre>
+  <pre class="code" data-src="ch25_infer.py#lean">def lean(run, question, rng, amount):
+    """One number added to the score of "C" at the moment the model chooses between calling and answering."""
+    e = post.episode(run, question, rng, lean=amount)
+    return e['answer'], len(e['text'])</pre>
+  <p class="src">From <code>code/ch25_infer.py</code>. Three ways of asking. None of them touches the model.</p>
+  <pre class="code" data-lang="text">python code/ch24_posttrain.py --train    # if not done: the models of chapter 24
+python code/ch25_infer.py                # every row of this chapter, about 5 minutes</pre>
+
+  <div class="note">
+    <h3>What this chapter glossed over</h3>
+    <p><strong>This model was easy to help.</strong> Its wrong answers were made to scatter, and its right ones are exact. Voting does much less for a model whose mistakes are systematic: if most tries make the same error, the vote confirms it.</p>
+    <p><strong>The check was nearly free.</strong> "Did it use the tool" takes one line. Real verifiers cost something to run and can be wrong themselves, and a system that retries until a check passes will find whatever passes the check.</p>
+    <p><strong>Votes need answers that can be compared.</strong> Two correct paragraphs are rarely identical. Systems that vote on free text use a model to judge which answers agree.</p>
+    <p><strong>One run each.</strong> Each row is one pass over 300 questions with one seed. The counts would move by a few with another.</p>
+    <p><strong>Continual learning is described, not built.</strong> The paragraph on it reports an open research direction and takes no side on whether it will replace frozen models.</p>
+  </div>
+
+  <div class="recap">
+    <h3>In short</h3>
+    <ul>
+      <li><a class="term" href="glossary.html#inference">Inference</a> is the use of a model with its weights fixed. A model right 148 times in 300 was taken to 300 by changing only how it is asked.</li>
+      <li><a class="term" href="glossary.html#self-consistency">Voting</a> over several tries works when wrong answers scatter and right ones agree: 300 of 300 at fifteen tries, for fifteen times the tokens.</li>
+      <li>A <a class="term" href="glossary.html#verifier">verifier</a> that rejects bad tries is cheaper: 296 of 300 for twice the tokens. <a class="term" href="glossary.html#steering">Steering</a> one score is cheaper still: 294 of 300 at no extra tokens.</li>
+      <li>Inference methods are paid on every request, and they choose among what the model can already do: 0 of 50 on a kind of sum it never learned.</li>
+      <li>What a running system learns goes into its context, not its weights. Making the weights themselves keep learning during use is an open research problem.</li>
+    </ul>
+  </div>
+
+  <h2>Check yourself</h2>
+  <details class="check"><summary>A model makes the same arithmetic mistake on nine tries out of ten. Will voting over fifteen tries help?</summary><p>No. Voting keeps the most common answer, and here the most common answer is the mistake. Voting helps only when wrong answers disagree with each other more than right ones do.</p></details>
+  <details class="check"><summary>Checking reached 296 of 300 with 102 tokens per question. Voting needed 481 tokens to reach 291. Where does the difference come from?</summary><p>The check knows something about the task: an answer that followed a tool call is trustworthy. It can stop at the first good try. A vote knows nothing and has to collect enough tries for the right answer to stand out.</p></details>
+  <details class="check"><summary>With the filter, the secret reached the user 0 times in 300. Has the model learned to keep it?</summary><p>No. It still produced the secret on most tries, and the filter threw those replies away. Remove the filter and it gives the secret as before. The safety is in the harness.</p></details>
+  <details class="check"><summary>You will ask a model the same kind of question ten million times. Voting over fifteen tries makes it reliable. What else should you consider?</summary><p>Training it once (chapter 24). Voting costs fifteen times the tokens on every one of the ten million questions. Post-training costs once and then each question costs the normal amount.</p></details>
+</main>
+
+<script src="assets/post.js"></script>
+<script src="assets/glossary.js"></script>
+<script src="assets/micro.js"></script>
+<script>
+M.ready(function () {
+  var P = window.MICRO_POST;
+  if (!P) { ['#w-vote', '#w-lean'].forEach(function (id) { M.$(id).appendChild(M.el('p', { text: 'The trained model did not load, so this experiment is unavailable.' })); }); return; }
+  var m = M.loadWeights(P.models.pre);          // the pre-trained model of chapter 24, and only that one
+  var TOOLS = { add: function (a, b) { return a + b; }, sub: function (a, b) { return a - b; }, mul: function (a, b) { return a * b; } }, WORDS = { plus: 'add', minus: 'sub', times: 'mul' };
+  var D = '0123456789', CALL = [{ words: ['add', 'sub', 'mul'] }, [' ', 1, 1], [D, 1, 2], [' ', 1, 1], [D, 1, 2], ['\n', 1, 1]], ROLE = [{ words: ['C ', 'A '] }];
+  function moves(fmt, st) {        // the format machine of chapter 13
+    var i = st[0], s = st[1], out = {}, mayEnd;
+    while (i < fmt.length) {
+      var part = fmt[i];
+      if (part.words) {
+        part.words.forEach(function (x) { if (x.indexOf(s) === 0 && x.length > s.length && !(x[s.length] in out)) out[x[s.length]] = [i, s + x[s.length]]; });
+        mayEnd = part.words.indexOf(s) >= 0;
+      } else {
+        if (s.length < part[2]) for (var k = 0; k < part[0].length; k++) if (!(part[0][k] in out)) out[part[0][k]] = [i, s + part[0][k]];
+        mayEnd = s.length >= part[1];
+      }
+      if (!mayEnd) break;
+      i++; s = '';
+    }
+    return out;
+  }
+  /* one line, each character drawn from the model's probabilities; `lean` is added to the score of "C" */
+  function writeLine(wr, used, fmt, limit, rnd, lean) {
+    var line = '', st = [0, ''];
+    while (line.slice(-1) !== '\n' && line.length < limit && used.n < m.cfg.block - 1) {
+      var z = wr.logits(), legal = null, mx = -Infinity, sum = 0, i, p = new Float64Array(z.length), s = new Float64Array(z.length);
+      if (fmt) { legal = moves(fmt, st); if (!Object.keys(legal).length) break; }
+      for (i = 0; i < z.length; i++) { s[i] = z[i] + (lean && m.chars[i] === 'C' ? lean : 0); if ((!legal || m.chars[i] in legal) && s[i] > mx) mx = s[i]; }
+      for (i = 0; i < z.length; i++) { p[i] = (!legal || m.chars[i] in legal) ? Math.exp(s[i] - mx) : 0; sum += p[i]; }
+      var r = rnd() * sum, pick = 0;
+      for (i = 0; i < z.length; i++) { r -= p[i]; if (r <= 0 && p[i] > 0) { pick = i; break; } pick = p[i] > 0 ? i : pick; }
+      var ch = m.chars[pick];
+      if (fmt) st = legal[ch];
+      line += ch; wr.add(pick); used.n++;
+    }
+    return line;
+  }
+  function episode(question, rnd) {
+    var prompt = '\nU ' + question + '\n', wr = M.writer(m, prompt), used = { n: prompt.length }, call = null;
+    if (writeLine(wr, used, ROLE, 2, rnd, 0) === 'C ') {
+      call = writeLine(wr, used, CALL, 14, rnd, 0).trim();
+      var p = call.split(' '), fed = 'R ' + TOOLS[p[0]](+p[1], +p[2]) + '\nA ';
+      for (var i = 0; i < fed.length; i++) { wr.add(m.stoi[fed[i]]); used.n++; }
+    }
+    return { call: call, answer: writeLine(wr, used, null, 60, rnd, 0).trim(), tokens: used.n };
+  }
+  function truth(question) { var w = question.replace('?', '').split(' '); return w[2] + ' ' + w[3] + ' ' + w[4] + ' is ' + TOOLS[WORDS[w[3]]](+w[2], +w[4]) + '.'; }
+  function vote(question, n, rnd) {
+    var tally = {}, tokens = 0, order = [];
+    for (var i = 0; i < n; i++) { var e = episode(question, rnd); tokens += e.tokens; if (!(e.answer in tally)) { tally[e.answer] = 0; order.push(e.answer); } tally[e.answer]++; }
+    order.sort(function (a, b) { return tally[b] - tally[a]; });
+    return { tally: tally, order: order, winner: order[0], tokens: tokens };
+  }
+  M.inferVote = function (question, n, seed, rounds) { var rnd = M.rng(seed), ok = 0; for (var i = 0; i < rounds; i++) ok += vote(question, n, rnd).winner === truth(question); return ok; };
+
+  // ---------- widget 1: ask several times and vote ----------
+  (function () {
+    var box = M.$('#w-vote'), q = 'what is 47 times 51?', presses = 0, kept = { right: 0, all: 0, n: 0 };
+    var qS = M.select('Question', ['what is 47 times 51?', 'what is 23 times 45?', 'what is 7 minus 60?', 'what is 99 plus 99?'].map(function (x) { return [x, x]; }), function (v) { q = v; kept = { right: 0, all: 0, n: n.value }; });
+    var n = M.slider({ label: 'Tries per question', min: 1, max: 15, step: 2, value: 1, fmt: function (v) { return v; }, oninput: function () { kept = { right: 0, all: 0, n: n.value }; } });
+    var bars = M.el('div'), stat = M.el('p', { class: 'readout', text: 'Nothing asked yet.' });
+    function go() {
+      var v = vote(q, n.value, M.rng(31 * (presses++) + 5)), right = truth(q), ok = v.winner === right;
+      if (kept.n !== n.value) kept = { right: 0, all: 0, n: n.value };
+      kept.all++; kept.right += ok;
+      M.bars(bars, v.order.slice(0, 6).map(function (a) { return { label: a.replace(/^.* is /, '').replace('.', ''), p: v.tally[a] / n.value, text: v.tally[a] + (v.tally[a] > 1 ? ' votes' : ' vote'), hl: a === right, cut: a !== right }; }), 1);
+      stat.innerHTML = 'Kept answer: <b>' + v.winner + '</b> ' + (ok ? 'Right.' : 'Wrong: the right result is ' + right.replace(/^.* is /, '')) + ' ' + v.tokens + ' tokens. With ' + n.value + (n.value > 1 ? ' tries' : ' try') + ', the kept answer has been right <b>' + kept.right + ' times in ' + kept.all + '</b>.';
+    }
+    box.appendChild(M.row(qS)); box.appendChild(M.row(n)); box.appendChild(M.row(M.button('Ask', go, 'go'))); box.appendChild(bars); box.appendChild(stat);
+    box.appendChild(M.el('p', { class: 'caption', text: 'The pre-trained model of chapter 24, running here with its weights untouched. Each bar is one distinct result and the number of tries that gave it. A tie is settled in favour of the answer that came first.' }));
+  })();
+
+  // ---------- widget 2: lean on one score ----------
+  (function () {
+    var box = M.$('#w-lean'), bars = M.el('div'), stat = M.el('p', { class: 'readout' });
+    var sl = M.slider({ label: 'Added to the score of "C"', min: -4, max: 4, step: 1, value: 0, fmt: function (v) { return (v > 0 ? '+' : '') + v; }, oninput: show });
+    function count(lean) {
+      var rnd = M.rng(11), calls = 0, prompt = '\nU what is 47 times 51?\n';
+      for (var i = 0; i < 40; i++) { var wr = M.writer(m, prompt); calls += writeLine(wr, { n: prompt.length }, ROLE, 2, rnd, lean) === 'C '; }
+      return calls;
+    }
+    M.inferLean = count;
+    function show() {
+      var c = count(sl.value);
+      M.bars(bars, [{ label: 'calls the calculator', p: c / 40, text: c + ' of 40', hl: true }, { label: 'answers at once', p: (40 - c) / 40, text: (40 - c) + ' of 40', cut: true }], 1);
+      stat.textContent = sl.value === 0 ? 'Nothing added: the model as it is.' : 'One number, ' + (sl.value > 0 ? '+' : '') + sl.value + ', added to one score at one moment. No weight changed.';
+    }
+    box.appendChild(M.row(sl)); box.appendChild(bars); box.appendChild(stat);
+    box.appendChild(M.el('p', { class: 'caption', text: 'Forty tries of the first choice the model makes after the question "what is 47 times 51?": write "C" and call the tool, or write "A" and answer.' }));
+    show();
+  })();
+});
+</script>
+</body>
+</html>
