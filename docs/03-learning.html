@@ -10,36 +10,118 @@
 <main>
   <p class="where">Chapter 3</p>
   <h1>Learning by rolling downhill</h1>
-  <p class="question">Our model will have 345,504 adjustable numbers. How do you find good values for all of them at once?</p>
+  <p class="question">The model of this course will have 345,504 adjustable numbers. How do you find good values for all of them at once?</p>
 
-  <p>Chapter 1 ended with a plan: replace the lookup table by a formula with adjustable numbers, called <strong>parameters</strong> or <strong>weights</strong>, and tune them so that the loss is low. Trying values at random is hopeless. With 345,504 parameters, even testing just "a bit higher" and "a bit lower" for each one, in every combination, is more experiments than there are atoms in the universe.</p>
-  <p>The way out is to stop searching and start asking. For each parameter, ask one local question: <em>if I nudge you up a hair, does the loss go up or down, and how steeply?</em> The answer is a number, the slope of the loss along that parameter. Collect the slopes for all parameters and you have the <strong>gradient</strong>. It points in the direction that increases the loss fastest. Step the other way.</p>
+  <p>Chapter 1 ended at a wall, and with one sentence about the way past it: stop looking the answer up in a table, and compute it with a formula that contains adjustable numbers. Chapter 1 gave those numbers a name and nothing more. This chapter is where they become real, so start again from the beginning.</p>
+
+  <div class="def"><span class="kind">Definitions</span>
+    <p>A <a class="term" href="glossary.html#parameter">parameter</a>, also called a weight, is one adjustable number inside a model. The two words mean the same thing in this course.</p>
+    <p><dfn>Training</dfn> is the search for parameter values that make the loss of chapter 1 low. A model that has been trained is nothing more than its list of parameter values.</p>
+  </div>
+
+  <p>Here is the smallest example. Take the formula <i>prediction = w × x</i>. It has one parameter, <i>w</i>. Set <i>w</i> to 1 and the formula copies its input. Set it to 3 and it triples it. The formula stays the same, and the value of <i>w</i> decides what it does. The model built in chapters 4 to 6 is a much longer formula of the same kind, with 345,504 parameters instead of one. Nobody has built it yet. All this chapter needs from it is that number.</p>
+  <p>Trying values at random is hopeless. With 345,504 parameters, even testing just "a bit higher" and "a bit lower" for each one, in every combination, is more experiments than there are atoms in the universe.</p>
+  <p>The way out is to stop searching and start asking. For each parameter, ask one local question: <em>if I nudge you up a hair, does the loss go up or down, and how steeply?</em></p>
+
+  <div class="def"><span class="kind">Definitions</span>
+    <p>The <dfn>slope</dfn> of the loss for a parameter is how much the loss changes when that parameter goes up by a small amount, divided by that amount. A negative slope means that raising the parameter lowers the loss.</p>
+    <p>The <dfn>gradient</dfn> is the list of slopes, one for every parameter.</p>
+    <p><dfn>Gradient descent</dfn> is the method of this chapter: compute the gradient, move every parameter a little against its slope, repeat.</p>
+    <p>The <dfn>learning rate</dfn> is the number that sets how far each step goes.</p>
+  </div>
   <div class="eq">each weight ← weight − learning rate × slope of the loss for that weight</div>
 
-  <h2>Two numbers first</h2>
-  <p>Take the smallest model that can learn anything: a straight line, prediction = <i>w</i> × <i>x</i> + <i>b</i>, with two parameters. Its loss is the average squared distance between the line and six data points. Two parameters means the loss is a landscape you can actually draw: every point on the right-hand map is one possible line, and the shading is how wrong that line is.</p>
+  <h3>By hand: one parameter, two steps</h3>
+  <p>Keep the formula <i>prediction = w × x</i>. Give it one example: when <i>x</i> is 2, the right answer is 6. Measure how wrong it is by the squared distance: <i>loss = (prediction − 6)²</i>. Start at <i>w</i> = 1.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>w</th><th>Prediction, w × 2</th><th>Loss</th></tr>
+    <tr><td class="mono">1</td><td class="mono">2</td><td class="mono">(2 − 6)² = 16</td></tr>
+    <tr><td class="mono">1.01 (nudged)</td><td class="mono">2.02</td><td class="mono">(2.02 − 6)² = 15.84</td></tr>
+  </table></div>
+  <p>Raising <i>w</i> by 0.01 changed the loss by −0.16. The slope is −0.16 / 0.01 = <b>−16</b>. It is negative, so raising <i>w</i> helps. Take a step with a learning rate of 0.1:</p>
+  <div class="eq">w ← 1 − 0.1 × (−16) = 2.6</div>
+  <p>The loss at 2.6 is (5.2 − 6)² = 0.64, down from 16. Ask again. Nudging 2.6 to 2.61 changes the loss by about −0.03, so the slope is about −3.2. Step:</p>
+  <div class="eq">w ← 2.6 − 0.1 × (−3.2) = 2.92</div>
+  <p>The loss is now (5.84 − 6)² = 0.03. Two questions and two steps took the loss from 16 to 0.03, and <i>w</i> from 1 to 2.92. The value that makes the loss zero is 3. Notice that the steps got smaller without anyone deciding so: near the bottom the slope is small, and the step is the slope times the rate.</p>
+
+  <figure class="fig">
+    <svg viewBox="0 0 760 250" role="img" aria-labelledby="f3a">
+      <title id="f3a">The loss of the by-hand example drawn against the parameter w. It is a bowl with its lowest point at w equals 3. A point at w equals 1 sits high on the left wall, where the slope is minus 16. One step carries it to w equals 2.6, near the bottom, and a second to 2.92.</title>
+      <defs><marker id="c3a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
+      <line x1="60" y1="200" x2="720" y2="200" class="ln"/>
+      <path d="M80,25 Q380,375 680,25" fill="none" class="ln-fwd"/>
+      <g class="t-mono t-small"><text x="140" y="222" text-anchor="middle">1</text><text x="260" y="222" text-anchor="middle">2</text><text x="380" y="222" text-anchor="middle">3</text><text x="500" y="222" text-anchor="middle">4</text><text x="620" y="222" text-anchor="middle">5</text></g>
+      <text x="700" y="240" text-anchor="end" class="t-small t-muted">the parameter w</text>
+      <text x="64" y="20" class="t-small t-muted">loss</text>
+      <circle cx="140" cy="88" r="6" class="bx-grad"/><text x="126" y="116" text-anchor="end" class="t-small t-grad">slope −16</text>
+      <line x1="150" y1="92" x2="322" y2="190" class="ln-grad" marker-end="url(#c3a)"/>
+      <text x="246" y="126" class="t-small">step 1</text>
+      <circle cx="332" cy="195.5" r="6" class="bx-grad"/>
+      <circle cx="370.4" cy="199.8" r="6" class="bx-grad"/>
+      <text x="350" y="182" text-anchor="middle" class="t-small">step 2</text>
+      <text x="380" y="60" text-anchor="middle" class="t-small t-muted">lowest loss at w = 3</text>
+      <line x1="380" y1="68" x2="380" y2="188" class="ln-dash"/>
+    </svg>
+    <figcaption><b>Rolling downhill.</b> The curve is the loss for every value of w. The slope says which way is down and how steep it is. Each step moves against it.</figcaption>
+  </figure>
+
+  <h2>Two numbers</h2>
+  <p>Now a model with two parameters: a straight line, <i>prediction = w × x + b</i>. Its loss is the average squared distance between the line and six data points. With one parameter the loss was a curve. With two it is a landscape: every point on the right-hand map below is one possible line, one pair (<i>w</i>, <i>b</i>), and the shading is how wrong that line is. The gradient now has two slopes, one for <i>w</i> and one for <i>b</i>.</p>
 
   <section class="bench" id="w-descent">
     <h3>Gradient descent on a line</h3>
-    <p class="try"><b>Try this.</b> Run with the learning rate at 0.05 and watch the dot slide into the valley while the line settles on the points. Reset, set the rate to 0.30 and run: it zigzags. Set it to 0.33: every step overshoots further than the last. Tap the map to start somewhere else.</p>
+    <p class="try"><b>Try this.</b> Run with the learning rate at 0.05 and watch the dot slide into the valley while the line settles on the points. Reset, set the rate to 0.30 and run: it zigzags. Reset, set it to 0.33 and run. Tap the map to start somewhere else.</p>
   </section>
 
-  <p>Two views of one process. On the left, a line wiggling toward the data. On the right, a dot rolling downhill. The right-hand view is the one that scales: with a million parameters you cannot draw the landscape, but "compute the slope, step against it" works unchanged.</p>
-  <p>The learning rate matters more than you might expect. Too small and training takes forever. Too large and each step lands higher up the opposite wall than where it started, and the loss explodes. For this little bowl the limit can be computed exactly, and it sits just above 0.30. For a real network nobody can compute it, so it is found by trial.</p>
+  <p><strong>What you should have seen.</strong> At 0.05 the loss falls from 13.68 to 0.05 in 40 steps, and the line ends close to the points, with <i>w</i> = 1.97 and <i>b</i> = −0.91. At 0.30 the dot jumps from one side of the valley to the other, and after 40 steps the loss is still 0.45. At 0.33 each jump is larger than the last: the loss passes a million and the widget says the run has diverged.</p>
+  <p>These are two views of one process. On the left, a line moving toward the data. On the right, a dot rolling downhill. The right-hand view is the one that scales: with a million parameters you cannot draw the landscape, but "compute the slope, step against it" works unchanged.</p>
+  <p>The learning rate matters more than you might expect. Too small and training takes forever. Too large and each step lands higher up the opposite wall than where it started, and the loss grows without limit. For this little bowl the limit can be computed exactly, and it sits just above 0.30. For a real model nobody can compute it, so it is found by trial.</p>
 
   <h2>Getting all the slopes in one pass</h2>
-  <p>There is still a cost problem. Measuring one slope by nudging one parameter requires recomputing the loss. Doing that for 345,504 parameters means 345,504 runs of the model for a single step.</p>
-  <p>The fix is the chain rule from calculus, applied with good bookkeeping. Any computation, however large, is built from small operations: an addition here, a multiplication there. Each small operation knows its own local slope. Run the computation forward and remember every intermediate value. Then walk backward from the loss, and at each operation multiply the slope that arrived by the local slope and pass it on. One backward walk delivers every slope. This is <strong>backpropagation</strong>.</p>
+  <p>There is still a cost problem. The by-hand method measures one slope by nudging one parameter and computing the loss again. Doing that for 345,504 parameters means 345,504 runs of the model for a single step.</p>
+  <p>The fix rests on one fact about slopes. A computation, however large, is built from small operations in a row: a multiplication here, an addition there. When operations follow one another, their slopes multiply.</p>
+
+  <div class="def"><span class="kind">Definitions</span>
+    <p>The <dfn>chain rule</dfn>: if a nudge to <i>a</i> changes <i>b</i> at a rate of 3, and a nudge to <i>b</i> changes <i>c</i> at a rate of 2, then a nudge to <i>a</i> changes <i>c</i> at a rate of 3 × 2 = 6.</p>
+    <p>The <dfn>forward pass</dfn> is the computation from the inputs to the loss, keeping every intermediate value.</p>
+    <p>The <dfn>backward pass</dfn> walks the same operations in reverse, from the loss to the parameters, multiplying slopes along the way.</p>
+    <p><dfn>Backpropagation</dfn> is the name of the whole method: one forward pass, then one backward pass, gives the slope for every parameter.</p>
+  </div>
+
+  <h3>By hand: forward, then backward</h3>
+  <p>Take the line with <i>w</i> = 0.5 and <i>b</i> = 0.5, and one example: <i>x</i> = 2, right answer <i>y</i> = 3. Forward, one small operation at a time:</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Operation</th><th>Value</th></tr>
+    <tr><td class="mono">p = w × x</td><td class="mono">0.5 × 2 = 1</td></tr>
+    <tr><td class="mono">s = p + b</td><td class="mono">1 + 0.5 = 1.5</td></tr>
+    <tr><td class="mono">e = s − y</td><td class="mono">1.5 − 3 = −1.5</td></tr>
+    <tr><td class="mono">L = e²</td><td class="mono">2.25</td></tr>
+  </table></div>
+  <p>Now backward, from the loss <i>L</i>. At each operation ask: if this value went up a little, how fast would <i>L</i> change?</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Value</th><th>Its slope</th><th>Why</th></tr>
+    <tr><td class="mono">e</td><td class="mono">−3</td><td>L = e², and the slope of a square is twice the number: 2 × −1.5</td></tr>
+    <tr><td class="mono">s</td><td class="mono">−3</td><td>e = s − y: a nudge to s moves e by the same amount</td></tr>
+    <tr><td class="mono">b</td><td class="mono">−3</td><td>s = p + b: addition passes the slope on unchanged</td></tr>
+    <tr><td class="mono">p</td><td class="mono">−3</td><td>the same addition</td></tr>
+    <tr><td class="mono">w</td><td class="mono">−6</td><td>p = w × x: multiplication scales the slope by the other input, −3 × 2</td></tr>
+  </table></div>
+  <p>One walk forward and one walk back gave both slopes: −6 for <i>w</i> and −3 for <i>b</i>. Both are negative, so both parameters should go up. With a learning rate of 0.05, <i>w</i> becomes 0.5 − 0.05 × (−6) = 0.8 and <i>b</i> becomes 0.5 − 0.05 × (−3) = 0.65. The loss falls from 2.25 to 0.56.</p>
 
   <section class="bench" id="w-graph">
     <h3>One forward pass, one backward pass</h3>
-    <p class="try"><b>Try this.</b> The blue numbers are values computed left to right. Press Backward repeatedly and watch the raspberry slopes travel right to left. Then press Take a step and see the loss L drop.</p>
+    <p class="try"><b>Try this.</b> The widget starts on the by-hand example. The blue numbers are values computed left to right. Press Backward five times and watch the raspberry slopes travel right to left. Then press Take a step and read the new loss in the box marked L.</p>
   </section>
 
-  <p>Only two rules were needed. Addition passes the incoming slope to both of its inputs unchanged. Multiplication passes it to each input scaled by the <em>other</em> input's value. Every operation in a GPT has a rule of this kind, and the backward pass costs about as much as the forward pass, whether there are two parameters or two billion.</p>
+  <p><strong>What you should have seen.</strong> The loss starts at 2.25. The slopes appear in the order of the by-hand table: −3 at <i>e</i>, −3 at <i>s</i>, −3 for <i>b</i>, and last −6 for <i>w</i>. After the step the sliders read 0.80 and 0.65, and the loss is 0.56.</p>
+  <p>Only two rules were needed. Addition passes the incoming slope to both of its inputs unchanged. Multiplication passes it to each input scaled by the <em>other</em> input's value. Every operation in the model of chapters 4 to 6 has a rule of this kind, and the backward pass costs about as much as the forward pass, whether there are two parameters or two billion.</p>
 
   <h2>Build it</h2>
-  <p>The engine below is what trains the model in this course. A <code>Tensor</code> holds an array of numbers, remembers which tensors it was computed from, and carries a small function that knows how to pass a gradient back to them.</p>
+  <p>The engine below is what trains the model in this course. It needs one more word.</p>
+  <div class="def"><span class="kind">Definition</span>
+    <p>A <dfn>tensor</dfn> is a block of numbers handled as one object: a single number, a list of numbers, or a table of them.</p>
+  </div>
+  <p>A model's parameters are stored as a few large tensors, not as 345,504 separate variables. In the code, a <code>Tensor</code> holds its numbers, remembers which tensors it was computed from, and carries a small function that knows how to pass a slope back to them. The slope it has received so far is stored in <code>grad</code>, short for gradient.</p>
   <pre class="code" data-src="engine.py#tensor">class Tensor:
     dtype = np.float32          # switch to float64 for gradient checking
 
@@ -95,7 +177,7 @@ def __matmul__(self, other):
             other._accumulate(_unbroadcast(np.swapaxes(self.data, -1, -2) @ g, other.shape))
     out._backward = _backward
     return out</pre>
-  <p class="src">The local rules for addition, multiplication and matrix multiplication. The file has a dozen more, all this short.</p>
+  <p class="src">The local rules for addition and multiplication, the two of the by-hand example, and for matrix multiplication, which multiplies and adds whole tables of numbers at once and is used from chapter 4 on. The file has a dozen more, all this short.</p>
   <p>How do you know a backward rule is right? You measure the slope the slow way, by nudging one number and rerunning, and compare.</p>
   <pre class="code" data-src="ch03_gradient_descent.py#gradcheck">rng = np.random.default_rng(0)
 model = GPT(vocab_size=11, block_size=8, n_layer=2, n_head=2, d_model=8)
@@ -114,21 +196,35 @@ for name, p in model.p.items():
     worst = max(worst, abs(numeric - p.grad[i]))
 print(f'gradient check on a 2-layer GPT: worst |numeric - backprop| = {worst:.2e}')
 assert worst &lt; 1e-6</pre>
-  <p class="src">From <code>code/ch03_gradient_descent.py</code>. On a small GPT the two methods agree to nine decimal places.</p>
+  <p class="src">From <code>code/ch03_gradient_descent.py</code>. The check runs on a small copy of the model that chapter 6 builds, called <code>GPT</code> in the code. The two methods agree to nine decimal places.</p>
 
   <div class="note">
     <h3>What this chapter glossed over</h3>
-    <p><strong>The bowl is a best case.</strong> A line's loss landscape has a single valley. A network's does not, and nothing guarantees that rolling downhill finds the lowest point. In practice, for large networks, it finds points that are good enough, and why that works so reliably is still an active research question.</p>
-    <p><strong>The slope is measured on a sample.</strong> Real training computes the loss on a small random batch of data, not all of it. The gradient is exact for that batch and a noisy estimate for the whole dataset. That is the "stochastic" in stochastic gradient descent.</p>
+    <p><strong>The bowl is a best case.</strong> A line's loss landscape has a single valley. The landscape of a large model does not, and nothing guarantees that rolling downhill finds the lowest point. In practice, for large models, it finds points that are good enough, and why that works so reliably is still an active research question.</p>
+    <p><strong>The slope is measured on a sample.</strong> Real training does not compute the loss on all of its text at every step. It takes a small random sample of it, called a batch, and chapter 7 does exactly that. The gradient is exact for that sample and a noisy estimate for the whole text. This is why the method is often called stochastic gradient descent: stochastic means "involving chance".</p>
+    <p><strong>Slopes without nudging.</strong> The by-hand examples used two facts without proof: the slope of a square is twice the number, and the slope of a product is the other factor. These come from calculus, where a slope is called a derivative. Every rule in the engine is a fact of this kind, and the check above tests each one against a real nudge.</p>
     <p><strong>A bug worth knowing.</strong> In the first version of this engine each operation's backward function held a reference to its own output. Python could not free such cycles promptly, memory grew with every step, and training was killed at step 600. The fix was one line of design: hand the gradient to the function as an argument. Minimal code is not automatically correct code.</p>
   </div>
 
+  <div class="recap">
+    <h3>In short</h3>
+    <ul>
+      <li>A model is a formula with adjustable numbers, its <a class="term" href="glossary.html#parameter">parameters</a> or weights. Training means finding values for them that make the loss low.</li>
+      <li>The <a class="term" href="glossary.html#slope">slope</a> of the loss for a parameter says which way to move it and how much it matters. The list of all slopes is the <a class="term" href="glossary.html#gradient">gradient</a>.</li>
+      <li><a class="term" href="glossary.html#gradient-descent">Gradient descent</a> repeats one step: each weight ← weight − <a class="term" href="glossary.html#learning-rate">learning rate</a> × slope. By hand, two steps took a loss from 16 to 0.03.</li>
+      <li>A learning rate that is too large makes every step overshoot, and the loss grows instead of falling.</li>
+      <li><a class="term" href="glossary.html#backpropagation">Backpropagation</a> gets every slope from one forward pass and one backward pass, by multiplying slopes along the chain of operations.</li>
+    </ul>
+  </div>
+
   <h2>Check yourself</h2>
+  <details class="check"><summary>The slope of the loss for a parameter is +4. Should the parameter go up or down, and by how much with a learning rate of 0.1?</summary><p>Down. A positive slope means that raising the parameter raises the loss, so the step goes the other way: the parameter changes by −0.1 × 4 = −0.4.</p></details>
   <details class="check"><summary>In the first widget, why does a learning rate of 0.33 make the loss grow?</summary><p>Across the steep direction of the valley, each step overshoots the bottom by more than the distance it started from. The error in that direction is multiplied by a factor larger than 1 at every step, so it grows without limit.</p></details>
-  <details class="check"><summary>The engine adds gradients arriving at the same tensor. When does one tensor receive several?</summary><p>Whenever its value is used more than once. In the GPT, the token table is used at the input and again at the output, and every residual connection uses a value twice. Each use contributes a slope, and total slopes add.</p></details>
+  <details class="check"><summary>The engine adds gradients arriving at the same tensor. When does one tensor receive several?</summary><p>Whenever its value is used more than once. In <i>L = w × w</i>, the same <i>w</i> enters the multiplication twice, and each use sends back a slope of <i>w</i>: the total is 2<i>w</i>. The model of chapter 6 reuses values in many places, and each use contributes a slope. The slopes add.</p></details>
   <details class="check"><summary>How many forward passes would the brute-force method need for one step of our model?</summary><p>Two per parameter with the symmetric nudge used in the check: 691,008. Backpropagation needs one forward and one backward pass.</p></details>
 </main>
 
+<script src="assets/glossary.js"></script>
 <script src="assets/micro.js"></script>
 <script>
 M.ready(function () {
@@ -191,8 +287,8 @@ M.ready(function () {
   // ---------- widget 2: forward and backward through a tiny graph ----------
   (function () {
     var box = M.$('#w-graph'), x = 2, y = 3, stage = 0;
-    var ws = M.slider({ label: 'w', min: -3, max: 3, step: 0.1, value: 0.5, fmt: function (v) { return v.toFixed(1); }, oninput: function () { stage = 0; draw(); } });
-    var bs = M.slider({ label: 'b', min: -3, max: 3, step: 0.1, value: 0.5, fmt: function (v) { return v.toFixed(1); }, oninput: function () { stage = 0; draw(); } });
+    var ws = M.slider({ label: 'w', min: -3, max: 3, step: 0.05, value: 0.5, fmt: function (v) { return v.toFixed(2); }, oninput: function () { stage = 0; draw(); } });
+    var bs = M.slider({ label: 'b', min: -3, max: 3, step: 0.05, value: 0.5, fmt: function (v) { return v.toFixed(2); }, oninput: function () { stage = 0; draw(); } });
     var msg = M.el('p', { class: 'readout', style: 'min-height:42px' });
     var nodes = { w: [0.09, 0.16], x: [0.09, 0.50], p: [0.31, 0.33], b: [0.31, 0.80], s: [0.52, 0.50], y: [0.52, 0.92], e: [0.72, 0.66], L: [0.90, 0.30] };
     var edges = [['w', 'p'], ['x', 'p'], ['p', 's'], ['b', 's'], ['s', 'e'], ['y', 'e'], ['e', 'L']];
