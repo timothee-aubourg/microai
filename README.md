@@ -2,7 +2,7 @@
 
 **Build and understand a local language model, and the agent around it, from first principles.**
 
-An interactive course in thirty-four chapters, in thirteen parts. Each chapter starts
+An interactive course in thirty-six chapters, in fourteen parts. Each chapter starts
 from a question and a ten-second guess, gives you an experiment to play with in
 the browser, shows the few lines of code that implement the idea, and ends with
 one line to keep. One small GPT, trained from scratch with numpy, runs through
@@ -24,7 +24,9 @@ for a large one: classifiers and probes that guard it, and distillation.
 Chapters 30 and 31 look inside current models: rotary positions, and pictures
 as input. Chapters 32 to 34 take the agent further: helpers with their own
 contexts, training on its own filtered answers, and the system of chapter 19
-rebuilt with every part added since.
+rebuilt with every part added since. Chapters 35 and 36 ask whether that
+system is safe to release: red-teaming and repair, then a release gate, a
+canary and monitoring.
 
 By the end you can re-implement every piece of a minimal local AI system and
 you know what each component of a full-size one is doing.
@@ -80,6 +82,8 @@ branch `main`, folder `/docs`, and save. The course appears at
 | 32 | Many hands | What is gained, and what is risked, when an agent hands parts of a job to other agents? |
 | 33 | Learning from its own answers | Can a model get better by training on what it wrote itself? |
 | 34 | The whole thing, again | What does the system of chapter 19 look like with everything added since? |
+| 35 | Attacking your own system | The system gave out its secret 0 times in 128 requests. Is it safe? |
+| 36 | Releasing it, and watching it | How do you release a new version without finding out the hard way that it is worse? |
 
 ## Run the code
 
@@ -180,6 +184,8 @@ python code/ch31_images.py             # how well it reads as pixels are flipped
 python code/ch32_helpers.py            # ~5 min: a lead and its helpers on jobs of one to six parts
 python code/ch33_selftrain.py          # ~8 min: four rounds of training on its own answers, three ways
 python code/ch34_system2.py            # ~4 min: the whole system, one part switched on at a time
+python code/ch35_redteam.py            # ~2 min: three attackers, then three rounds of repair and attack
+python code/ch36_release.py            # ~4 min: a release gate, a canary, and eight days of monitoring
 ```
 
 `ch15_harness.py` runs real shell commands when used with a real model. Use a
@@ -226,6 +232,8 @@ code/
   ch32_helpers.py           sub-agents: a lead splits a job, each helper has a context of its own
   ch33_selftrain.py         self-training: answer, filter, train on what was kept, repeat
   ch34_system2.py           the system again: guard, trained agent, check and filter, switched on in turn
+  ch35_redteam.py           red-teaming: a fixed list, a blind and an adaptive attacker; retrain the guard, attack again
+  ch36_release.py           release: a gate that knows chance, a canary on one counter, traces and daily alarms
   mock_server.py            fake model server for testing without a model
 data/
   shakespeare.txt           training text (public domain, 1.1 MB)
@@ -246,6 +254,8 @@ docs/                       the course website (plain HTML, CSS and JavaScript)
   assets/clf.js             the classifier of chapter 28 and its test requests
   assets/eyes.js            the agent of chapter 31 that reads pictures, float16
   assets/selftrain.js       the rounds of self-training measured in chapter 33
+  assets/redteam.js         the repaired guard of chapter 35 and what the attackers achieved
+  assets/release.js         the gate, canary and monitoring runs recorded in chapter 36
 runs/                       trained weights and the training log
 tools/
   export_web.py             pack weights and logs for the website
@@ -273,6 +283,8 @@ python code/ch24_posttrain.py --train    # optional: rerun the three training st
 python code/ch26_draft.py --train        # optional: retrain the draft models of chapter 26
 python code/ch31_images.py --train       # optional: retrain the agent of chapter 31
 python code/ch33_selftrain.py            # optional: rerun the self-training of chapter 33
+python code/ch35_redteam.py              # optional: rerun the attacks and repairs of chapter 35
+python code/ch36_release.py              # optional: rerun the release stages of chapter 36
 python tools/export_web.py    # weights and logs -> docs/assets
 python tools/build_site.py    # code snippets -> docs/*.html
 node tools/test_parity.js     # browser model == Python model?
@@ -282,7 +294,7 @@ To train on your own text, replace `data/shakespeare.txt` with any plain-text
 file of a few hundred kilobytes or more and run the commands above. A few
 sentences in chapters 4, 5, 7, 9 and 13 describe what this particular model learned
 and quote its measured numbers; after retraining, check them against yours.
-Chapters 20 to 34 quote the losses, routing shares, speeds and scores of their
+Chapters 20 to 36 quote the losses, routing shares, speeds and scores of their
 own runs; after retraining or re-measuring those, update the tables in the pages.
 
 ## How this was checked
@@ -346,6 +358,13 @@ own runs; after retraining or re-measuring those, update the tables in the pages
 - `ch32_helpers.py` runs 200 jobs per row. `ch33_selftrain.py` runs each rule
   once from the same starting model. `ch34_system2.py` sends the same 600
   requests to every version of the system. One seed each.
+- `ch35_redteam.py` gives every attacker the same 1,500 requests and counts a
+  success only when the secret is in the reply. Each repaired guard is then
+  attacked by a new attacker with another seed. The study quoted for
+  full-size systems is its authors' published result.
+- `ch36_release.py` tests each candidate on its own draw of the test, so that
+  the same model does not get the same score twice. Its "more sums" candidate
+  was first trained more gently, which changed nothing; the page says so.
 - The harness and injection runs of chapters 15 and 17 use a scripted model in
   `mock_server.py`; the pages say so. The GPU figures in chapter 18 are published
   specifications, not measurements.
@@ -378,7 +397,8 @@ things full-size models add: experts and thinking. Chapters 22 and 23 cover
 where a model sits in a machine and how small a working one can be made.
 Chapters 24 to 33 add training for behaviour, inference methods, serving,
 guards, distillation, current architecture, pictures, helpers and
-self-training, and chapter 34 assembles the system a second time.
+self-training, and chapter 34 assembles the system a second time. Chapters
+35 and 36 attack that system, repair it, release it and watch it.
 
 Not covered yet, in rough order of how much an agent builder would miss them:
 

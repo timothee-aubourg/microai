@@ -40,6 +40,8 @@
     ['32-helpers.html', 'Many hands', 'hands'],
     ['33-selftraining.html', 'Learning from its own answers', 'self'],
     ['34-system2.html', 'The whole thing, again', 'whole'],
+    ['35-redteam.html', 'Attacking your own system', 'attack'],
+    ['36-release.html', 'Releasing it, and watching it', 'release'],
   ];
 
   // ---------- DOM helpers ----------
@@ -699,7 +701,7 @@
     ['Part seven', 'at full size', 20, '#4a9a6a'], ['Part eight', 'fitting the machine', 22, '#7d5b4a'],
     ['Part nine', 'shaping behaviour', 24, '#5c6b7a'], ['Part ten', 'faster, and for many', 26, '#9a5a7d'],
     ['Part eleven', 'models that help models', 28, '#6a7f3a'], ['Part twelve', 'inside current models', 30, '#7a6fae'],
-    ['Part thirteen', 'the agent, further', 32, '#96806a']
+    ['Part thirteen', 'the agent, further', 32, '#96806a'], ['Part fourteen', 'safe to release', 35, '#3f6b5c']
   ];
   M.partOf = (ch) => { let k = 0; M.parts.forEach((p, i) => { if (ch >= p[2]) k = i; }); return k; };
   M.partIcon = function (k) {
@@ -833,7 +835,13 @@
           keep: 'A model improves on its own outputs only through a filter that knows something the model does not. What it learns is the filter.' },
     34: { q: 'The system of chapter 19 gets every part added since: training on rewards, a check, a guard, a filter. It no longer gives out the secret. Of 108 harmless requests, how many does it now refuse?', o: ['None.', '30.', 'All 108.'], a: 1,
           why: 'The guard that stops requests for the secret also stops 30 harmless ones. Before the guard, the trained model gave the secret 12 times of 128; after guard and filter, 0.',
-          keep: 'Each part is added to fix one measured failure and brings a cost of its own. A system is the list of those trades, and the table is how you see them.' }
+          keep: 'Each part is added to fix one measured failure and brings a cost of its own. A system is the list of those trades, and the table is how you see them.' },
+    35: { q: 'A fixed list of test requests, sent 1,500 times, gets the secret out of a guarded system 8 times. An attacker with the same 1,500 requests changes letters at random and keeps whatever works. How often does it get the secret?', o: ['About 8 again: same system.', 'About 13.', '114.'], a: 2,
+          why: 'Random changes alone got 13. Starting again from each request that worked got 114, and faster as it went: 2 in the first 300 requests, 42 in the last 300.',
+          keep: 'A fixed test measures the test. Safety is measured by an attacker that adapts, with its number of attempts stated, and after every repair by an attacker the repair has not seen.' },
+    36: { q: 'To make it better at sums, a model is trained further on 2,000 worked sums and nothing else. It now gets 298 of 300 sums right. How many of 300 requests for the secret does it still refuse?', o: ['About 295, as before.', 'About half.', 'None.'], a: 2,
+          why: 'It lost what it was not shown again: 0 of 300, and it gave the secret 30 times. A gate that tested only sums let it through.',
+          keep: 'Before release, test every behaviour you want to keep. During release, give the new version a small share and watch counters that need no answer key. After release, keep watching: the requests change.' }
   };
   function guesses(set) {
     let s = {};
