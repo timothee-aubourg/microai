@@ -2,7 +2,7 @@
 
 **Build and understand a local language model, and the agent around it, from first principles.**
 
-An interactive course in twenty-three chapters, in eight parts. Each chapter starts
+An interactive course in twenty-four chapters, in nine parts. Each chapter starts
 from a question and a ten-second guess, gives you an experiment to play with in
 the browser, shows the few lines of code that implement the idea, and ends with
 one line to keep. One small GPT, trained from scratch with numpy, runs through
@@ -15,7 +15,8 @@ and 21 add two ideas that full-size models rely on, each trained and measured
 at toy size: a mixture of experts, and thinking tokens. Chapters 22 and 23 fit
 the model to the machine: every kind of memory a model can live in, and the
 chapter 19 agent retrained with three-valued weights into a file of 20
-kilobytes that runs without numpy.
+kilobytes that runs without numpy. Chapter 24 runs the training that comes
+after pre-training, on written examples and then on rewards alone.
 
 By the end you can re-implement every piece of a minimal local AI system and
 you know what each component of a full-size one is doing.
@@ -27,7 +28,7 @@ connection.
 
 On a phone, open the site and use the browser's "Add to Home Screen": it
 installs like an app. "Keep the whole course on this device", on the contents
-page, saves every chapter (about 3 MB) for reading without a network. Code
+page, saves every chapter (about 4 MB) for reading without a network. Code
 listings fold and have an outline view, and figures open to fill the screen.
 
 To publish it as a website with GitHub Pages: push this repository, then go to
@@ -60,6 +61,7 @@ branch `main`, folder `/docs`, and save. The course appears at
 | 21 | Room to think | How can a model answer a question that needs more work than one token allows? |
 | 22 | Where the weights live | Which memory delivers the weights, and what happens when the model is too big for it? |
 | 23 | As small as it goes | How much of the agent's 432 KB does the job need? |
+| 24 | From text to behaviour | How is a model that continues any text turned into an assistant that behaves one way? |
 
 ## Run the code
 
@@ -134,6 +136,14 @@ python code/ch22_memory.py             # cache, RAM, split models, unified memor
 python code/ch23_tiny.py --train       # ~7 min: the chapter 19 agent with three-valued weights
 python code/ch23_tiny.py               # grade it on all 3,000 held-out questions
 python code/tiny_agent.py "what is 23 times 45?"   # run it with the standard library only
+python code/ch23_signs.py              # the Shakespeare model with its weights replaced by signs
+```
+
+Chapter 24 shapes a model's behaviour after pre-training:
+
+```bash
+python code/ch24_posttrain.py --train  # ~10 min: pre-train, fine-tune on examples, reinforce from scores
+python code/ch24_posttrain.py          # what the model does after each stage
 ```
 
 `ch15_harness.py` runs real shell commands when used with a real model. Use a
@@ -169,6 +179,8 @@ code/
   ch22_memory.py            where weights live: cache ladder, split models, KV cache size, mapping
   ch23_tiny.py              three-valued weights trained in place, packed five to a byte, graded
   tiny_agent.py             the packed model and its tool loop with no numpy (ch 23)
+  ch23_signs.py             the chapter 7 language model with sign weights: taken afterwards, and trained in
+  ch24_posttrain.py         pre-training, supervised fine-tuning and reinforcement from a grader
   mock_server.py            fake model server for testing without a model
 data/
   shakespeare.txt           training text (public domain, 1.1 MB)
@@ -184,6 +196,7 @@ docs/                       the course website (plain HTML, CSS and JavaScript)
   assets/moe.js             losses and routing measured in chapter 20
   assets/think.js           the two models trained in chapter 21, float16
   assets/tiny.js            the packed model of chapter 23, byte for byte
+  assets/post.js            the model after each training stage of chapter 24, float16
 runs/                       trained weights and the training log
 tools/
   export_web.py             pack weights and logs for the website
@@ -207,6 +220,8 @@ python code/ch20_moe.py                  # optional: retrain and re-measure chap
 python code/ch21_think.py --train        # optional: retrain the two models of chapter 21
 python code/ch22_memory.py --save        # optional: re-measure the machine for chapter 22
 python code/ch23_tiny.py --train         # optional: retrain the packed model of chapter 23
+python code/ch23_signs.py --train        # optional: retrain the sign language models of chapter 23
+python code/ch24_posttrain.py --train    # optional: rerun the three training stages of chapter 24
 python tools/export_web.py    # weights and logs -> docs/assets
 python tools/build_site.py    # code snippets -> docs/*.html
 node tools/test_parity.js     # browser model == Python model?
@@ -216,7 +231,7 @@ To train on your own text, replace `data/shakespeare.txt` with any plain-text
 file of a few hundred kilobytes or more and run the commands above. A few
 sentences in chapters 4, 5, 7, 9 and 13 describe what this particular model learned
 and quote its measured numbers; after retraining, check them against yours.
-Chapters 20 to 23 quote the losses, routing shares, speeds and scores of their
+Chapters 20 to 24 quote the losses, routing shares, speeds and scores of their
 own runs; after retraining or re-measuring those, update the tables in the pages.
 
 ## How this was checked
@@ -255,6 +270,14 @@ own runs; after retraining or re-measuring those, update the tables in the pages
   `tiny_agent.py`, which uses no numpy, and the page was checked to give the
   same answers in a browser. Every row of the chapter's tables is one training
   run with one seed.
+- `ch23_signs.py` trains the chapter 7 language model with sign weights on the
+  same batches and schedule as `train.py`, and measures every variant on the
+  same 12,800 held-out characters. The sign-trained model is worse than the
+  ordinary one (loss 1.898 against 1.569), and the chapter says so.
+- `ch24_posttrain.py` counts behaviours over 300 sampled answers per model,
+  on number pairs kept out of all three stages. Each stage was run once. The
+  figures about full-size training in chapter 24 are from the published papers
+  it names, not measurements.
 - The harness and injection runs of chapters 15 and 17 use a scripted model in
   `mock_server.py`; the pages say so. The GPU figures in chapter 18 are published
   specifications, not measurements.
@@ -288,9 +311,9 @@ where a model sits in a machine and how small a working one can be made.
 
 Not covered yet, in rough order of how much an agent builder would miss them:
 
-- how a base model is turned into a chat and tool-calling model at scale
-  (instruction tuning, then reinforcement learning); chapter 19 shows the idea
-  on synthetic data only
+- the methods used for post-training at scale beyond the plain policy gradient
+  of chapter 24, reward models trained on human rankings, and how alignment is
+  evaluated
 - planning, and how models are trained to produce useful thinking; chapter 21
   shows thinking tokens with the steps given in advance
 - the Model Context Protocol in detail, and agents that call other agents
