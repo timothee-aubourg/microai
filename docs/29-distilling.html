@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A large model teaches a small one | microAI</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-ch="29">
+<main>
+  <p class="where">Chapter 29</p>
+  <h1>A large model teaches a small one</h1>
+  <p class="question">A small model is cheap to run and has learned less. Can it be taught by a large model, instead of by the text?</p>
+
+  <p>Small models keep turning up in this course as helpers: the draft model of chapter 26, the classifier of chapter 28, the packed agent of chapter 23. Each was trained the ordinary way, on text. There is another teacher available. A large model that has already read a great deal can tell a small one what it expects, and that turns out to say more than the text does.</p>
+
+  <h2>What the text says, and what the teacher says</h2>
+  <p>Training shows a model a piece of text and the character that came next (chapter 7). That next character is one fact. In "the kin", the text had "g".</p>
+  <p>Ask the large model of chapter 7 the same question and it does not answer "g". It answers with a list of probabilities (chapter 1): mostly "g", some "d", a little "s". The list holds the fact and more. It says that "kind" was possible here too, and how likely, and that "kinz" was not. The text can only ever say what happened once. The model says what tends to happen.</p>
+  <div class="def"><span class="kind">Definitions</span>
+    <p><dfn>Distillation</dfn> is training a small model, the student, to reproduce the outputs of a large one, the teacher.</p>
+    <p>A <dfn>soft target</dfn> is a list of probabilities used as the answer in training, in place of one right token.</p>
+  </div>
+
+  <section class="bench" id="w-soft">
+    <h3>One position, two answers</h3>
+    <p class="try"><b>Try this.</b> For each piece of text, compare what the text had next with what the teacher expects. Find one where the teacher is nearly certain, and one where it spreads its bets.</p>
+  </section>
+
+  <p><strong>What you should have seen.</strong> In the middle of a word the teacher is nearly certain and agrees with the text, so the two answers say the same thing. At the start of a word it spreads its probability over many characters, and the text's single character is only one draw from that spread. A student told only that one character has to see the same situation many times before it learns the spread. A student shown the spread learns it at once.</p>
+
+  <h3>By hand: the loss against a list</h3>
+  <p>The loss of chapter 1 was &minus;log of the probability the model gave to the right character. Against a list, each character counts in proportion to the teacher's probability for it. Say the teacher gives g 0.8 and d 0.2, and the student gives g 0.5 and d 0.1.</p>
+  <div class="eq">loss = &minus;(0.8 &times; log 0.5 + 0.2 &times; log 0.1) = 0.8 &times; 0.69 + 0.2 &times; 2.30 = 1.01</div>
+  <p>The student is pushed to raise both, "g" more than "d". If the teacher's list were a single 1 on "g", this would be the usual loss exactly.</p>
+  <pre class="code" data-src="ch29_distill.py#soft">def soft_loss(logits, target):
+    """The loss of chapter 1 against a whole list of probabilities instead of one right answer.
+    target: one row of probabilities per position (the teacher's). A row with a single 1 gives the usual loss."""
+    z = logits.data - logits.data.max(axis=-1, keepdims=True)
+    logp = z - np.log(np.exp(z).sum(axis=-1, keepdims=True))
+    out = Tensor(-(target * logp).sum() / len(target), (logits,))
+    def _backward(g):
+        logits._accumulate(g * (np.exp(logp) - target) / len(target))   # "p - y" again, with y a list of probabilities
+    out._backward = _backward
+    return out</pre>
+  <p class="src">From <code>code/ch29_distill.py</code>. The gradient is the same "p minus y" as in chapter 3, with a list where y was.</p>
+
+  <h2>Measured</h2>
+  <p>The student has 16,608 weights, the size of chapter 26's draft model. It is trained twice from the same starting weights, on the same batches, for the same 3,000 steps. Once it is told the character the text had. Once it is told the teacher's probabilities. Then both trainings are repeated with only 5,000 characters of text to learn from, where the teacher learned from a million.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Text to learn from</th><th>Taught by</th><th>Loss on unseen text</th><th>Same first choice as the teacher</th></tr>
+    <tr><td>1,003,854 characters</td><td>the text</td><td class="mono">1.960</td><td class="mono">62.8%</td></tr>
+    <tr><td>1,003,854 characters</td><td>the teacher</td><td class="mono">1.929</td><td class="mono">65.1%</td></tr>
+    <tr><td>5,000 characters</td><td>the text</td><td class="mono">6.573</td><td class="mono">32.9%</td></tr>
+    <tr><td>5,000 characters</td><td>the teacher</td><td class="mono">2.654</td><td class="mono">54.5%</td></tr>
+  </table></div>
+  <p>The teacher itself scores 1.569, and a model that knows nothing scores 4.174.</p>
+  <p><strong>With plenty of text, the teacher adds a little.</strong> The student goes from 1.960 to 1.929 and agrees with the teacher two points more often. With a million characters the text already shows each situation many times, and what holds the student back is its size.</p>
+  <p><strong>With little text, the teacher changes everything.</strong> Taught by 5,000 characters of text alone, the student scores 6.573, which is worse than knowing nothing. It has memorised its 5,000 characters, and on new text it is confident and wrong. Taught by the teacher on those same 5,000 characters, it scores 2.654.</p>
+  <p>Nothing new was read. The student saw the same 5,000 characters both times. What changed is the answer it was given at each one. The teacher never says "certainly this", so the student cannot learn to be certain, and at every position it is handed a summary of the two hundred times more text the teacher once read.</p>
+
+  <h2>What it buys in practice</h2>
+  <p>Chapter 26 needed a draft model that the large model agrees with. That is what "same first choice as the teacher" measures, so the two chapters meet. Used as draft models with drafts of 2:</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Text to learn from</th><th>Taught by</th><th>Drafted tokens kept</th></tr>
+    <tr><td>1,003,854 characters</td><td>the text</td><td class="mono">60.4%</td></tr>
+    <tr><td>1,003,854 characters</td><td>the teacher</td><td class="mono">60.9%</td></tr>
+    <tr><td>5,000 characters</td><td>the text</td><td class="mono">34.8%</td></tr>
+    <tr><td>5,000 characters</td><td>the teacher</td><td class="mono">55.4%</td></tr>
+  </table></div>
+  <p>The price is the teacher's time. Every training step now includes a pass of the large model, and the training took 219 seconds where the ordinary one took 50.</p>
+
+  <h2>At full size</h2>
+  <ul>
+    <li><strong>Small tiers of a model family.</strong> The fast, cheap models offered beside a large one are commonly trained with the help of the large one's outputs, not only on raw text.</li>
+    <li><strong>Draft models and classifiers.</strong> A draft model is useful in proportion to its agreement with the large model (chapter 26), which is exactly what distillation trains. The examples that train a classifier are often written by a large model (chapter 28).</li>
+    <li><strong>Text in place of probabilities.</strong> When the teacher's probabilities are not available, the student is trained on text the teacher wrote. This is distillation too, with less information per example.</li>
+    <li><strong>Thinking, handed down.</strong> A large model's worked-out answers (chapter 21) are used as training text for smaller ones, which then imitate the working.</li>
+  </ul>
+  <p>The student does not usually pass its teacher. It learns the teacher's view of the text, mistakes included, with fewer weights to hold it.</p>
+
+  <h2>Build it</h2>
+  <pre class="code" data-src="ch29_distill.py#teach">def train_student(teacher, data, chars, from_teacher, steps=3000, batch=32, lr=3e-3):
+    rng = np.random.default_rng(0)                            # the same batches whichever way it is taught
+    student = GPT(len(chars), n_layer=1, n_head=2, d_model=32)
+    T, params = student.block_size, student.parameters()
+    m = [np.zeros_like(p.data) for p in params]
+    v = [np.zeros_like(p.data) for p in params]
+    for step in range(steps):
+        starts = rng.integers(0, len(data) - T - 1, batch)
+        x, y = np.stack([data[s:s + T] for s in starts]), np.stack([data[s + 1:s + T + 1] for s in starts])
+        if from_teacher:
+            logits, _ = student.forward(x)
+            target = probabilities(teacher, x)                # what the teacher expects next, at every position
+            loss = soft_loss(logits.reshape(-1, len(chars)), target.reshape(-1, len(chars)))
+        else:
+            _, loss = student.forward(x, y)                   # what the text actually had next
+        for p in params:
+            p.grad = None
+        loss.backward()
+        rate = lr * min(1, (step + 1) / 100) * (0.1 + 0.9 * 0.5 * (1 + math.cos(math.pi * step / steps)))
+        for i, p in enumerate(params):
+            m[i] = 0.9 * m[i] + 0.1 * p.grad
+            v[i] = 0.99 * v[i] + 0.01 * p.grad * p.grad
+            p.data -= rate * (m[i] / (1 - 0.9 ** (step + 1))) / (np.sqrt(v[i] / (1 - 0.99 ** (step + 1))) + 1e-8)
+    return student</pre>
+  <p class="src">The training loop of chapter 7 with one branch: the answer comes from the text or from the teacher.</p>
+  <pre class="code" data-lang="text">python code/ch29_distill.py        # four trainings and their measurements, about 10 minutes</pre>
+
+  <div class="note">
+    <h3>What this chapter glossed over</h3>
+    <p><strong>The usual refinements.</strong> In practice the teacher's probabilities are flattened a little before use, and the two kinds of answer are mixed. Neither was done here.</p>
+    <p><strong>One student size.</strong> A larger student would gain more from a million characters of teaching than this one, which is limited by its 16,608 weights.</p>
+    <p><strong>The teacher had already seen the 5,000 characters.</strong> They are part of its own training text. Distillation is normally done on text the teacher may or may not have seen, and works either way.</p>
+    <p><strong>One run each.</strong> Four trainings, one seed. The small gain with plenty of text, 0.03, is within what another seed could move. The large gain with little text is not.</p>
+  </div>
+
+  <div class="recap">
+    <h3>In short</h3>
+    <ul>
+      <li><a class="term" href="glossary.html#distillation">Distillation</a> trains a small student on a large teacher's outputs. The teacher's probabilities are a <a class="term" href="glossary.html#soft-target">soft target</a>: they say what could come next, and the text says only what did.</li>
+      <li>With a million characters to learn from, teaching by the teacher helped a little: 1.929 against 1.960.</li>
+      <li>With 5,000 characters it was decisive: 2.654 against 6.573. The student taught by text alone memorised it. The one taught by the teacher inherited what the teacher learned from two hundred times more text.</li>
+      <li>A distilled student agrees with its teacher more often, which is what a draft model needs: 55.4% of drafts kept against 34.8%.</li>
+      <li>The cost is a pass of the teacher at every training step.</li>
+    </ul>
+  </div>
+
+  <h2>Check yourself</h2>
+  <details class="check"><summary>Both students saw the same 5,000 characters. Where did the second one get its extra knowledge?</summary><p>From the answers. At each position it was given the teacher's probabilities, and those were shaped by everything the teacher read. The text was the same; what was said about it was not.</p></details>
+  <details class="check"><summary>The student taught by 5,000 characters of text scored 6.573, worse than a model that knows nothing at 4.174. How can training make a model worse than no training?</summary><p>It memorised its small text and became certain about what follows what. On new text those certainties are often wrong, and the loss punishes a confident wrong answer far more than an honest "I do not know".</p></details>
+  <details class="check"><summary>With a million characters, the teacher helped only a little. Why?</summary><p>Because the text itself was enough to show each situation many times, so the student could work out the spread for itself. What limits it then is its size, and a better teacher does not add weights.</p></details>
+  <details class="check"><summary>You need a draft model for chapter 26. Would you train it on text or distil it?</summary><p>Distil it. A draft is kept when it matches the large model's choice, and distillation trains for exactly that match. With plenty of text the gain was small here, and with less text it was large. It was never worse.</p></details>
+</main>
+
+<script src="assets/weights.js"></script>
+<script src="assets/glossary.js"></script>
+<script src="assets/micro.js"></script>
+<script>
+M.ready(function () {
+  var box = M.$('#w-soft'), m = M.loadModel();
+  if (!m) { box.appendChild(M.el('p', { text: 'The trained model did not load, so this experiment is unavailable.' })); return; }
+  // pieces of the play the model was trained on, each cut just before the character named second
+  var CASES = [['First Citize', 'n'], ['First Citizen:\nBefore we proceed any further, hear me ', 's'], ['We are accounted poor citizens, the ', 'p'], ['Speak, spe', 'a'], ['You are all resolved rather to die than to ', 'f'], ['the kin', 'g']];
+  var at = 0, bars = M.el('div'), stat = M.el('p', { class: 'readout' });
+  var sel = M.select('Text so far', CASES.map(function (c, i) { return [String(i), '…' + c[0].slice(-22).replace(/\n/g, ' ')]; }), function (v) { at = +v; show(); });
+  function name(c) { return c === ' ' ? 'space' : c === '\n' ? 'new line' : c; }
+  M.softTop = function (i) { var z = M.writer(m, CASES[i][0].slice(-60)).logits(), mx = Math.max.apply(null, z), s = 0, p = []; for (var k = 0; k < z.length; k++) { p.push(Math.exp(z[k] - mx)); s += p[k]; } var b = 0; for (k = 1; k < p.length; k++) if (p[k] > p[b]) b = k; return [m.chars[b], p[b] / s]; };
+  function show() {
+    var c = CASES[at], z = M.writer(m, c[0].slice(-60)).logits(), mx = Math.max.apply(null, z), sum = 0, p = [];
+    for (var i = 0; i < z.length; i++) { p.push(Math.exp(z[i] - mx)); sum += p[i]; }
+    var order = p.map(function (v, i) { return i; }).sort(function (a, b) { return p[b] - p[a]; }).slice(0, 6);
+    M.bars(bars, order.map(function (i) { return { label: name(m.chars[i]), p: p[i] / sum, text: (100 * p[i] / sum).toFixed(0) + '%', hl: m.chars[i] === c[1] }; }), 1);
+    var given = p[m.stoi[c[1]]] / sum;
+    stat.innerHTML = 'The text had <b>' + name(c[1]) + '</b> next: one answer, taken as certain. The teacher gives it ' + (100 * given).toFixed(0) + '% and spreads the rest over other characters. Its six likeliest are shown.';
+  }
+  box.appendChild(M.row(sel)); box.appendChild(bars); box.appendChild(stat);
+  box.appendChild(M.el('p', { class: 'caption', text: 'The teacher is the model of chapter 7, running in your browser. The marked bar is the character the text really had.' }));
+  show();
+});
+</script>
+</body>
+</html>

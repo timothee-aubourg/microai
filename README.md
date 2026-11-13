@@ -2,7 +2,7 @@
 
 **Build and understand a local language model, and the agent around it, from first principles.**
 
-An interactive course in twenty-seven chapters, in ten parts. Each chapter starts
+An interactive course in twenty-nine chapters, in eleven parts. Each chapter starts
 from a question and a ten-second guess, gives you an experiment to play with in
 the browser, shows the few lines of code that implement the idea, and ends with
 one line to keep. One small GPT, trained from scratch with numpy, runs through
@@ -19,7 +19,8 @@ kilobytes that runs without numpy. Chapter 24 runs the training that comes
 after pre-training, on written examples and then on rewards alone. Chapter 25
 improves the same model's answers at inference, with its weights fixed.
 Chapters 26 and 27 cover speed and scale: speculative decoding, and serving
-many requests with one model.
+many requests with one model. Chapters 28 and 29 cover small models that work
+for a large one: classifiers and probes that guard it, and distillation.
 
 By the end you can re-implement every piece of a minimal local AI system and
 you know what each component of a full-size one is doing.
@@ -68,6 +69,8 @@ branch `main`, folder `/docs`, and save. The course appears at
 | 25 | Better without retraining | With the weights fixed, what can be done at the moment of asking to get a better answer? |
 | 26 | A quick draft, a careful check | Can a large model write several tokens per pass without writing anything different? |
 | 27 | Many people at once | Does each of a hundred users have to wait for the ninety-nine others? |
+| 28 | A second model that says yes or no | What catches the request that no rule foresaw? |
+| 29 | A large model teaches a small one | Can a small model be taught by a large one instead of by the text? |
 
 ## Run the code
 
@@ -152,6 +155,8 @@ python code/ch24_posttrain.py          # what the model does after each stage
 python code/ch25_infer.py              # ~5 min: the same model, improved at inference only
 python code/ch26_draft.py              # ~3 min: a small model drafts, the large one checks
 python code/ch27_serve.py              # ~2 min: batches, and a queue of requests
+python code/ch28_classify.py           # ~2 min: a rule, a classifier and a probe as guards
+python code/ch29_distill.py            # ~10 min: a small model taught by text, or by a large model
 ```
 
 `ch15_harness.py` runs real shell commands when used with a real model. Use a
@@ -191,6 +196,8 @@ code/
   ch25_infer.py             inference with fixed weights: vote, check and retry, lean on a score, filter
   ch26_draft.py             speculative decoding: draft, check in one pass, keep; the sampling rule
   ch27_serve.py             serving: time of a batched pass, a memory-bound matrix, a queue simulation
+  ch28_classify.py          guards: a keyword rule, a small classifier, a probe on activations, a cascade
+  ch29_distill.py           distillation: a student trained on the teacher's probabilities
   mock_server.py            fake model server for testing without a model
 data/
   shakespeare.txt           training text (public domain, 1.1 MB)
@@ -208,6 +215,7 @@ docs/                       the course website (plain HTML, CSS and JavaScript)
   assets/tiny.js            the packed model of chapter 23, byte for byte
   assets/post.js            the model after each training stage of chapter 24, float16
   assets/draft.js           the small draft model of chapter 26, float16
+  assets/clf.js             the classifier of chapter 28 and its test requests
 runs/                       trained weights and the training log
 tools/
   export_web.py             pack weights and logs for the website
@@ -242,7 +250,7 @@ To train on your own text, replace `data/shakespeare.txt` with any plain-text
 file of a few hundred kilobytes or more and run the commands above. A few
 sentences in chapters 4, 5, 7, 9 and 13 describe what this particular model learned
 and quote its measured numbers; after retraining, check them against yours.
-Chapters 20 to 27 quote the losses, routing shares, speeds and scores of their
+Chapters 20 to 29 quote the losses, routing shares, speeds and scores of their
 own runs; after retraining or re-measuring those, update the tables in the pages.
 
 ## How this was checked
@@ -293,6 +301,11 @@ own runs; after retraining or re-measuring those, update the tables in the pages
   identical in all of them. Its full-size table is arithmetic, not measurement.
 - `ch27_serve.py` measures pass times on one core. Its queue is a simulation
   driven by those times, with invented requests.
+- `ch28_classify.py` tests its three guards on 288 requests whose wordings
+  appear nowhere in the 288 they learned from. The figures about deployed
+  classifiers in chapter 28 are their maker's published ones.
+- `ch29_distill.py` trains each pair of students from the same starting
+  weights on the same batches. Four trainings, one seed each.
 - The harness and injection runs of chapters 15 and 17 use a scripted model in
   `mock_server.py`; the pages say so. The GPU figures in chapter 18 are published
   specifications, not measurements.
@@ -337,8 +350,7 @@ Not covered yet, in rough order of how much an agent builder would miss them:
 - data collection and cleaning, scaling laws, other architecture variants
   (rotary positions, grouped attention, state-space models)
 - models that write by denoising instead of one token at a time
-- distillation of a large model into a small one, and pruning; chapter 23
-  shrinks a model by training it with three-valued weights only
+- pruning, and distillation beyond the plain form of chapter 29
 - neural processing units, servers with many graphics cards, and the cost of
   power and cooling; chapter 22 stops at one machine
 - multimodal models and the benchmarking of models themselves
