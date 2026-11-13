@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Many people at once | microAI</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-ch="27">
+<main>
+  <p class="where">Chapter 27</p>
+  <h1>Many people at once</h1>
+  <p class="question">One model, a hundred people asking. Does each of them have to wait for the ninety-nine others?</p>
+
+  <p>Every chapter so far has had one reader and one model. A model that is offered as a service answers many people at the same moment, on the same weights. If each request had to wait for the one before it to finish, a service with a hundred users would feel a hundred times slower than the model on your own machine. It does not, and the reason is the one chapter 18 gave for the speed of a single pass.</p>
+
+  <div class="def"><span class="kind">Definitions</span>
+    <p><dfn>Latency</dfn> is how long one request takes, as the person who made it experiences it.</p>
+    <p><dfn>Throughput</dfn> is how much work the whole system finishes per second, counted over everybody.</p>
+    <p>A <dfn>batch</dfn> is a group of texts sent through the model together, in one pass.</p>
+  </div>
+  <p>The two are in tension. A cook who makes one dish at a time serves each guest as fast as possible and few guests per hour. A cook who fills the oven serves more guests per hour, and each waits a little longer. Serving a model is the choice of how full to run the oven.</p>
+
+  <h2>What a batch costs</h2>
+  <p>A pass does two things: it reads the weights, and it does arithmetic with them for each text. Put sixteen texts in one pass and the arithmetic is done sixteen times. The weights are still read once.</p>
+  <p><code>code/ch27_serve.py</code> measures both ends of that. First the course model, whose 1.4 MB sit in the processor's cache (chapter 22), so that reading the weights costs almost nothing and the arithmetic is everything.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Texts in the pass</th><th>Time of the pass</th><th>Tokens per second, everybody</th><th>Tokens per second, each</th></tr>
+    <tr><td class="mono">1</td><td class="mono">1.64 ms</td><td class="mono">608</td><td class="mono">608</td></tr>
+    <tr><td class="mono">2</td><td class="mono">2.85 ms</td><td class="mono">703</td><td class="mono">351</td></tr>
+    <tr><td class="mono">4</td><td class="mono">6.89 ms</td><td class="mono">580</td><td class="mono">145</td></tr>
+    <tr><td class="mono">8</td><td class="mono">13.45 ms</td><td class="mono">595</td><td class="mono">74</td></tr>
+    <tr><td class="mono">16</td><td class="mono">23.04 ms</td><td class="mono">695</td><td class="mono">43</td></tr>
+    <tr><td class="mono">32</td><td class="mono">50.46 ms</td><td class="mono">634</td><td class="mono">20</td></tr>
+  </table></div>
+  <p>Nothing is gained. Twice the texts take about twice the time, the total stays between roughly 580 and 700 tokens per second, and each person simply gets a smaller share. For a model this small, on one processor core, a batch is no better than a queue.</p>
+  <p>Now the other end: one matrix of 1 GB, far too large for any cache, multiplied by several vectors at once. This is the situation of every full-size model: the time goes into fetching the weights.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Vectors in the pass</th><th>Time of the pass</th><th>Results per second, everybody</th></tr>
+    <tr><td class="mono">1</td><td class="mono">87 ms</td><td class="mono">11.5</td></tr>
+    <tr><td class="mono">2</td><td class="mono">169 ms</td><td class="mono">11.8</td></tr>
+    <tr><td class="mono">4</td><td class="mono">173 ms</td><td class="mono">23.1</td></tr>
+    <tr><td class="mono">8</td><td class="mono">202 ms</td><td class="mono">39.5</td></tr>
+    <tr><td class="mono">16</td><td class="mono">202 ms</td><td class="mono">79.4</td></tr>
+  </table></div>
+  <p>Sixteen vectors take 2.3 times as long as one, not sixteen times. The total goes from 11.5 results per second to 79.4. Once the weights are on their way to the processor, using them for fifteen more people costs little. That is the whole economy of serving a large model.</p>
+
+  <h3>By hand: sixteen requests</h3>
+  <p>Take that large matrix as a stand-in for a model, and sixteen people who each want 48 tokens.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th></th><th>One at a time</th><th>All sixteen together</th></tr>
+    <tr><td>Time of one pass</td><td class="mono">87 ms</td><td class="mono">202 ms</td></tr>
+    <tr><td>One request of 48 tokens</td><td class="mono">48 &times; 87 ms = 4.2 s</td><td class="mono">48 &times; 202 ms = 9.7 s</td></tr>
+    <tr><td>The first person is done after</td><td class="mono">4.2 s</td><td class="mono">9.7 s</td></tr>
+    <tr><td>The last person is done after</td><td class="mono">16 &times; 4.2 = 67 s</td><td class="mono">9.7 s</td></tr>
+  </table></div>
+  <p>Together, the first person waits 2.3 times longer than if served alone, and the last person waits 7 times less. The system finishes sixteen requests in 9.7 seconds where it needed 67.</p>
+
+  <h2>People do not arrive together</h2>
+  <p>Real requests arrive at random moments and have different lengths. The simplest batching waits until a batch is full, runs it to the end, and starts the next. Then a request that arrives a moment late waits for a whole batch, and a short request waits for the longest one in its batch.</p>
+  <div class="def"><span class="kind">Definition</span>
+    <p><dfn>Continuous batching</dfn> rebuilds the batch at every pass. A request joins at the next pass after it arrives and leaves at the pass where it finishes, so nobody waits for anybody else's request to end.</p>
+  </div>
+  <pre class="code" data-src="ch27_serve.py#queue">def serve(arrivals, step_seconds, together):
+    """Requests arrive at the given times; each wants LENGTH tokens. Returns when each one finished.
+    together = 1: one request at a time. together = 16: every pass advances up to 16 requests by one token."""
+    waiting, active, done, clock = list(range(len(arrivals))), {}, {}, 0.0
+    while waiting or active:
+        while waiting and arrivals[waiting[0]] &lt;= clock and len(active) &lt; together:
+            active[waiting.pop(0)] = LENGTH                    # a free place: the next request joins, even mid-way
+        if not active:
+            clock = arrivals[waiting[0]]                       # nothing to do: wait for the next arrival
+            continue
+        clock += step_seconds(len(active))                     # one pass, for everyone who is active
+        for r in list(active):
+            active[r] -= 1
+            if active[r] == 0:
+                done[r] = clock
+                del active[r]
+    return np.array([done[r] - arrivals[r] for r in range(len(arrivals))])</pre>
+  <p class="src">From <code>code/ch27_serve.py</code>. A server in twenty lines: at each pass, let waiting requests in, advance everyone by one token, let finished ones out.</p>
+  <p>The script sends 2,000 requests at random moments through this server twice: once with one place, once with sixteen. It uses the pass times measured above for the 1 GB matrix. One at a time, that server can finish 0.24 requests per second.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Arriving per second</th><th>One at a time: typical</th><th>slowest 5%</th><th>Sixteen together: typical</th><th>slowest 5%</th></tr>
+    <tr><td class="mono">0.12</td><td class="mono">4.2 s</td><td class="mono">12.1 s</td><td class="mono">5.9 s</td><td class="mono">8.3 s</td></tr>
+    <tr><td class="mono">0.22</td><td class="mono">14.5 s</td><td class="mono">50.1 s</td><td class="mono">8.0 s</td><td class="mono">8.6 s</td></tr>
+    <tr><td class="mono">0.36</td><td class="mono">1,334.8 s</td><td class="mono">2,566.4 s</td><td class="mono">8.4 s</td><td class="mono">9.3 s</td></tr>
+    <tr><td class="mono">0.72</td><td class="mono">2,743.3 s</td><td class="mono">5,229.7 s</td><td class="mono">9.5 s</td><td class="mono">9.8 s</td></tr>
+  </table></div>
+  <p>At half its capacity the one-at-a-time server is the quicker one for most people, because it gives each request the whole machine. As arrivals approach its capacity, waits grow. Past it, they grow without limit: requests arrive faster than they leave, and the slowest of the 2,000 wait more than forty minutes. The server with sixteen places takes three times the load the other can carry, with nearly every request done in under ten seconds.</p>
+
+  <section class="bench" id="w-queue">
+    <h3>Turn up the arrivals</h3>
+    <p class="try"><b>Try this.</b> Start at half the capacity of the one-at-a-time server and raise the arrivals step by step. Find the point where its waiting time takes off. Then switch to the small model and do the same.</p>
+  </section>
+
+  <p><strong>What you should have seen.</strong> For the large model the one-at-a-time server holds up to its capacity and then fails abruptly: at one and a half times its capacity the typical wait is already over a thousand seconds, while the server with sixteen places barely moves. For the small model the two servers fail at almost the same point. Batching only helps where a pass is dominated by reading the weights. That is true of every model too large for the cache, and of none that fits in it.</p>
+  <p>The same simulation with the small model's own pass times, from the first table, in numbers:</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Arriving per second</th><th>One at a time: typical</th><th>slowest 5%</th><th>Sixteen together: typical</th><th>slowest 5%</th></tr>
+    <tr><td class="mono">6.34</td><td class="mono">0.1 s</td><td class="mono">0.2 s</td><td class="mono">0.1 s</td><td class="mono">0.3 s</td></tr>
+    <tr><td class="mono">11.41</td><td class="mono">0.3 s</td><td class="mono">0.9 s</td><td class="mono">0.4 s</td><td class="mono">1.1 s</td></tr>
+    <tr><td class="mono">19.01</td><td class="mono">25.3 s</td><td class="mono">48.7 s</td><td class="mono">16.3 s</td><td class="mono">30.9 s</td></tr>
+    <tr><td class="mono">38.02</td><td class="mono">52.1 s</td><td class="mono">99.3 s</td><td class="mono">42.8 s</td><td class="mono">81.4 s</td></tr>
+  </table></div>
+
+  <h2>What limits the batch</h2>
+  <ul>
+    <li><strong>Memory for the context.</strong> Every request in the batch has its own KV cache (chapter 22). Sixteen requests with long contexts can need more memory than the weights. This, more than arithmetic, is what caps the batch on a graphics card.</li>
+    <li><strong>Arithmetic, eventually.</strong> Reading the weights is shared, the arithmetic is not. As the batch grows the pass slowly lengthens, and each person's tokens arrive more slowly. A service chooses the largest batch at which each user still gets an acceptable speed.</li>
+    <li><strong>Shared beginnings.</strong> Requests that start with the same system prompt can share its cached keys and values (chapter 16), which saves both time and memory.</li>
+    <li><strong>Waiting for the first token.</strong> People notice the delay before the first word more than the speed after it. That delay is the time to read the prompt, which is why chapter 16's prefix cache matters so much to a service.</li>
+  </ul>
+
+  <h2>Build it</h2>
+  <pre class="code" data-src="ch27_serve.py#batch">def pass_seconds(model, batch, repeats=7):
+    """One pass of the model over `batch` texts of 64 tokens at once. Best of several timings."""
+    x = np.random.default_rng(0).integers(0, model.vocab_size, (batch, model.block_size))
+    best = 1e9
+    for _ in range(repeats):
+        t0 = time.perf_counter()
+        model.forward(x)
+        best = min(best, time.perf_counter() - t0)
+    return best</pre>
+  <p class="src">Timing one pass on several texts.</p>
+  <pre class="code" data-lang="text">python code/ch27_serve.py        # every table of this chapter, about 2 minutes</pre>
+
+  <div class="note">
+    <h3>What this chapter glossed over</h3>
+    <p><strong>The queue is a simulation.</strong> It uses pass times that were measured, and requests that were invented: 2,000 of them, 48 tokens each, arriving at random. Real requests vary in length and come in bursts.</p>
+    <p><strong>A matrix is not a model.</strong> The 1 GB matrix stands for a model in which reading the weights dominates. A real model adds attention over each request's own context, which is not shared.</p>
+    <p><strong>One core, no graphics processor.</strong> On a graphics processor the arithmetic for a batch runs in parallel, so batching helps even more than the second table shows. The small model would also gain there.</p>
+    <p><strong>The two-vector row.</strong> Two vectors took twice as long as one, and four took no longer than two. The library switches to a different routine above one vector. The row is reported as measured.</p>
+    <p><strong>Left out.</strong> Several machines behind one address, deciding which machine takes a request, and what a token costs to serve.</p>
+  </div>
+
+  <div class="recap">
+    <h3>In short</h3>
+    <ul>
+      <li><a class="term" href="glossary.html#latency">Latency</a> is one person's wait. <a class="term" href="glossary.html#throughput">Throughput</a> is the work finished for everybody. Serving trades one against the other.</li>
+      <li>A pass reads the weights once however many texts are in the <a class="term" href="glossary.html#batch">batch</a>. For a 1 GB matrix, sixteen vectors took 2.3 times as long as one: 7 times the throughput.</li>
+      <li>For a model that fits in the cache there is nothing to share, and batching gained nothing: about 600 tokens per second in total at every batch size.</li>
+      <li><a class="term" href="glossary.html#continuous-batching">Continuous batching</a> lets requests join and leave at every pass. In the simulation it carried three times the load the one-at-a-time server can carry, with nearly every request done in under ten seconds.</li>
+      <li>The batch is limited by the memory each request's context needs, and by the speed each user will accept.</li>
+    </ul>
+  </div>
+
+  <h2>Check yourself</h2>
+  <details class="check"><summary>Why does a batch of sixteen cost little more than a batch of one for a large model, and sixteen times more for our small one?</summary><p>For the large model most of a pass is spent fetching the weights from memory, and that happens once per pass whatever the batch. For the small model the weights sit in the cache, fetching is free, and all the time is arithmetic, which is done once per text.</p></details>
+  <details class="check"><summary>With sixteen together, each person's request took 9.7 seconds, not 4.2. Is the batched server worse for users?</summary><p>For a user who would otherwise be served at once, yes, a little. For the sixteenth user of a busy server it is far better: 9.7 seconds against 67. Which matters depends on how busy the server is, which is what the experiment shows.</p></details>
+  <details class="check"><summary>A graphics card has room for the weights and 20 GB more. Each request's context needs 2 GB of KV cache. How large can the batch be?</summary><p>Ten. Each request in the batch needs its own cache, and ten of them fill the 20 GB. Shorter contexts, or a shared prefix, allow more.</p></details>
+  <details class="check"><summary>Why does a server past its capacity get slower and slower, instead of settling at a slow speed?</summary><p>Requests arrive faster than they are finished, so the line of waiting requests grows for as long as that lasts. Each new arrival waits for a longer line than the one before.</p></details>
+</main>
+
+<script src="assets/glossary.js"></script>
+<script src="assets/micro.js"></script>
+<script>
+M.ready(function () {
+  var box = M.$('#w-queue'), LENGTH = 48;
+  // measured by code/ch27_serve.py: texts in the pass, seconds per pass
+  var TIMES = { large: { sizes: [1, 2, 4, 8, 16], s: [0.0866, 0.1688, 0.173, 0.2023, 0.2016] }, small: { sizes: [1, 2, 4, 8, 16, 32], s: [0.00164, 0.00285, 0.00689, 0.01345, 0.02304, 0.05046] } };
+  var regime = 'large';
+  function step(t, n) { var z = t.sizes, i = 0; if (n <= z[0]) return t.s[0]; while (i < z.length - 2 && n > z[i + 1]) i++; return t.s[i] + (t.s[i + 1] - t.s[i]) * (n - z[i]) / (z[i + 1] - z[i]); }
+  /* the server of this chapter: let waiting requests in, advance everyone by one token, let finished ones out */
+  function serve(arrivals, t, places) {
+    var next = 0, active = [], waits = [], clock = 0, n = arrivals.length;
+    while (next < n || active.length) {
+      while (next < n && arrivals[next] <= clock && active.length < places) active.push({ at: arrivals[next++], left: LENGTH });
+      if (!active.length) { clock = arrivals[next]; continue; }
+      clock += step(t, active.length);
+      active = active.filter(function (r) { if (--r.left === 0) { waits.push(clock - r.at); return false; } return true; });
+    }
+    waits.sort(function (a, b) { return a - b; });
+    return { typical: waits[Math.floor(n / 2)], slow: waits[Math.floor(n * 0.95)] };
+  }
+  function run(load) {
+    var t = TIMES[regime], alone = 1 / (LENGTH * t.s[0]), rnd = M.rng(3), arrivals = [], clock = 0;
+    for (var i = 0; i < 2000; i++) { clock += -Math.log(1 - rnd()) / (load * alone); arrivals.push(clock); }
+    return { alone: alone, one: serve(arrivals, t, 1), many: serve(arrivals, t, 16) };
+  }
+  M.serveRun = function (r, load) { regime = r; return run(load); };
+  var rS = M.select('Model', [['large', 'Large: pass times of the 1 GB matrix'], ['small', 'Small: pass times of the course model']], function (v) { regime = v; show(); });
+  var sl = M.slider({ label: 'Arrivals, as a share of what one-at-a-time can finish', min: 0.25, max: 4, step: 0.25, value: 0.5, fmt: function (v) { return Math.round(100 * v) + '%'; }, oninput: show });
+  var bars = M.el('div'), stat = M.el('p', { class: 'readout' });
+  function secs(v) { return v >= 100 ? v.toFixed(0) + ' s' : v >= 10 ? v.toFixed(1) + ' s' : v.toFixed(2) + ' s'; }
+  function show() {
+    var r = run(sl.value), top = Math.max(r.one.slow, r.many.slow);
+    M.bars(bars, [{ label: 'one at a time, typical', p: r.one.typical / top, text: secs(r.one.typical), cut: true }, { label: 'one at a time, slowest 5%', p: r.one.slow / top, text: secs(r.one.slow), cut: true },
+      { label: 'sixteen together, typical', p: r.many.typical / top, text: secs(r.many.typical), hl: true }, { label: 'sixteen together, slowest 5%', p: r.many.slow / top, text: secs(r.many.slow), hl: true }], 1);
+    stat.textContent = (sl.value * r.alone).toFixed(2) + ' requests arrive per second. One at a time, this server can finish ' + r.alone.toFixed(2) + ' per second' + (sl.value > 1 ? ', so its line keeps growing.' : '.');
+  }
+  box.appendChild(M.row(rS)); box.appendChild(M.row(sl)); box.appendChild(bars); box.appendChild(stat);
+  box.appendChild(M.el('p', { class: 'caption', text: 'How long a request takes from arrival to its last token, over 2,000 requests of 48 tokens arriving at random. Simulated in your browser with the pass times measured by code/ch27_serve.py.' }));
+  show();
+});
+</script>
+</body>
+</html>

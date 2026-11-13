@@ -31,6 +31,8 @@
     ['23-small.html', 'As small as it goes', 'small'],
     ['24-posttraining.html', 'From text to behaviour', 'behave'],
     ['25-inference.html', 'Better without retraining', 'infer'],
+    ['26-drafting.html', 'A quick draft, a careful check', 'draft'],
+    ['27-serving.html', 'Many people at once', 'serve'],
   ];
 
   // ---------- DOM helpers ----------
@@ -688,7 +690,7 @@
     ['Part three', 'the system on your machine', 10, '#a98cf0'], ['Part four', 'making it dependable', 13, '#c4543a'],
     ['Part five', 'the harness', 15, '#8c8a2e'], ['Part six', 'the whole machine', 18, '#8e4a9e'],
     ['Part seven', 'at full size', 20, '#4a9a6a'], ['Part eight', 'fitting the machine', 22, '#7d5b4a'],
-    ['Part nine', 'shaping behaviour', 24, '#5c6b7a']
+    ['Part nine', 'shaping behaviour', 24, '#5c6b7a'], ['Part ten', 'faster, and for many', 26, '#9a5a7d']
   ];
   M.partOf = (ch) => { let k = 0; M.parts.forEach((p, i) => { if (ch >= p[2]) k = i; }); return k; };
   M.partIcon = function (k) {
@@ -795,7 +797,13 @@
           keep: 'Pre-training gives a model every habit in its text. Post-training chooses among them, by showing examples or by scoring answers.' },
     25: { q: 'A model answers a sum right about half the time, and its weights cannot be changed. You ask the same sum 15 times and keep the answer given most often. How often is that answer right?', o: ['About half the time: it is the same model.', 'Nearly always.', 'Less often: more answers, more mistakes.'], a: 1,
           why: 'Wrong guesses disagree with each other and right answers agree. Here the vote was right on 300 sums of 300, for fifteen times the tokens.',
-          keep: 'With fixed weights, better answers can still be bought at the moment of asking: ask more, check, steer. The price is paid on every request.' }
+          keep: 'With fixed weights, better answers can still be bought at the moment of asking: ask more, check, steer. The price is paid on every request.' },
+    26: { q: 'A small model drafts the next characters and is wrong about four times in ten. A large model checks each draft. How often does the final text differ from what the large model would have written alone?', o: ['About four times in ten.', 'Rarely, but sometimes.', 'Never.'], a: 2,
+          why: 'Every drafted character is compared with the large model\'s own choice and replaced at the first difference. Here the text was identical in 100 cases of 100.',
+          keep: 'A large model can check several tokens in the pass it would spend writing one. A draft that is wrong costs time, never correctness.' },
+    27: { q: 'A large model takes 87 ms for one pass on one request. How long does one pass take on sixteen requests at once?', o: ['About sixteen times as long.', 'About twice as long.', 'The same.'], a: 1,
+          why: 'Most of a pass is fetching the weights, and that is done once whatever the batch. Measured on a 1 GB matrix: 202 ms for sixteen.',
+          keep: 'The weights are read once per pass however many people share it. That is why one model can serve many, and why each of them waits a little longer.' }
   };
   function guesses(set) {
     let s = {};
