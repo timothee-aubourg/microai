@@ -31,6 +31,22 @@ this order:
 7. **Code** from `code/`, with a sentence on what each function does.
 8. **Recap.** A `<div class="recap">` with three to five bullets at the end.
 
+Two more pieces are added to every chapter by the shared script, from the
+table `M.lesson` in `docs/assets/micro.js` (one entry per chapter):
+
+- **Guess first.** A ten-second question with three options, shown under the
+  opening question, then the answer in one or two sentences. A wrong guess is
+  the useful case. There is a plain score, kept in the reader's browser, and
+  nothing else: no streaks, no badges.
+- **One line to keep.** One sentence at the very end of the chapter.
+
+A new chapter needs an entry in that table. The answer and the line to keep
+must follow from the chapter's own text and numbers.
+
+Chapters 3 to 19 do not yet have all of the reference style: the definition
+boxes, glossary entries and recap of chapters 1 and 2 are still to be added
+there.
+
 Optional maths goes in a folded `<details class="refresher">`. Step-by-step
 animations use `M.stepper` (see the BPE walkthrough in chapter 2).
 
@@ -38,6 +54,29 @@ Every number quoted in the text must come from running the code or the data,
 not from memory. If a widget's behaviour is described, check it in the browser.
 
 The course does not credit named individuals as inspiration.
+
+## How a page looks
+
+The look is paper and ink: ivory paper and brown-black ink by day, dark paper
+and cream ink by night. It is defined once, as variables at the top of
+`docs/assets/style.css`.
+
+- **Three colours carry meaning** and mean the same on every page: ultramarine
+  (`--fwd`) for values flowing forward and for the selected thing, raspberry
+  (`--grad`) for gradients and errors, amber (`--prob`, `--prob-fill`) for
+  probabilities. Never write a colour value in a page: use the variables, and
+  `M.css('--fwd')` inside a canvas, so both themes follow.
+- **Type.** Bodoni Moda (`--display`) for the chapter title, the opening
+  question and the line to keep. Libre Franklin (`--sans`) for everything else.
+  Both are in `docs/assets/fonts/` under the SIL Open Font License.
+- **Section headings** get a short brush stroke from the stylesheet. Do not
+  add rules or borders by hand.
+- **Controls are small and quiet.** `M.button(label, fn)` is an underlined
+  word; pass `'go'` for the one main action of an experiment. No filled
+  buttons. A tap target is at least 44 px tall.
+- **Phone first.** The prose column is 640 px at most, the base size 18 px.
+  Check every change at a width of 390 px, in light and in dark, and make sure
+  the page does not scroll sideways.
 
 ## Checking your change
 
