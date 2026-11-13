@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Many experts, few at work | microAI</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-ch="20">
+<main>
+  <p class="where">Chapter 20</p>
+  <h1>Many experts, few at work</h1>
+  <p class="question">Every token passes through every weight of the model. Does it have to?</p>
+
+  <p>Chapter 18 ended on a hard rule. To write one token, the machine reads every weight once, so a model twice as large writes half as fast. That ties two things together that you would like to separate. What a model knows is stored in its weights, so knowing more means owning more of them. And the cost of each token grows with the same number.</p>
+  <p>Almost every large open model released in 2025 and 2026 cuts that tie. Such a model owns far more weights than it uses for any single token. The design is called a mixture of experts, and it changes one part of the block you built in chapter 6.</p>
+
+  <h2>One MLP becomes several small ones</h2>
+  <p>Recall the block. Attention moves information between positions. Then a small network, the MLP, works on each position on its own. In a large model about two thirds of the weights sit in those MLPs.</p>
+  <p>The change is this. Where the block had one MLP, put several smaller ones side by side. For each token, a small extra matrix looks at the token's vector and gives every small MLP a score. Only the few with the highest scores process that token. The others are not computed at all.</p>
+
+  <div class="def"><span class="kind">Definitions</span>
+    <p>An <dfn>expert</dfn> is one of the small MLPs that stand where the block's single MLP used to be.</p>
+    <p>The <dfn>router</dfn> is the small matrix that scores the experts for each token. It is trained with everything else, by the gradient descent of chapter 3.</p>
+    <p>A model built this way is a <dfn>mixture of experts</dfn>, often written MoE.</p>
+    <p>The <dfn>active weights</dfn> are the ones a token actually passes through: the shared parts of the model plus the experts chosen for that token. The model owns more weights than that.</p>
+  </div>
+
+  <figure class="fig">
+    <svg viewBox="0 0 760 230" role="img" aria-labelledby="f20t">
+      <title id="f20t">A token's vector goes to a router, which scores four experts. The two with the highest scores process the token, the other two are skipped, and the two results are added with their weights.</title>
+      <defs><marker id="c20a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
+      <rect x="16" y="95" width="96" height="40" rx="6" class="bx"/><text x="64" y="120" text-anchor="middle" class="t-mono">token x</text>
+      <line x1="112" y1="115" x2="150" y2="115" class="ln" marker-end="url(#c20a)"/>
+      <rect x="154" y="88" width="104" height="54" rx="6" class="bx-prob"/><text x="206" y="111" text-anchor="middle" class="t-big">router</text><text x="206" y="130" text-anchor="middle" class="t-small t-muted">one score each</text>
+      <g class="t-mono t-small"><text x="300" y="34">2.0</text><text x="300" y="90">0.5</text><text x="300" y="146">1.2</text><text x="296" y="202">−1.0</text></g>
+      <line x1="258" y1="104" x2="340" y2="36" class="ln-fwd" marker-end="url(#c20a)"/>
+      <line x1="258" y1="112" x2="340" y2="92" class="ln-dash"/>
+      <line x1="258" y1="120" x2="340" y2="148" class="ln-fwd" marker-end="url(#c20a)"/>
+      <line x1="258" y1="128" x2="340" y2="204" class="ln-dash"/>
+      <rect x="344" y="14" width="150" height="42" rx="6" class="bx-fwd"/><text x="419" y="40" text-anchor="middle">expert 1 · at work</text>
+      <rect x="344" y="70" width="150" height="42" rx="6" class="bx-soft"/><text x="419" y="96" text-anchor="middle" class="t-muted">expert 2 · skipped</text>
+      <rect x="344" y="126" width="150" height="42" rx="6" class="bx-fwd"/><text x="419" y="152" text-anchor="middle">expert 3 · at work</text>
+      <rect x="344" y="182" width="150" height="42" rx="6" class="bx-soft"/><text x="419" y="208" text-anchor="middle" class="t-muted">expert 4 · skipped</text>
+      <line x1="494" y1="35" x2="596" y2="104" class="ln-fwd" marker-end="url(#c20a)"/>
+      <line x1="494" y1="147" x2="596" y2="124" class="ln-fwd" marker-end="url(#c20a)"/>
+      <text x="538" y="56" class="t-mono t-small t-fwd">× 0.69</text><text x="538" y="158" class="t-mono t-small t-fwd">× 0.31</text>
+      <rect x="600" y="95" width="56" height="40" rx="20" class="bx"/><text x="628" y="121" text-anchor="middle" class="t-big">+</text>
+      <line x1="656" y1="115" x2="690" y2="115" class="ln" marker-end="url(#c20a)"/>
+      <text x="698" y="120" class="t-mono">out</text>
+    </svg>
+    <figcaption><b>One token through one block.</b> Four experts, two at work. The numbers are those of the worked example below.</figcaption>
+  </figure>
+
+  <h2>One token, by hand</h2>
+  <p>Take four experts and send each token to two. Suppose the router gives one token these scores: 2.0, 0.5, 1.2 and −1.0.</p>
+  <ol>
+    <li><strong>Choose.</strong> The two highest scores are 2.0 and 1.2, so the token goes to experts 1 and 3.</li>
+    <li><strong>Weigh.</strong> Apply the softmax of chapter 1 to those two scores only. <i>e</i><sup>2.0</sup> is 7.39 and <i>e</i><sup>1.2</sup> is 3.32. Their sum is 10.71. So expert 1 gets 7.39 / 10.71 = 0.69, and expert 3 gets 0.31.</li>
+    <li><strong>Mix.</strong> Run the token through expert 1 and through expert 3. The block's output is 0.69 times the first result plus 0.31 times the second.</li>
+  </ol>
+  <p>Experts 2 and 4 did nothing for this token. The next token has its own scores and may use a different pair.</p>
+  <p>Written once for any number of experts:</p>
+  <div class="eq"><i>y</i> = &sum; <i>g<sub>e</sub></i> &middot; Expert<sub><i>e</i></sub>(<i>x</i>), &nbsp; over the chosen experts <i>e</i></div>
+  <p>Here <i>x</i> is the token's vector, the chosen experts are the few with the highest router scores, and <i>g<sub>e</sub></i> is the weight of expert <i>e</i>: the softmax of the chosen scores, so the weights add up to 1.</p>
+
+  <h2>What the experts do, measured</h2>
+  <p>To see this at work, <code>code/ch20_moe.py</code> trains a small GPT with four experts per block, two per token. The training text mixes two very different kinds of writing in alternation: Shakespeare, and the calculator conversations of chapter 19. Then it asks, for text the model has not seen, which expert each character was mainly sent to.</p>
+
+  <section class="bench" id="w-route">
+    <h3>Who handles what</h3>
+    <p class="try"><b>Try this.</b> Each character carries the number of the expert that got most of it. Look at the digits in the first block, then at the capitals. Switch to the second block. Tap a character to see its two weights.</p>
+  </section>
+
+  <p><strong>What you should have seen.</strong> In the first block practically every digit goes to expert 1 (99.9%), and 93% of capital letters go to expert 3. Lowercase letters are shared between experts 2, 3 and 4. Nobody assigned these jobs. The router and the experts were trained together, only to predict the next character, and a division of labour appeared because it lowered the loss. In the second block the jobs are different and less tidy: digits mostly go to expert 4, spaces and line breaks to expert 3. The experts of real models are harder to name than these, but the tendency is the same: tokens of a kind travel together.</p>
+
+  <h2>What the idle weights buy</h2>
+  <p>The promise of the design is this: a model with experts should beat an ordinary model that does the same amount of work per token, because it owns more weights. The script tests that with three models trained for 2,500 steps on the same batches.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Model</th><th>Weights owned</th><th>Used per token</th><th>Held-out loss</th></tr>
+    <tr><td>Small: one MLP of 128 units</td><td class="mono">75,072</td><td class="mono">75,072</td><td class="mono">1.228</td></tr>
+    <tr><td>Experts: four of 64, two at work</td><td class="mono">108,224</td><td class="mono">75,456</td><td class="mono">1.228</td></tr>
+    <tr><td>Big: one MLP of 256 units</td><td class="mono">107,840</td><td class="mono">107,840</td><td class="mono">1.210</td></tr>
+  </table></div>
+  <p>At this size the promise is not kept. The model with experts scores exactly as the small one, to three decimals, and the big ordinary model is better than both. The reason is visible in the last row: even doubling the MLP outright gains only 0.018. Our models are limited by how briefly they were trained, not by how much they can hold, so extra weights of any kind have little to give.</p>
+  <p>At full size the situation is the reverse. Models are limited by what they can hold, and the published results are large. Mixtral 8x7B, the model that made the design common in open models, owns 46.7 billion weights and uses 12.9 billion per token. Its makers report that it matches or beats a 70-billion-weight ordinary model on most of their tests while running about six times faster. This course cannot reproduce that. It can show you the mechanism, which is the same.</p>
+
+  <h2>Owning and using</h2>
+  <p>Now go back to chapter 18 with two numbers per model in place of one.</p>
+  <ul>
+    <li><strong>Memory</strong> is set by the weights the model <em>owns</em>. Any token may be sent to any expert, so all of them must be loaded.</li>
+    <li><strong>Speed</strong> is set by the <em>active</em> weights. Only those are read from memory and multiplied for a token, so the ceiling of chapter 18 becomes memory bandwidth divided by the size of the active weights.</li>
+  </ul>
+  <div class="scroll"><table class="mini">
+    <tr><th>Model</th><th>Weights owned</th><th>Used per token</th><th>Share at work</th></tr>
+    <tr><td>Mixtral 8x7B</td><td class="mono">46.7 billion</td><td class="mono">12.9 billion</td><td class="mono">28%</td></tr>
+    <tr><td>Qwen3 235B</td><td class="mono">235 billion</td><td class="mono">22 billion</td><td class="mono">9%</td></tr>
+    <tr><td>DeepSeek V3</td><td class="mono">671 billion</td><td class="mono">37 billion</td><td class="mono">6%</td></tr>
+    <tr><td>Kimi K2</td><td class="mono">1,000 billion</td><td class="mono">32 billion</td><td class="mono">3%</td></tr>
+  </table></div>
+  <p class="src">Figures as published for each model. The share at work is the second column divided by the first.</p>
+  <p>The trend in that table is the story since the end of 2023: the weights owned have grown twentyfold while the weights at work have less than tripled. Such a model answers at the speed of a mid-sized one and needs the memory of a very large one.</p>
+
+  <section class="bench" id="w-own">
+    <h3>What it needs, and how fast it goes</h3>
+    <p class="try"><b>Try this.</b> Choose Mixtral on a GeForce RTX 4090 at 5 bits per weight. It does not fit. Lower the bits until it does, and read the speed. Then compare with an ordinary model of the same total size.</p>
+  </section>
+
+  <p><strong>What you should have seen.</strong> At 5 bits Mixtral needs 29.2 GB and the card has 24. At 4 bits it needs 23.4 GB and fits. Its ceiling is then about 156 tokens per second, because each token reads only 6.45 GB. An ordinary model of 46.7 billion weights on the same card would read all 23.4 GB per token and stop at about 43. The memory bill is the same. The speed is that of a model a quarter of the size.</p>
+
+  <h2>Keeping every expert in work</h2>
+  <p>One thing can go wrong during training. Early on, by chance, one expert is slightly better than the others. The router sends it more tokens. It trains on more tokens and gets better still. In the end a few experts do everything and the rest are dead weight in memory. This is called collapse.</p>
+  <p>The usual remedy is a small extra term in the loss that grows when the experts' average workloads are uneven. Ours measures how far each expert's share is from one quarter. With it, all four experts of both blocks stayed in use, as the experiment above shows.</p>
+
+  <h2>Build it</h2>
+  <pre class="code" data-src="ch20_moe.py#route">def route(self, x, i):
+    """For every token: a score per expert, the `active` best ones, and their weights (which add up to 1)."""
+    scores = x @ self.p[f'h{i}.router']                          # (B, T, experts)
+    best = np.argsort(-scores.data, axis=-1)[..., :self.active]  # which experts this token is sent to
+    chosen = np.zeros(scores.shape, dtype=bool)
+    np.put_along_axis(chosen, best, True, axis=-1)
+    gates = scores.masked_fill(~chosen, -1e9).softmax(-1)        # softmax over the chosen ones; 0 for the rest
+    return gates, chosen</pre>
+  <p class="src">From <code>code/ch20_moe.py</code>. The router: score every expert, keep the best few, and turn their scores into weights that add up to 1.</p>
+  <pre class="code" data-src="ch20_moe.py#experts">def experts_layer(self, x, i):
+    gates, chosen = self.route(x, i)
+    out = None
+    for e in range(self.experts):
+        y = (x @ self.p[f'h{i}.exp{e}.w1']).gelu() @ self.p[f'h{i}.exp{e}.w2']   # one small MLP
+        weight = (gates * np.eye(self.experts)[e]).sum(-1, keepdims=True)         # this expert's share, per token
+        out = y * weight if out is None else out + y * weight
+    return out, gates                  # in training every expert runs; a runtime skips the ones with weight 0</pre>
+  <p class="src">The layer that replaces the MLP. For simplicity this training version runs all experts and multiplies the unchosen ones by zero.</p>
+  <pre class="code" data-src="ch20_moe.py#sparse">def one_token_sparse(model, x, i):
+    """What a runtime does: for ONE token, run only the experts it was sent to."""
+    p = model.p
+    scores = x @ p[f'h{i}.router'].data
+    best = np.argsort(-scores)[:model.active]
+    w = np.exp(scores[best] - scores[best].max()); w /= w.sum()
+    out = np.zeros_like(x)
+    for e, weight in zip(best, w):                     # two small MLPs instead of four
+        h = x @ p[f'h{i}.exp{e}.w1'].data
+        h = 0.5 * h * (1 + np.tanh(np.sqrt(2 / np.pi) * (h + 0.044715 * h ** 3)))
+        out += weight * (h @ p[f'h{i}.exp{e}.w2'].data)
+    return out</pre>
+  <p class="src">What a runtime does for one token: only the chosen experts are computed. The script checks that both versions give the same numbers.</p>
+  <pre class="code" data-lang="text">python code/ch20_moe.py --train     # three small models, about 8 minutes on a laptop CPU
+python code/ch20_moe.py             # the two tables of this chapter</pre>
+
+  <div class="note">
+    <h3>What this chapter glossed over</h3>
+    <p><strong>One training run each.</strong> The three losses come from single runs with one random seed. Chapter 14 applies: a difference in the third decimal is not evidence either way.</p>
+    <p><strong>Our training runs every expert.</strong> That is why the model with experts took as long to train as the big one. Real training code computes only the chosen experts, which is harder to write and to make fast.</p>
+    <p><strong>Real designs go further.</strong> Hundreds of small experts per block with eight or so at work, one extra expert that every token always uses, and routers that score with other functions than a softmax. The two numbers to ask for stay the same: weights owned and weights at work.</p>
+    <p><strong>The tied 2:1 choice is ours.</strong> Four experts and two at work were picked to keep the comparison with the small model exact. Nothing says they are the best split.</p>
+    <p><strong>Experts are not specialists in subjects.</strong> The name suggests a doctor and a lawyer. What routers actually learn is closer to what you saw: kinds of token and position, not fields of knowledge.</p>
+  </div>
+
+  <div class="recap">
+    <h3>In short</h3>
+    <ul>
+      <li>A <a class="term" href="glossary.html#moe">mixture of experts</a> replaces the single MLP of each block with several small <a class="term" href="glossary.html#expert">experts</a>. A <a class="term" href="glossary.html#router">router</a> sends every token to the few with the highest scores.</li>
+      <li>The output is the weighted sum of the chosen experts' results. The weights are a softmax over the chosen scores.</li>
+      <li>The model owns all its weights and uses only the <a class="term" href="glossary.html#active-weights">active weights</a> for a token. Memory is paid for the first number, time for the second.</li>
+      <li>In our small model the experts took on different kinds of character by themselves, and did not lower the loss. The gains reported for large models come from scale.</li>
+      <li>An extra term in the loss keeps the workloads even, so that no expert is left idle.</li>
+    </ul>
+  </div>
+
+  <h2>Check yourself</h2>
+  <details class="check"><summary>A model owns 235 billion weights and uses 22 billion per token. Which number tells you whether it fits on your machine, and which tells you how fast it writes?</summary><p>The 235 billion decide the fit: every expert must be in memory, because any token may be sent to it. The 22 billion decide the speed: only those are read and multiplied for a token.</p></details>
+  <details class="check"><summary>The router's scores for a token are 0.3, 2.1, 1.9 and 0.1, with two experts at work. Which experts run, and with roughly what weights?</summary><p>Experts 2 and 3. Their scores differ by 0.2, so the weights are close to equal: about 0.55 and 0.45.</p></details>
+  <details class="check"><summary>In our experiment the model with experts did no better than the small ordinary model. Does that show that the design does not work?</summary><p>No. It shows that these models were not short of weights: even doubling the MLP gained only 0.018. Experts add capacity, and capacity only helps a model that is limited by it. Large models trained on vast text are.</p></details>
+  <details class="check"><summary>Why can a runtime not keep only the two or three most popular experts in memory and load the others when needed?</summary><p>The choice is made per token and per block, thousands of times a second, and it depends on the text. Fetching an expert from disk takes far longer than computing it. So all of them stay loaded.</p></details>
+</main>
+
+<script src="assets/moe.js"></script>
+<script src="assets/glossary.js"></script>
+<script src="assets/micro.js"></script>
+<script>
+M.ready(function () {
+  var PIG = ['--pig1', '--pig2', '--pig3', '--pig4'];
+  // ---------- widget 1: which expert gets each character ----------
+  (function () {
+    var box = M.$('#w-route'), D = window.MICRO_MOE;
+    if (!D) { box.appendChild(M.el('p', { text: 'The recorded results did not load, so this experiment is unavailable.' })); return; }
+    var sample = 1, block = 0, picked = -1;
+    var names = ['A line of Shakespeare', 'A calculator conversation', 'Both, one after the other'];
+    var sel = M.select('Text', names.map(function (n, i) { return [String(i), n]; }), function (v) { sample = +v; picked = -1; show(); });
+    sel.sel.value = '1';
+    var b1 = M.button('First block', function () { block = 0; picked = -1; show(); }), b2 = M.button('Second block', function () { block = 1; picked = -1; show(); });
+    var legend = M.el('div', { class: 'legend' }), text = M.el('div', { class: 'chips', style: 'gap:4px 3px;margin:10px 0' }), stat = M.el('p', { class: 'readout' }), bars = M.el('div'), table = M.el('div', { class: 'scroll' });
+    [0, 1, 2, 3].forEach(function (e) { legend.appendChild(M.el('span', null, M.el('i', { style: 'background:' + M.css(PIG[e]) }), 'expert ' + (e + 1))); });
+    function top(g) { var k = 0; for (var i = 1; i < g.length; i++) if (g[i] > g[k]) k = i; return k; }
+    function show() {
+      var s = D.samples[sample], gates = s.gates[block];
+      b1.className = block === 0 ? 'go' : ''; b2.className = block === 1 ? 'go' : '';
+      text.textContent = '';
+      Array.from(s.text).forEach(function (ch, i) {
+        var e = top(gates[i]);
+        var chip = M.el('span', { role: 'button', tabindex: '0', 'aria-label': M.show(ch) + ', expert ' + (e + 1), class: i === picked ? 'sel' : '',
+          style: 'display:inline-flex;flex-direction:column;align-items:center;min-width:17px;padding:3px 3px 1px;background:color-mix(in srgb,' + M.css(PIG[e]) + ' 42%, ' + M.css('--panel') + ')' },
+          M.el('b', { text: M.show(ch), style: 'font-weight:600' }), M.el('small', { text: String(e + 1), style: 'font-size:10.5px;line-height:1.2;color:' + M.css('--muted') }));
+        var pick = function () { picked = i; show(); };
+        chip.addEventListener('click', pick); chip.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); pick(); } });
+        text.appendChild(chip);
+        if (ch === '\n') text.appendChild(M.el('span', { style: 'flex-basis:100%;height:0;padding:0;background:none' }));
+      });
+      if (picked >= 0) {
+        var g = gates[picked];
+        M.bars(bars, g.map(function (p, e) { return { label: 'expert ' + (e + 1), p: p, hl: e === top(g), cut: p === 0, text: p === 0 ? 'skipped' : (100 * p).toFixed(0) + '%' }; }), 1);
+        stat.innerHTML = 'Character <b>' + M.show(s.text[picked]) + '</b>: two experts at work, their weights add up to 100%. The other two are not computed.';
+      } else { bars.textContent = ''; stat.textContent = 'Tap a character to see its weights.'; }
+      var rows = Object.keys(D.who).map(function (kind) { var r = D.who[kind][block]; return '<tr><td>' + kind + '</td>' + r.map(function (v) { var best = v === Math.max.apply(null, r); return '<td class="mono">' + (best ? '<b>' : '') + (100 * v).toFixed(0) + '%' + (best ? '</b>' : '') + '</td>'; }).join('') + '</tr>'; }).join('');
+      table.innerHTML = '<table class="mini"><tr><th>' + (block ? 'Second' : 'First') + ' block, expert:</th><th>1</th><th>2</th><th>3</th><th>4</th></tr>' + rows + '</table>';
+    }
+    box.appendChild(M.row(sel)); box.appendChild(M.row(b1, b2)); box.appendChild(legend); box.appendChild(text); box.appendChild(stat); box.appendChild(bars);
+    box.appendChild(M.el('p', { class: 'caption', text: 'Share of each kind of character whose largest weight went to each expert. Measured on 12,800 characters the model did not train on.', style: 'margin-top:14px' }));
+    box.appendChild(table);
+    show();
+  })();
+
+  // ---------- widget 2: owning and using ----------
+  (function () {
+    var box = M.$('#w-own');
+    var MODELS = { ours: ['Our model with experts', 108224e-9, 75456e-9], mixtral: ['Mixtral 8x7B', 46.7, 12.9], qwen: ['Qwen3 235B', 235, 22], deepseek: ['DeepSeek V3', 671, 37], kimi: ['Kimi K2', 1000, 32] };
+    var HW = { ddr: ['Desktop RAM, DDR5-5600, two channels', 89.6, 32], m4max: ['Apple M4 Max, 128 GB', 546, 128], r4090: ['GeForce RTX 4090, 24 GB', 1008, 24], r5090: ['GeForce RTX 5090, 32 GB', 1792, 32], h100: ['Nvidia H100, 80 GB', 3350, 80] };
+    var model = 'mixtral', hw = 'r4090';
+    var mS = M.select('Model', Object.keys(MODELS).map(function (k) { return [k, MODELS[k][0]]; }), function (v) { model = v; show(); });
+    var hS = M.select('Machine', Object.keys(HW).map(function (k) { return [k, HW[k][0]]; }), function (v) { hw = v; show(); });
+    mS.sel.value = model; hS.sel.value = hw;
+    var bits = M.slider({ label: 'Bits per weight', min: 2, max: 16, step: 0.5, value: 5, fmt: function (v) { return v.toFixed(1); }, oninput: show });
+    var bars = M.el('div'), stat = M.el('p', { class: 'readout' });
+    function gb(v) { return v >= 10 ? v.toFixed(1) : v >= 0.01 ? v.toFixed(2) : (v * 1000).toFixed(2) + ' M'; }
+    function rate(v) { return v >= 1000 ? Math.round(v).toLocaleString('en-US') : v >= 10 ? v.toFixed(0) : v.toFixed(1); }
+    function show() {
+      var m = MODELS[model], h = HW[hw], own = m[1] * bits.value / 8, use = m[2] * bits.value / 8, fits = own <= h[2], scale = Math.max(own, h[2]);
+      M.bars(bars, [{ label: 'owned', p: own / scale, text: gb(own) + ' GB', cut: !fits }, { label: 'at work', p: use / scale, text: gb(use) + ' GB', hl: true }, { label: 'memory', p: h[2] / scale, text: h[2] + ' GB' }], 1);
+      stat.innerHTML = 'To hold: <b>' + gb(own) + ' GB</b>. Read per token: <b>' + gb(use) + ' GB</b>. ' +
+        (fits ? 'It fits. Ceiling: <b>' + rate(h[1] / use) + ' tokens per second</b>. An ordinary model of the same total size would stop at ' + rate(h[1] / own) + '.'
+              : '<b style="color:' + M.css('--grad') + '">It does not fit in ' + h[2] + ' GB.</b> Every expert has to be loaded, even though only ' + (100 * m[2] / m[1]).toFixed(0) + '% of the weights work on a token.');
+    }
+    box.appendChild(M.row(mS)); box.appendChild(M.row(hS)); box.appendChild(M.row(bits)); box.appendChild(bars); box.appendChild(stat);
+    box.appendChild(M.el('p', { class: 'caption', text: 'Ceiling = memory bandwidth ÷ size of the active weights, for one stream of text, as in chapter 18. Real speeds are commonly half to three quarters of it, and the KV cache needs room too.' }));
+    show();
+  })();
+});
+</script>
+</body>
+</html>

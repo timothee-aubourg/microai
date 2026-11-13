@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>microAI</title>
-<meta name="description" content="Build and understand a local language model and the agent around it, from first principles: nineteen interactive chapters with a real GPT running in your browser.">
+<meta name="description" content="Build and understand a local language model and the agent around it, from first principles: twenty-one interactive chapters with a real GPT running in your browser.">
 <link rel="stylesheet" href="assets/style.css">
 </head>
 <body data-ch="0">
@@ -30,7 +30,7 @@
   <p>Three colours mean the same thing on every page: <span class="fwd">blue for values flowing forward</span> through the model, <span class="grad">raspberry for gradients and error flowing backward</span>, <span class="prob">amber for probabilities</span>.</p>
 
   <h2>The path</h2>
-  <p>Text goes in on the left; a guess about the next token comes out on the right. Chapters 1 to 6 build that pipeline. Chapters 7 to 9 make it learn, write and shrink. Chapters 10 to 12 turn it into a system on your machine. Chapters 13 and 14 make that system dependable. Chapters 15 to 17 open up the harness that turns a model into an agent. Chapters 18 and 19 go down to the hardware and then put every part together in one system you train yourself.</p>
+  <p>Text goes in on the left; a guess about the next token comes out on the right. Chapters 1 to 6 build that pipeline. Chapters 7 to 9 make it learn, write and shrink. Chapters 10 to 12 turn it into a system on your machine. Chapters 13 and 14 make that system dependable. Chapters 15 to 17 open up the harness that turns a model into an agent. Chapters 18 and 19 go down to the hardware and then put every part together in one system you train yourself. Chapters 20 and 21 show two ideas that full-size models add: experts, and room to think.</p>
   <p class="readout" id="guess-score"></p>
 
   <p class="part">Part one: the model</p>
@@ -45,6 +45,8 @@
   <ol class="toc" id="toc5" style="counter-reset: ch 14"></ol>
   <p class="part">Part six: the whole machine</p>
   <ol class="toc" id="toc6" style="counter-reset: ch 17"></ol>
+  <p class="part">Part seven: at full size</p>
+  <ol class="toc" id="toc7" style="counter-reset: ch 19"></ol>
 
   <h2>Run the code yourself</h2>
   <p>The only dependency is numpy. Training takes roughly a quarter of an hour on a laptop CPU.</p>
@@ -83,10 +85,12 @@ M.ready(function () {
     'Why every agent step re-reads the conversation, how a prefix cache avoids it, and what to do when the window fills up.',
     'Prompt injection: planted text that steers an agent, a gate that stops some of it, and the sandbox that bounds the rest.',
     'CPU and GPU, why this arithmetic wants one of them, and how memory speed sets your tokens per second.',
-    'Every engine of the course in one file: train a tiny model from random numbers and run it as an agent with tools.'
+    'Every engine of the course in one file: train a tiny model from random numbers and run it as an agent with tools.',
+    'Mixture of experts: a router sends each token to a few small networks, so a model can own far more weights than it uses.',
+    'Why models write their working out before they answer: two equal models, one allowed to think, tested on what neither has seen.'
   ];
   M.chapters.forEach(function (c, i) {
-    var list = M.$(i < 6 ? '#toc1' : i < 9 ? '#toc2' : i < 12 ? '#toc3' : i < 14 ? '#toc4' : i < 17 ? '#toc5' : '#toc6');
+    var list = M.$(i < 6 ? '#toc1' : i < 9 ? '#toc2' : i < 12 ? '#toc3' : i < 14 ? '#toc4' : i < 17 ? '#toc5' : i < 19 ? '#toc6' : '#toc7');
     list.appendChild(M.el('li', null, M.el('a', { href: c[0] }, M.el('b', { text: c[1] }), M.el('span', { text: blurbs[i] }))));
   });
 

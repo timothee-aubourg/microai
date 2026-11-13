@@ -45,7 +45,7 @@ must follow from the chapter's own text and numbers.
 
 Chapters 3 to 19 do not yet have all of the reference style: the definition
 boxes, glossary entries and recap of chapters 1 and 2 are still to be added
-there.
+there. Chapters 20 and 21 have it.
 
 Optional maths goes in a folded `<details class="refresher">`. Step-by-step
 animations use `M.stepper` (see the BPE walkthrough in chapter 2).
@@ -80,11 +80,15 @@ and cream ink by night. It is defined once, as variables at the top of
   "What this chapter glossed over", definition, recap, guess and line to keep,
   so a page never draws one itself. A new kind of recurring piece gets one new
   entry in `ICONS`: a `dab(...)` plus one `ink(...)` path on a 48 by 48 grid.
-- **Each part has a sign.** The six parts are listed in `M.parts` with a
+- **Each part has a sign.** The seven parts are listed in `M.parts` with a
   pigment each. A part's sign is its pigment as the dab and a gesture derived
   from its name, shown in the contents and at the top of each of its chapters.
-  The six pigments are used for nothing else, and none is close to the three
+  The seven pigments are used for nothing else, and none is close to the three
   meaning colours.
+- **Four more pigments say "which one".** `--pig1` to `--pig4` tell apart
+  several things of the same kind in one experiment, such as the four experts
+  of chapter 20. They never encode a value, and each use also carries a number
+  or a label, so colour alone never carries the meaning.
 - **Controls are small and quiet.** `M.button(label, fn)` is an underlined
   word; pass `'go'` for the one main action of an experiment. No filled
   buttons. A tap target is at least 44 px tall.

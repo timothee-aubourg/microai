@@ -372,6 +372,9 @@ select { background: var(--panel); border: 1px solid var(--border); border-radiu
 .keep { margin: 44px auto 0; padding-top: 18px; border-top: 1px solid var(--line); }
 .keep p:not(.tag) { font-family: var(--display); font-size: 23px; line-height: 1.34; margin: 6px 0 0; text-wrap: balance; }
 
+/* four pigments for telling things apart (the experts of chapter 20). They say "which one", never "how much" */
+:root { --pig1: #5f9b3a; --pig2: #2f8f8a; --pig3: #a98cf0; --pig4: #c4543a; }
+
 /* ==== Painted icons: a flat dab and one ink gesture (drawn by M.icon in micro.js) ==== */
 .ic { display: inline-block; width: 1.6em; height: 1.6em; vertical-align: -0.42em; margin-right: 0.3em; flex: none; }
 .ic svg { display: block; width: 100%; height: 100%; overflow: visible; }
