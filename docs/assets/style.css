@@ -1,36 +1,55 @@
 /* microAI — one column of prose, wide benches for experiments.
-   Colour carries meaning everywhere: blue = values flowing forward,
+   The look is Painted Homer's: ivory paper and brown-black ink by day, dark paper and
+   cream ink by night, ultramarine as the ink of headings and of the selected thing,
+   a brush stroke under each section heading, small quiet controls.
+   Colour still carries meaning everywhere: ultramarine = values flowing forward,
    raspberry = gradients flowing backward, amber = probabilities. */
+@font-face { font-family: "Bodoni Moda"; src: url(fonts/BodoniModa.woff2) format("woff2"); font-weight: 400 900; font-display: swap; }
+@font-face { font-family: "Libre Franklin"; src: url(fonts/LibreFranklin.woff2) format("woff2"); font-weight: 100 900; font-display: swap; }
 :root {
-  --paper: #F2F5FA;
-  --panel: #FFFFFF;
-  --ink: #16213A;
-  --muted: #5B677E;
-  --line: #D3DAE6;
-  --fwd: #1560D4;
-  --grad: #CC2F66;
-  --prob: #B97A00;
-  --prob-fill: #F0B93A;
-  --ok: #17805A;
-  --code-bg: #E9EDF5;
-  --soft: #E4EAF4;
+  --paper: #F4ECDA;
+  --panel: #FBF8F0;
+  --ink: #2A2116;
+  --muted: #6B5A3E;
+  --line: #E2D6BB;
+  --border: #CDBD9B;
+  --fwd: #1D3A8F;
+  --grad: #B3264A;
+  --prob: #8A5A00;
+  --prob-fill: #E3A72F;
+  --ok: #2A6E45;
+  --code-bg: #EFE6D0;
+  --soft: #EBE0C7;
+  --dab: color-mix(in srgb, var(--fwd) 16%, transparent);
+  --brush: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 8' preserveAspectRatio='none'%3E%3Cpath d='M1.5 5.6C9 3.4 22 2.4 36 2.9c9 .3 16 1 22 1.9-4 2.2-13 2.5-23 2.4C24 7.1 12 6.8 2.6 7.6c-1.4.1-2-1.2-1.1-2z' fill='%231d3a8f' fill-opacity='.7'/%3E%3C/svg%3E");
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .36 0 0 0 0 .27 0 0 0 0 .14 .22 0 0 0 -.07'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+  --wash: radial-gradient(70% 40% at 15% 0%, rgba(200,150,70,.07), transparent 70%), radial-gradient(60% 40% at 90% 85%, rgba(110,130,190,.05), transparent 70%);
+  --cut: 15px 19px 14px 21px / 19px 14px 21px 15px;       /* a hand-cut card: corners slightly uneven */
+  --cut-s: 9px 12px 8px 13px / 12px 8px 13px 9px;
+  --display: "Bodoni Moda", Didot, "Bodoni 72", "Playfair Display", Georgia, serif;
   --serif: Charter, "Bitstream Charter", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
-  --sans: "Avenir Next", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --sans: "Libre Franklin", "Avenir Next", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
   --mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --paper: #0E1626; --panel: #162036; --ink: #E7ECF6; --muted: #9BA8C0; --line: #2A3752;
-    --fwd: #6EABFF; --grad: #FF7FA9; --prob: #F0B94C; --prob-fill: #C99422; --ok: #5BD0A0;
-    --code-bg: #0A111F; --soft: #1D2942;
+    --paper: #15151B; --panel: #1D1D25; --ink: #ECE6D8; --muted: #A59C8A; --line: #2E2E38; --border: #41414E;
+    --fwd: #8FA6FF; --grad: #FF8FA8; --prob: #F0B94C; --prob-fill: #C99422; --ok: #6FCF97;
+    --code-bg: #101015; --soft: #25252F;
+    --brush: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 8' preserveAspectRatio='none'%3E%3Cpath d='M1.5 5.6C9 3.4 22 2.4 36 2.9c9 .3 16 1 22 1.9-4 2.2-13 2.5-23 2.4C24 7.1 12 6.8 2.6 7.6c-1.4.1-2-1.2-1.1-2z' fill='%238fa6ff' fill-opacity='.7'/%3E%3C/svg%3E");
+    --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .93 0 0 0 0 .9 0 0 0 0 .84 .16 0 0 0 -.06'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+    --wash: radial-gradient(70% 40% at 15% 0%, rgba(140,120,200,.06), transparent 70%), radial-gradient(60% 40% at 90% 85%, rgba(60,90,170,.06), transparent 70%);
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --paper: #0E1626; --panel: #162036; --ink: #E7ECF6; --muted: #9BA8C0; --line: #2A3752;
-  --fwd: #6EABFF; --grad: #FF7FA9; --prob: #F0B94C; --prob-fill: #C99422; --ok: #5BD0A0;
-  --code-bg: #0A111F; --soft: #1D2942;
+  --paper: #15151B; --panel: #1D1D25; --ink: #ECE6D8; --muted: #A59C8A; --line: #2E2E38; --border: #41414E;
+  --fwd: #8FA6FF; --grad: #FF8FA8; --prob: #F0B94C; --prob-fill: #C99422; --ok: #6FCF97;
+  --code-bg: #101015; --soft: #25252F;
+  --brush: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 8' preserveAspectRatio='none'%3E%3Cpath d='M1.5 5.6C9 3.4 22 2.4 36 2.9c9 .3 16 1 22 1.9-4 2.2-13 2.5-23 2.4C24 7.1 12 6.8 2.6 7.6c-1.4.1-2-1.2-1.1-2z' fill='%238fa6ff' fill-opacity='.7'/%3E%3C/svg%3E");
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .93 0 0 0 0 .9 0 0 0 0 .84 .16 0 0 0 -.06'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+  --wash: radial-gradient(70% 40% at 15% 0%, rgba(140,120,200,.06), transparent 70%), radial-gradient(60% 40% at 90% 85%, rgba(60,90,170,.06), transparent 70%);
   color-scheme: dark;
 }
 
@@ -294,3 +313,61 @@ details.span > summary::-webkit-details-marker { display: none; }
 .trail { overflow-x: auto; scrollbar-width: none; }
 .trail::-webkit-scrollbar { display: none; }
 .trail a { flex: 1 0 20px; }
+
+/* ==== Painted layer: paper, brush, hand-cut cards, quiet controls ==== */
+body { font-family: var(--sans); line-height: 1.55; }
+/* the paper: a faint grain and a warm wash over the whole page, drawn once, nothing to fetch */
+html::after { content: ""; position: fixed; inset: 0; z-index: 2147483646; pointer-events: none;
+  background-image: var(--grain), var(--wash); background-size: 160px 160px, 100% 100%, 100% 100%; }
+@media print { html::after { display: none; } }
+main > * { max-width: 640px; }
+h1 { font-family: var(--display); font-weight: 700; letter-spacing: -0.012em; line-height: 1.08; }
+.brand { font-family: var(--display); font-weight: 700; letter-spacing: 0.01em; font-size: 19px; }
+/* section headings: a short ultramarine brush stroke under the start of each one */
+h2 { position: relative; padding-bottom: 11px; letter-spacing: -0.012em; }
+h2::after { content: ""; position: absolute; left: 0; bottom: 0; width: 2.6em; max-width: 72px; height: 6px;
+  background: var(--brush) center / 100% 100% no-repeat; transform: rotate(-0.8deg); pointer-events: none; }
+.question { font-family: var(--display); font-size: 24px; line-height: 1.36; border-left-width: 3px; border-radius: 2px; }
+.eq { font-family: var(--display); }
+.bench, .note, pre.code, .hero-out, .pager a, .flow a { border-radius: var(--cut); }
+.out, textarea, input[type=text], .bars .bar, code { border-radius: var(--cut-s); }
+.bench { box-shadow: 0 10px 26px -18px rgba(40, 30, 10, 0.45); }
+.note { border-style: solid; background: color-mix(in srgb, var(--panel) 60%, transparent); }
+textarea, input[type=text], .out { background: var(--panel); border-color: var(--border); }
+/* controls: small and quiet. A control is a word, underlined; ultramarine for the main action */
+button, .btn { background: transparent; border: 0; border-radius: 14px; padding: 0 12px; min-height: 44px; font-size: 15px;
+  text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--muted) 45%, transparent);
+  text-decoration-thickness: 1.5px; text-underline-offset: 6px; }
+button.go, :root[data-theme="dark"] button.go { background: transparent; color: var(--ink); font-weight: 700;
+  text-decoration-color: color-mix(in srgb, var(--fwd) 70%, transparent); text-decoration-thickness: 3px; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) button.go { color: var(--ink); } }
+button:hover:not(:disabled), button:active:not(:disabled) { background: radial-gradient(ellipse 62% 70% at 50% 55%, var(--dab), transparent 92%); }
+select { background: var(--panel); border: 1px solid var(--border); border-radius: var(--cut-s); min-height: 44px; text-decoration: none; }
+.tasks button { text-decoration: none; border: 1px solid var(--line); border-radius: var(--cut-s); background: var(--panel); padding: 8px 12px; }
+.tasks button:hover:not(:disabled) { background: var(--soft); }
+.toc a::before { font-family: var(--display); font-weight: 700; font-size: 23px; }
+.part { letter-spacing: 0.06em; text-transform: uppercase; font-size: 13px; }
+
+/* the chapter trail: read chapters in ultramarine ink, the current one filled, the rest quiet */
+.trail a { background: transparent; box-shadow: inset 0 0 0 1px var(--line); border-radius: 6px 8px 5px 9px / 8px 5px 9px 6px; }
+.trail a.done { background: var(--soft); box-shadow: none; color: var(--fwd); font-weight: 700; }
+.trail a.here { box-shadow: none; }
+/* a long slider label must never push its value off a phone screen */
+@media (max-width: 520px) { .ctl { flex-wrap: wrap; } .ctl label { white-space: normal; } }
+
+/* ==== Lesson furniture: guess before reveal, one line to keep ==== */
+.guess { background: var(--panel); border: 1px solid var(--line); border-radius: var(--cut); padding: 16px 18px 14px; margin: 0 auto 30px;
+  font-size: 16.5px; line-height: 1.45; box-shadow: 0 10px 26px -18px rgba(40, 30, 10, 0.45); }
+.tag { font: 700 12px var(--sans); letter-spacing: 0.09em; text-transform: uppercase; color: var(--fwd); margin: 0; }
+.guess .q { font-weight: 600; margin: 6px 0 12px; }
+.guess .opts { display: grid; gap: 7px; }
+.guess .opts button { text-align: left; min-height: 48px; padding: 9px 12px; font-weight: 500; font-size: 16px; line-height: 1.35;
+  text-decoration: none; border: 1px solid var(--border); border-radius: var(--cut-s); background: var(--paper); color: var(--ink); }
+.guess .opts button:hover:not(:disabled) { background: var(--soft); }
+.guess .opts button:disabled { opacity: 1; cursor: default; }
+.guess .opts button[data-state="right"] { border-color: var(--ok); box-shadow: inset 5px 0 0 var(--ok); font-weight: 700; }
+.guess .opts button[data-state="wrong"] { border-color: var(--grad); box-shadow: inset 5px 0 0 var(--grad); }
+.guess .why { margin: 12px 0 2px; }
+.guess .score { color: var(--muted); font-size: 13.5px; margin: 6px 0 0; }
+.keep { margin: 44px auto 0; padding-top: 18px; border-top: 1px solid var(--line); }
+.keep p:not(.tag) { font-family: var(--display); font-size: 23px; line-height: 1.34; margin: 6px 0 0; text-wrap: balance; }

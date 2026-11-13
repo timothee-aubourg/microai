@@ -1,13 +1,16 @@
 # microAI
 
-**Build and understand a local language model from first principles.**
+**Build and understand a local language model, and the agent around it, from first principles.**
 
-An interactive course in nineteen chapters. Each chapter starts from a question,
-gives you an experiment to play with in the browser, and ends with the few
-lines of code that implement the idea. One small GPT, trained from scratch with
-numpy, runs through the whole course: you watch it learn, look inside its
-attention heads, sample from it, quantize it, and fine-tune it, all with the
-real weights.
+An interactive course in nineteen chapters, in six parts. Each chapter starts
+from a question and a ten-second guess, gives you an experiment to play with in
+the browser, shows the few lines of code that implement the idea, and ends with
+one line to keep. One small GPT, trained from scratch with numpy, runs through
+the first twelve chapters: you watch it learn, look inside its attention heads,
+sample from it, quantize it, and fine-tune it, all with the real weights.
+Chapters 13 to 19 build what surrounds a model: structured output, tracing and
+evaluation, the harness, context and caching, security, hardware, and finally a
+complete tool-using agent that you train yourself in five minutes.
 
 By the end you can re-implement every piece of a minimal local AI system and
 you know what each component of a full-size one is doing.
@@ -194,6 +197,18 @@ and quote its measured numbers; after retraining, check them against yours.
   documents, but **they have not been run against a real Ollama, llama.cpp or
   LM Studio server**. If one behaves differently, the fix belongs in
   `code/llm.py`.
+
+## Look and lesson format
+
+The pages use the visual language of Painted Homer (ivory paper, ultramarine
+ink, a brush stroke under each heading, small quiet controls) and the lesson
+rules that go with it: mobile first, one idea per step, a guess before the
+reveal, a short self-check, and one line to keep. The guess and the line to
+keep for every chapter live in one table, `M.lesson` in `docs/assets/micro.js`.
+The score of your guesses is stored in your browser and nowhere else.
+
+Fonts: Bodoni Moda and Libre Franklin, both under the SIL Open Font License
+(`docs/assets/fonts/`), subset to Latin.
 
 ## Scope
 
