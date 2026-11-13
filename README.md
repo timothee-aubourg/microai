@@ -28,7 +28,7 @@ connection.
 
 On a phone, open the site and use the browser's "Add to Home Screen": it
 installs like an app. "Keep the whole course on this device", on the contents
-page, saves every chapter (about 3 MB) for reading without a network. Code
+page, saves every chapter (about 4 MB) for reading without a network. Code
 listings fold and have an outline view, and figures open to fill the screen.
 
 To publish it as a website with GitHub Pages: push this repository, then go to
