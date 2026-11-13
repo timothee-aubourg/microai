@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Where the weights live | microAI</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-ch="22">
+<main>
+  <p class="where">Chapter 22</p>
+  <h1>Where the weights live</h1>
+  <p class="question">A model writes as fast as memory delivers its weights. Which memory, and what happens when the model is too big for it?</p>
+
+  <p>Chapter 18 gave one rule for the speed of a large model: tokens per second is at most the memory's speed divided by the model's size. It treated memory as one thing. A real computer has several memories, and they differ a great deal in size and in speed. Three questions sort them out. How much does it hold? How fast does it deliver? And which processor can reach it?</p>
+  <p>This chapter follows the weights through each of those places: the small fast memory inside the processor, ordinary RAM, the memory on a graphics card, the single shared pool of recent laptops and small desktops, and the disk the file came from.</p>
+
+  <h2>A ladder of memories</h2>
+  <p>Start with something you can measure on any machine. Take a block of numbers and read all of it, again and again, and count the gigabytes read per second. Then make the block bigger. <code>code/ch22_memory.py</code> does this with blocks from 256 KB to 1 GB. This is what it printed on the computer that built this course.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Size of the block</th><th>Read per second, one core</th></tr>
+    <tr><td class="mono">256 KB</td><td class="mono">43.0 GB</td></tr>
+    <tr><td class="mono">1 MB</td><td class="mono">61.7 GB</td></tr>
+    <tr><td class="mono">4 MB</td><td class="mono">23.2 GB</td></tr>
+    <tr><td class="mono">16 MB</td><td class="mono">25.5 GB</td></tr>
+    <tr><td class="mono">64 MB</td><td class="mono">22.4 GB</td></tr>
+    <tr><td class="mono">256 MB</td><td class="mono">22.0 GB</td></tr>
+    <tr><td class="mono">1 GB</td><td class="mono">16.4 GB</td></tr>
+  </table></div>
+  <p>The same instruction, on the same processor, runs about 4 times faster on a small block than on a large one. Nothing changed in the arithmetic. What changed is where the block sits.</p>
+  <p>A processor keeps a little memory of its own, on the same chip, a few millimetres from where the arithmetic happens. This one has three layers of it, of 48 KB, 2 MB and 260 MB, each larger and slower than the one before. The steps in the table are those layers. Blocks up to 1 MB fit in the 2 MB layer. Blocks from 4 MB to 256 MB fit only in the 260 MB layer. The 1 GB block fits in none of them. It has to come from the RAM modules elsewhere on the board, and the processor has to wait for it.</p>
+
+  <div class="def"><span class="kind">Definitions</span>
+    <p>The <dfn>cache</dfn> of a processor is a small, very fast memory on the processor's own chip. It holds copies of the data used most recently. It is not the KV cache of chapter 8, which is something a program keeps.</p>
+    <p><dfn>RAM</dfn> is the main memory of the computer: large, slower than the cache, and emptied when the power goes off.</p>
+    <p><dfn>Memory bandwidth</dfn> is how many gigabytes per second a memory can deliver to the processor that reads it.</p>
+  </div>
+
+  <h3>By hand: where does our model sit?</h3>
+  <p>Our model has 345,504 weights of 4 bytes each: 345,504 &times; 4 = 1,382,016 bytes, about 1.4 MB. That fits in the 2 MB layer of this processor's cache. So memory is not what limits it, as chapter 18 found.</p>
+  <p>A model of 8 billion weights at 4.85 bits each takes 8 &times; 4.85 &divide; 8 = 4.85 GB. No cache holds that. Every token it writes, all 4.85 GB travel from RAM to the processor, at the speed of the bottom row of the table.</p>
+
+  <figure class="fig">
+    <svg viewBox="0 0 760 210" role="img" aria-labelledby="f22a">
+      <title id="f22a">Three places for data, from the processor outward: the cache on the processor's chip, small and fastest; RAM on the board, large and slower; the disk, largest and slowest, which keeps its contents without power.</title>
+      <defs><marker id="c22a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
+      <rect x="16" y="60" width="130" height="80" rx="8" class="bx-fwd"/><text x="81" y="96" text-anchor="middle" class="t-big">processor</text><text x="81" y="118" text-anchor="middle" class="t-small t-muted">does the arithmetic</text>
+      <line x1="150" y1="100" x2="196" y2="100" class="ln" marker-start="url(#c22a)"/>
+      <rect x="200" y="74" width="120" height="52" rx="8" class="bx-prob"/><text x="260" y="98" text-anchor="middle" class="t-big">cache</text><text x="260" y="116" text-anchor="middle" class="t-small t-muted">KB to MB</text>
+      <line x1="324" y1="100" x2="370" y2="100" class="ln" marker-start="url(#c22a)"/>
+      <rect x="374" y="52" width="150" height="96" rx="8" class="bx"/><text x="449" y="96" text-anchor="middle" class="t-big">RAM</text><text x="449" y="116" text-anchor="middle" class="t-small t-muted">GB</text>
+      <line x1="528" y1="100" x2="574" y2="100" class="ln-dash" marker-start="url(#c22a)"/>
+      <rect x="578" y="30" width="166" height="140" rx="8" class="bx-soft"/><text x="661" y="96" text-anchor="middle" class="t-big">disk</text><text x="661" y="116" text-anchor="middle" class="t-small t-muted">hundreds of GB</text>
+      <text x="260" y="190" text-anchor="middle" class="t-small">fastest</text><text x="449" y="190" text-anchor="middle" class="t-small">slower</text><text x="661" y="190" text-anchor="middle" class="t-small">slowest, keeps its contents</text>
+      <text x="81" y="40" text-anchor="middle" class="t-small t-muted">on one chip</text><line x1="16" y1="46" x2="320" y2="46" class="ln-dash"/>
+    </svg>
+    <figcaption><b>Each step outward is larger and slower.</b> A model's weights are read from the first place, counting from the left, that is big enough to hold them all.</figcaption>
+  </figure>
+
+  <h2>Two pools and a narrow door</h2>
+  <p>Chapter 18 showed why this arithmetic wants a graphics processor. A graphics card brings its own memory with it, soldered beside its processor and built for speed. A desktop computer with such a card therefore has two separate pools of memory, each next to its own processor.</p>
+  <div class="def"><span class="kind">Definitions</span>
+    <p><dfn>VRAM</dfn> is the memory on a graphics card. Only the graphics processor reads it directly. It is several times faster than RAM and, on cards sold to individuals, between 8 and 32 GB.</p>
+    <p>To <dfn>offload</dfn> layers is to place some of a model's layers on the graphics card and leave the rest in RAM, to be computed by the CPU.</p>
+  </div>
+  <p>The two pools are joined by a slot on the board. That link is the narrow door. By its specification it carries about 32 GB per second in the version common on current boards (16 lanes, each of 16 gigabits per second), against 1,008 GB per second inside a GeForce RTX 4090. So nobody fetches weights through it for every token. The weights cross it once, when the model is loaded. After that, each layer is computed by the processor that sits next to it, and only the small vector for the current token crosses from one side to the other.</p>
+
+  <figure class="fig">
+    <svg viewBox="0 0 760 250" role="img" aria-labelledby="f22b">
+      <title id="f22b">Left: a desktop with a graphics card. The CPU has RAM, the GPU has its own VRAM, and a narrow link joins the two sides. Right: unified memory. CPU and GPU sit on one chip and both read the same single pool.</title>
+      <text x="16" y="24" class="t-big">Two pools</text>
+      <rect x="16" y="40" width="150" height="50" rx="8" class="bx-fwd"/><text x="91" y="70" text-anchor="middle">CPU</text>
+      <rect x="16" y="110" width="150" height="100" rx="8" class="bx"/><text x="91" y="150" text-anchor="middle" class="t-big">RAM</text><text x="91" y="172" text-anchor="middle" class="t-small t-muted">large, about 90 GB/s</text>
+      <line x1="91" y1="90" x2="91" y2="110" class="ln-fwd"/>
+      <rect x="216" y="40" width="150" height="50" rx="8" class="bx-fwd"/><text x="291" y="70" text-anchor="middle">GPU</text>
+      <rect x="216" y="110" width="150" height="100" rx="8" class="bx-prob"/><text x="291" y="146" text-anchor="middle" class="t-big">VRAM</text><text x="291" y="168" text-anchor="middle" class="t-small t-muted">12 to 32 GB</text><text x="291" y="186" text-anchor="middle" class="t-small t-muted">670 to 1,790 GB/s</text>
+      <line x1="291" y1="90" x2="291" y2="110" class="ln-fwd"/>
+      <line x1="166" y1="65" x2="216" y2="65" class="ln-dash"/><text x="191" y="56" text-anchor="middle" class="t-small t-muted">link</text>
+      <text x="191" y="234" text-anchor="middle" class="t-small">a model larger than the VRAM is split between the two</text>
+      <line x1="396" y1="20" x2="396" y2="236" class="ln-dash"/>
+      <text x="426" y="24" class="t-big">One pool</text>
+      <rect x="426" y="40" width="318" height="50" rx="8" class="bx-soft"/>
+      <rect x="436" y="48" width="140" height="34" rx="6" class="bx-fwd"/><text x="506" y="70" text-anchor="middle">CPU</text>
+      <rect x="594" y="48" width="140" height="34" rx="6" class="bx-fwd"/><text x="664" y="70" text-anchor="middle">GPU</text>
+      <rect x="426" y="110" width="318" height="100" rx="8" class="bx-prob"/><text x="585" y="150" text-anchor="middle" class="t-big">unified memory</text><text x="585" y="172" text-anchor="middle" class="t-small t-muted">16 to 512 GB, 150 to 1,200 GB/s</text>
+      <line x1="506" y1="90" x2="506" y2="110" class="ln-fwd"/><line x1="664" y1="90" x2="664" y2="110" class="ln-fwd"/>
+      <text x="585" y="234" text-anchor="middle" class="t-small">both processors read the same weights, in place</text>
+    </svg>
+    <figcaption><b>Two ways to build a computer.</b> Left, the fast memory is small and belongs to the graphics card. Right, there is one memory for everything: not as fast, and much larger.</figcaption>
+  </figure>
+
+  <h3>By hand: a model that does not quite fit</h3>
+  <p>Take a model of 40 GB, a card with 24 GB of VRAM that delivers 1,008 GB per second, and desktop RAM that delivers 89.6 GB per second. The card takes 24 GB of layers. The other 16 GB stay in RAM.</p>
+  <p>For each token, every weight is read once, each from where it sits. So it is the times that add up.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Where</th><th>Weights there</th><th>Delivered at</th><th>Time per token</th></tr>
+    <tr><td>VRAM</td><td class="mono">24 GB</td><td class="mono">1,008 GB/s</td><td class="mono">24 &divide; 1,008 = 0.024 s</td></tr>
+    <tr><td>RAM</td><td class="mono">16 GB</td><td class="mono">89.6 GB/s</td><td class="mono">16 &divide; 89.6 = 0.179 s</td></tr>
+    <tr><td>Both</td><td class="mono">40 GB</td><td></td><td class="mono">0.202 s</td></tr>
+  </table></div>
+  <p>One token every 0.202 seconds is at most 4.9 tokens per second. The smaller part of the model, the part in RAM, takes more than seven times as long as the larger part on the card. With all 40 GB in RAM the ceiling would be 2.2. With a 24 GB model entirely on the card it would be 42.</p>
+  <div class="eq">tokens per second &le; 1 / (GB in the first memory / its speed + GB in the second / its speed + &hellip;)</div>
+
+  <section class="bench" id="w-fit">
+    <h3>Where does it go, and how fast is that?</h3>
+    <p class="try"><b>Try this.</b> Keep the GeForce RTX 4090 and move the model's size from 20 GB up through 24, 26 and 30 GB. Watch the ceiling as the first gigabytes spill into RAM. Then choose a machine with unified memory and repeat.</p>
+  </section>
+
+  <p><strong>What you should have seen.</strong> Up to 24 GB the ceiling falls gently, as chapter 18 predicts: 50 tokens per second at 20 GB, 42 at 24 GB. Then it drops off a ledge. At 26 GB it is 22, about half, although only 2 GB of the 26 are in RAM. Those 2 GB are read eleven times more slowly, and take about as long as the 24 GB on the card. On a machine with unified memory there is no ledge. The same slide gives a smooth curve that starts lower and keeps going, far past the sizes where the card had already given up.</p>
+
+  <h2>One pool</h2>
+  <p>The second way to build a computer puts the CPU and the graphics processor on one chip and gives them a single memory to share.</p>
+  <div class="def"><span class="kind">Definition</span>
+    <p><dfn>Unified memory</dfn> is one pool of memory that the CPU and the graphics processor both read directly. There is no separate VRAM, and nothing has to be copied from one side to the other.</p>
+  </div>
+  <p>Phones have always been built this way. Apple's computers have been since 2020, and several small desktops sold for running models locally now are too. These are the makers' published figures, with the ceiling of this chapter's 40 GB model worked out from them.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Machine</th><th>Memory a model can use</th><th>Bandwidth</th><th>40 GB model, at most</th></tr>
+    <tr><td>GeForce RTX 5090 (a card, for comparison)</td><td class="mono">32 GB</td><td class="mono">1,792 GB/s</td><td class="mono">does not fit</td></tr>
+    <tr><td>Apple M5 Pro</td><td class="mono">up to 64 GB</td><td class="mono">307 GB/s</td><td class="mono">7.7 tokens/s</td></tr>
+    <tr><td>Apple M5 Max</td><td class="mono">up to 128 GB</td><td class="mono">614 GB/s</td><td class="mono">15.3 tokens/s</td></tr>
+    <tr><td>Apple M5 Ultra</td><td class="mono">up to 512 GB</td><td class="mono">1,200 GB/s</td><td class="mono">30.0 tokens/s</td></tr>
+    <tr><td>AMD Ryzen AI Max+ 395</td><td class="mono">up to 96 of 128 GB</td><td class="mono">256 GB/s</td><td class="mono">6.4 tokens/s</td></tr>
+    <tr><td>NVIDIA DGX Spark</td><td class="mono">128 GB</td><td class="mono">273 GB/s</td><td class="mono">6.8 tokens/s</td></tr>
+  </table></div>
+  <p>Three things follow from the table.</p>
+  <ul>
+    <li><strong>Unified memory is slower than VRAM and much larger.</strong> A model that fits on a card runs faster on the card. A model that does not fit on any card you own runs on the unified machine, and that is the comparison that counts.</li>
+    <li><strong>The pool is shared with everything else.</strong> The operating system, the browser and the model all draw on it, so the whole of it is never free for weights. Makers set a limit: on the AMD machine above, up to 96 of the 128 GB can be assigned to the graphics processor.</li>
+    <li><strong>It is fixed at purchase.</strong> To reach those speeds the memory is soldered next to the chip. You cannot add more later, as you can with RAM modules or a second graphics card.</li>
+  </ul>
+  <p>This is also why chapter 20's experts matter so much on these machines. A mixture of experts needs a great deal of memory to hold and reads only a small part of it for each token. A large, moderately fast pool is exactly what that asks for.</p>
+
+  <h2>The context needs room too</h2>
+  <p>The weights are not the only thing that must fit. Chapter 8 introduced the KV cache: for every token in the window, every layer keeps one key and one value, so that earlier tokens need not be recomputed. It sits in the same fast memory as the weights, and it grows with the length of the conversation.</p>
+  <h3>By hand</h3>
+  <p>Our model has 3 layers, vectors of 96 numbers and a window of 64 tokens. Two vectors per token per layer:</p>
+  <div class="eq">2 &times; 3 layers &times; 96 numbers &times; 64 tokens = 36,864 numbers = 147,456 bytes</div>
+  <p>That is about a tenth of the 1.4 MB of weights. Now a full-size model. Llama 3.1 8B has 32 layers and keys of 1,024 numbers, stored on 2 bytes each.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Tokens in the window</th><th>KV cache</th><th>Weights at 4.85 bits</th></tr>
+    <tr><td class="mono">8,192</td><td class="mono">1.1 GB</td><td class="mono">4.85 GB</td></tr>
+    <tr><td class="mono">131,072</td><td class="mono">17.2 GB</td><td class="mono">4.85 GB</td></tr>
+  </table></div>
+  <p>With the window filled to the 131,072 tokens this model allows, the cache is three and a half times the size of the model. A long session with an agent (chapter 16) can run out of memory with a model that fitted easily at the start.</p>
+
+  <section class="bench" id="w-room">
+    <h3>Does it still fit with its context?</h3>
+    <p class="try"><b>Try this.</b> Take the 8-billion-weight model on a 12 GB card. It fits. Now lengthen the context step by step, and find the length at which it stops fitting. Then try the same on a machine with more memory.</p>
+  </section>
+
+  <p><strong>What you should have seen.</strong> At 8,192 tokens the model and its cache take 5.9 GB of the 12. The total passes 12 GB a little above 50,000 tokens. Nothing about the model changed. Only the conversation got longer. When that happens a runtime either refuses the request, or moves part of the model to RAM and falls off the ledge of the first experiment.</p>
+
+  <h2>Getting it into memory</h2>
+  <p>Before any of this, the file has to get from the disk into memory. There are two ways to open it, and <code>ch22_memory.py</code> times both on a file of 256 MB.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>How</th><th>Time before the first number can be used</th></tr>
+    <tr><td>Read the whole file into memory</td><td class="mono">115 ms</td></tr>
+    <tr><td>Map the file, then use its first 4 KB</td><td class="mono">1.16 ms</td></tr>
+  </table></div>
+  <div class="def"><span class="kind">Definition</span>
+    <p>To <dfn>map</dfn> a file is to ask the operating system to make it appear as memory without copying it. Each part is fetched from the disk the first time it is touched.</p>
+  </div>
+  <p>Runtimes such as llama.cpp map the model file. The program starts at once, two programs that use the same model share one copy, and if memory runs short the operating system can drop pages of the file and fetch them again later.</p>
+  <p>That last convenience is also a trap. If the model is larger than the free memory, the system keeps dropping and refetching pages, and every token then waits for the disk. A fast disk delivers a few gigabytes per second, a small fraction of what RAM does. The model still runs, at a token every few seconds, and nothing on the screen says why.</p>
+
+  <h2>Other places a model runs</h2>
+  <ul>
+    <li><strong>Several graphics cards.</strong> The layers are divided among the cards, and the vector for the current token is handed from one to the next. Their memories add up, so two 24 GB cards hold a 40 GB model. The speed is still that of one card's memory, because each weight is still read once per token.</li>
+    <li><strong>A phone.</strong> Unified memory, usually 8 to 16 GB shared with everything else, at well under 100 GB per second. Small models at a few bits per weight are what fit, which is the subject of chapter 23.</li>
+    <li><strong>A neural processing unit.</strong> Many recent laptops and phones carry a third processor built to run small networks at very low power. Whether a given runtime can use it for a language model depends on the runtime and on the model. Check before counting on it.</li>
+    <li><strong>A data-centre card.</strong> The same design as a desktop card with more memory, of a faster kind, and many of them wired together. The sums of this chapter are the same sums with larger numbers.</li>
+  </ul>
+
+  <h2>Build it</h2>
+  <pre class="code" data-src="ch22_memory.py#ladder">def read_speed(nbytes, seconds=0.25):
+    """Read a block of `nbytes` again and again. Returns gigabytes read per second."""
+    block = np.ones(nbytes // 4, dtype=np.float32)
+    np.dot(block, block)                              # once to warm up
+    reads, t0 = 0, time.perf_counter()
+    while time.perf_counter() - t0 &lt; seconds:
+        np.dot(block, block)                          # touches every number once
+        reads += 1
+    return reads * nbytes / (time.perf_counter() - t0) / 1e9
+
+def ladder(sizes):
+    return [(n, max(read_speed(n) for _ in range(3))) for n in sizes]</pre>
+  <p class="src">From <code>code/ch22_memory.py</code>. The ladder: read a block again and again and count the gigabytes.</p>
+  <pre class="code" data-src="ch22_memory.py#split">def ceiling(places):
+    """At most how many tokens per second, when the weights are spread over several memories?
+    places: (gigabytes that sit there, gigabytes per second it delivers), one pair per memory."""
+    seconds_per_token = sum(gb / speed for gb, speed in places)   # every weight is read once per token
+    return 1 / seconds_per_token</pre>
+  <p class="src">A model spread over several memories. Times add up.</p>
+  <pre class="code" data-src="ch22_memory.py#kv">def kv_cache_bytes(layers, width, context, bytes_per_number=2):
+    """Each layer keeps one key and one value (2 vectors of `width` numbers) for every token in the window."""
+    return 2 * layers * width * context * bytes_per_number</pre>
+  <p class="src">The size of the KV cache.</p>
+  <pre class="code" data-src="ch22_memory.py#map">def load_two_ways(nbytes):
+    """Write a file of `nbytes`, then open it twice: by reading it all, and by mapping it."""
+    with tempfile.NamedTemporaryFile(delete=False) as f:
+        f.write(np.ones(nbytes // 4, dtype=np.float32).tobytes())
+    t0 = time.perf_counter()
+    with open(f.name, 'rb') as g:
+        copy = g.read()                                   # every byte is copied into our memory now
+    t_read = time.perf_counter() - t0
+    t0 = time.perf_counter()
+    with open(f.name, 'rb') as g:
+        view = mmap.mmap(g.fileno(), 0, access=mmap.ACCESS_READ)   # nothing is copied: pages arrive when touched
+    t_map = time.perf_counter() - t0
+    t0 = time.perf_counter()
+    first = np.frombuffer(view, dtype=np.float32, count=1024).sum()   # use the first 4 KB
+    t_first = time.perf_counter() - t0
+    del first, copy
+    os.remove(f.name)
+    return t_read, t_map, t_first</pre>
+  <p class="src">Reading a file against mapping it.</p>
+  <pre class="code" data-lang="text">python code/ch22_memory.py      # measures your machine, then prints every sum of this chapter</pre>
+
+  <div class="note">
+    <h3>What this chapter glossed over</h3>
+    <p><strong>The ceilings are ceilings.</strong> As in chapter 18, real speeds are commonly half to three quarters of them. The published bandwidth of a unified memory is shared by the CPU and the graphics processor, and a model rarely gets all of it.</p>
+    <p><strong>The split is by layers.</strong> A runtime places whole layers on the card, so the share on the card moves in steps, and the KV cache of each layer goes with it. The experiment treats it as a smooth quantity.</p>
+    <p><strong>Keys are narrower than the model.</strong> The 1,024 numbers per key of Llama 3.1 are a quarter of that model's width of 4,096. Recent models share each key among a group of attention heads to make the cache smaller. A model without that trick needs four times the cache.</p>
+    <p><strong>The ladder was measured once, on one machine.</strong> It is a server processor with an unusually large cache. A laptop's ladder has the same shape with different numbers, and the script prints yours.</p>
+    <p><strong>The loading times do not include the disk.</strong> The file had just been written and was still held in memory by the operating system. The table times the copy that reading makes and mapping avoids.</p>
+    <p><strong>Left out.</strong> Memory spread over several processor sockets, the difference between the kinds of RAM chips, heat and power limits, and how servers with many cards are wired.</p>
+  </div>
+
+  <div class="recap">
+    <h3>In short</h3>
+    <ul>
+      <li>A computer has several memories. Each step away from the processor is larger and slower: <a class="term" href="glossary.html#cache-memory">cache</a>, RAM, disk. On the machine that built this course, a block that fits in the cache is read about 4 times faster than one that does not.</li>
+      <li>A graphics card has its own fast memory, <a class="term" href="glossary.html#vram">VRAM</a>. A model that fits there runs at its speed. A model that does not is <a class="term" href="glossary.html#offload">split</a>, and the times add up: 2 GB too many can halve the speed.</li>
+      <li><a class="term" href="glossary.html#unified-memory">Unified memory</a> is one pool for CPU and graphics processor: slower than VRAM, much larger, shared with the rest of the system, and fixed at purchase.</li>
+      <li>The KV cache needs room beside the weights and grows with the context: 17.2 GB for an 8-billion-weight model at 131,072 tokens.</li>
+      <li>Model files are <a class="term" href="glossary.html#memory-map">mapped</a>, not read. If the model is larger than free memory, every token waits for the disk.</li>
+    </ul>
+  </div>
+
+  <h2>Check yourself</h2>
+  <details class="check"><summary>A friend's 16 GB card runs a 14 GB model at 40 tokens per second. They load a 20 GB model and get 6. The card is the same. What happened?</summary><p>4 GB of the model did not fit and stayed in RAM, where the CPU computes those layers. Time per token is the sum over both memories, and RAM is around ten times slower per gigabyte, so the small part in RAM dominates.</p></details>
+  <details class="check"><summary>Why can a machine with 128 GB of unified memory at 273 GB per second be the better choice than a card with 32 GB at 1,792?</summary><p>For any model above 32 GB. The card cannot hold it, so part of it runs from RAM at RAM's speed. The unified machine holds all of it in one pool and reads all of it at 273 GB per second. For a model that fits in 32 GB, the card is several times faster.</p></details>
+  <details class="check"><summary>A model fits with 3 GB to spare. After an hour of work with an agent it slows to a crawl. Name a likely cause.</summary><p>The context grew, and the KV cache with it, until model and cache no longer fitted in the fast memory. Shortening the context (chapter 16) brings the speed back.</p></details>
+  <details class="check"><summary>Our own model runs at thousands of tokens per second on one CPU core. Which memory is it read from?</summary><p>The processor's cache. At 1.4 MB it fits there, so the weights never have to travel from RAM. That is the subject of the next chapter: a model small enough changes which rung of the ladder it lives on.</p></details>
+</main>
+
+<script src="assets/glossary.js"></script>
+<script src="assets/micro.js"></script>
+<script>
+M.ready(function () {
+  var RAM = 89.6;
+  // name, GB a model can use, GB per second, has its own RAM beside it
+  var HW = {
+    r5070: ['GeForce RTX 5070, 12 GB, with desktop RAM', 12, 672, true], r5080: ['GeForce RTX 5080, 16 GB, with desktop RAM', 16, 960, true],
+    r4090: ['GeForce RTX 4090, 24 GB, with desktop RAM', 24, 1008, true], r5090: ['GeForce RTX 5090, 32 GB, with desktop RAM', 32, 1792, true],
+    m5pro: ['Apple M5 Pro, 64 GB unified', 64, 307, false], m5max: ['Apple M5 Max, 128 GB unified', 128, 614, false], m5ultra: ['Apple M5 Ultra, 512 GB unified', 512, 1200, false],
+    amd: ['AMD Ryzen AI Max+ 395, 96 GB for the model', 96, 256, false], spark: ['NVIDIA DGX Spark, 128 GB unified', 128, 273, false]
+  };
+  function rate(v) { return v >= 10 ? v.toFixed(0) : v.toFixed(1); }
+  var bad = function (t) { return '<b style="color:' + M.css('--grad') + '">' + t + '</b>'; };
+
+  // ---------- widget 1: where does it go ----------
+  (function () {
+    var box = M.$('#w-fit'), hw = 'r4090';
+    var hS = M.select('Machine', Object.keys(HW).map(function (k) { return [k, HW[k][0]]; }), function (v) { hw = v; show(); });
+    hS.sel.value = hw;
+    var size = M.slider({ label: 'Size of the model', min: 2, max: 140, step: 1, value: 20, fmt: function (v) { return v + ' GB'; }, oninput: show });
+    var bars = M.el('div'), stat = M.el('p', { class: 'readout' });
+    function show() {
+      var h = HW[hw], s = size.value, fast = Math.min(s, h[1]), rest = s - fast, scale = Math.max(s, h[1]);
+      var items = [{ label: h[3] ? 'on the card' : 'in the pool', p: fast / scale, text: fast + ' GB', hl: true }];
+      if (h[3]) items.push({ label: 'in RAM', p: rest / scale, text: rest + ' GB', cut: rest === 0 });
+      items.push({ label: h[3] ? 'VRAM' : 'memory', p: h[1] / scale, text: h[1] + ' GB' });
+      M.bars(bars, items, 1);
+      if (!h[3] && rest > 0) { stat.innerHTML = bad('It does not fit in ' + h[1] + ' GB.') + ' There is no second memory to spill into. Lower the bits per weight (chapter 9) or choose a smaller model.'; return; }
+      var t = fast / h[2] + rest / RAM;
+      stat.innerHTML = 'Ceiling: <b>' + rate(1 / t) + ' tokens per second</b>. ' +
+        (rest > 0 ? 'The ' + fast + ' GB on the card take ' + (1000 * fast / h[2]).toFixed(0) + ' ms per token. ' + bad('The ' + rest + ' GB in RAM take ' + (1000 * rest / RAM).toFixed(0) + ' ms.')
+                  : 'All of it is in the fast memory: ' + (1000 * t).toFixed(0) + ' ms per token.');
+    }
+    box.appendChild(M.row(hS)); box.appendChild(M.row(size)); box.appendChild(bars); box.appendChild(stat);
+    box.appendChild(M.el('p', { class: 'caption', text: 'Ceiling = 1 ÷ (GB on the card ÷ its bandwidth + GB in RAM ÷ 89.6), for one stream of text. Bandwidths are the makers\' figures. Desktop RAM is DDR5-5600 on two channels. The KV cache is left out here; the next experiment adds it.' }));
+    show();
+  })();
+
+  // ---------- widget 2: weights plus context ----------
+  (function () {
+    var box = M.$('#w-room'), model = 'm8', hw = 'r5070';
+    var MODELS = { m8: ['8 billion weights (32 layers, keys of 1,024)', 8, 32, 1024], m70: ['70 billion weights (80 layers, keys of 1,024)', 70, 80, 1024] };
+    var mS = M.select('Model', Object.keys(MODELS).map(function (k) { return [k, MODELS[k][0]]; }), function (v) { model = v; show(); });
+    var hS = M.select('Machine', Object.keys(HW).map(function (k) { return [k, HW[k][0].replace(', with desktop RAM', '')]; }), function (v) { hw = v; show(); });
+    mS.sel.value = model; hS.sel.value = hw;
+    var bits = M.slider({ label: 'Bits per weight', min: 2, max: 16, step: 0.05, value: 4.85, fmt: function (v) { return v.toFixed(2); }, oninput: show });
+    var ctx = M.slider({ label: 'Tokens of context', min: 11, max: 17, step: 0.25, value: 13, fmt: function (v) { return Math.round(Math.pow(2, v)).toLocaleString('en-US'); }, oninput: show });
+    var bars = M.el('div'), stat = M.el('p', { class: 'readout' });
+    function show() {
+      var m = MODELS[model], h = HW[hw], T = Math.round(Math.pow(2, ctx.value));
+      var weights = m[1] * bits.value / 8, kv = 2 * m[2] * m[3] * T * 2 / 1e9, total = weights + kv, scale = Math.max(total, h[1]), fits = total <= h[1];
+      M.bars(bars, [{ label: 'weights', p: weights / scale, text: weights.toFixed(1) + ' GB', hl: true }, { label: 'KV cache', p: kv / scale, text: kv.toFixed(1) + ' GB', hl: true },
+        { label: 'together', p: total / scale, text: total.toFixed(1) + ' GB', cut: !fits }, { label: 'memory', p: h[1] / scale, text: h[1] + ' GB' }], 1);
+      stat.innerHTML = fits ? 'Weights and context take <b>' + total.toFixed(1) + ' GB</b> of ' + h[1] + '. It fits, with ' + (h[1] - total).toFixed(1) + ' GB to spare.'
+                            : bad('Weights and context take ' + total.toFixed(1) + ' GB. That does not fit in ' + h[1] + ' GB.') + ' Shorten the context, lower the bits, or accept the ledge of the first experiment.';
+    }
+    box.appendChild(M.row(mS)); box.appendChild(M.row(hS)); box.appendChild(M.row(bits)); box.appendChild(M.row(ctx)); box.appendChild(bars); box.appendChild(stat);
+    box.appendChild(M.el('p', { class: 'caption', text: 'KV cache = 2 × layers × numbers per key × tokens × 2 bytes. The shapes are those of Llama 3.1 8B and 70B. What the operating system and other programs need is left out.' }));
+    show();
+  })();
+});
+</script>
+</body>
+</html>

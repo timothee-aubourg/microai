@@ -27,6 +27,8 @@
     ['19-system.html', 'Build the whole thing', 'whole'],
     ['20-experts.html', 'Many experts, few at work', 'experts'],
     ['21-thinking.html', 'Room to think', 'think'],
+    ['22-memory.html', 'Where the weights live', 'memory'],
+    ['23-small.html', 'As small as it goes', 'small'],
   ];
 
   // ---------- DOM helpers ----------
@@ -295,9 +297,9 @@
       }
       const att = matmul(mixed, T, d, w[p + 'attn.wo'], d);
       for (let i = 0; i < T * d; i++) x[i] += att[i];
-      const hid = matmul(layernorm(x, T, d, w[p + 'ln2.g'], w[p + 'ln2.b']), T, d, w[p + 'mlp.w1'], 4 * d);
+      const hid = matmul(layernorm(x, T, d, w[p + 'ln2.g'], w[p + 'ln2.b']), T, d, w[p + 'mlp.w1'], w[p + 'mlp.w1'].length / d);
       for (let i = 0; i < hid.length; i++) { const u = hid[i]; hid[i] = 0.5 * u * (1 + Math.tanh(0.7978845608028654 * (u + 0.044715 * u * u * u))); }
-      const mo = matmul(hid, T, 4 * d, w[p + 'mlp.w2'], d);
+      const mo = matmul(hid, T, w[p + 'mlp.w1'].length / d, w[p + 'mlp.w2'], d);
       for (let i = 0; i < T * d; i++) x[i] += mo[i];
       if (tr) { tr.attn.push(maps); tr.resid.push(x.slice()); }
     }
@@ -389,9 +391,9 @@
         }
         const att = matmul(mixed, 1, d, w[p + 'attn.wo'], d);
         for (let i = 0; i < d; i++) x[i] += att[i];
-        const hid = matmul(layernorm(x, 1, d, w[p + 'ln2.g'], w[p + 'ln2.b']), 1, d, w[p + 'mlp.w1'], 4 * d);
+        const hid = matmul(layernorm(x, 1, d, w[p + 'ln2.g'], w[p + 'ln2.b']), 1, d, w[p + 'mlp.w1'], w[p + 'mlp.w1'].length / d);
         for (let i = 0; i < hid.length; i++) { const u = hid[i]; hid[i] = 0.5 * u * (1 + Math.tanh(0.7978845608028654 * (u + 0.044715 * u * u * u))); }
-        const mo = matmul(hid, 1, 4 * d, w[p + 'mlp.w2'], d);
+        const mo = matmul(hid, 1, w[p + 'mlp.w1'].length / d, w[p + 'mlp.w2'], d);
         for (let i = 0; i < d; i++) x[i] += mo[i];
       }
       pos++;
@@ -525,7 +527,7 @@
     ['Part one', 'the model', 1, '#5f9b3a'], ['Part two', 'making it work', 7, '#2f8f8a'],
     ['Part three', 'the system on your machine', 10, '#a98cf0'], ['Part four', 'making it dependable', 13, '#c4543a'],
     ['Part five', 'the harness', 15, '#8c8a2e'], ['Part six', 'the whole machine', 18, '#8e4a9e'],
-    ['Part seven', 'at full size', 20, '#4a9a6a']
+    ['Part seven', 'at full size', 20, '#4a9a6a'], ['Part eight', 'fitting the machine', 22, '#7d5b4a']
   ];
   M.partOf = (ch) => { let k = 0; M.parts.forEach((p, i) => { if (ch >= p[2]) k = i; }); return k; };
   M.partIcon = function (k) {
@@ -620,7 +622,13 @@
           keep: 'A mixture of experts owns many weights and uses few per token: memory is paid for all of them, time only for the ones at work.' },
     21: { q: 'Two identical small models learn to say whether a row of twelve bits holds an odd number of 1s. One answers at once, the other writes a running count first. On rows neither has seen?', o: ['Both score about the same.', 'The one that answers at once is right more often.', 'The one that writes first is right every time; the other does no better than a fixed answer.'], a: 2,
           why: 'Each written mark is one more pass through the model and one small step. The answer is the last mark.',
-          keep: 'A model thinks by writing. Each token it writes is more work done and a result it can read back.' }
+          keep: 'A model thinks by writing. Each token it writes is more work done and a result it can read back.' },
+    22: { q: 'A 24 GB model fits on a graphics card with 24 GB of memory. A 26 GB model does not quite. How fast is the second, compared with the first?', o: ['About 8% slower.', 'About half as fast.', 'It cannot run at all.'], a: 1,
+          why: 'The 2 GB left in ordinary RAM are read eleven times more slowly, and take about as long as the 24 GB on the card.',
+          keep: 'A model runs at the speed of the slowest memory it touches. First check that all of it, with its context, fits in the fast one.' },
+    23: { q: 'The agent of chapter 19 answers 3,000 of 3,000 test questions. Round each of its trained weights to the nearest of three values (-1, 0, +1) and ask again. How many does it get?', o: ['About 2,900.', 'About 1,500.', 'None.'], a: 2,
+          why: 'Weights trained at full precision do not survive that rounding. A model trained with three-valued weights from the start does: 3,000 of 3,000, in a file 21 times smaller.',
+          keep: 'Rounding a finished model has a floor. Below it, the model has to be trained with the rounding in place.' }
   };
   function guesses(set) {
     let s = {};

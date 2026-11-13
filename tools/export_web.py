@@ -9,7 +9,8 @@ browser tests). Run after code/train.py and code/ch12_lora.py.
 Optional inputs, each copied to docs/assets/ when present: runs/evals.json
 (ch14_eval.py --save), runs/harness.json (ch15_harness.py --mock --save),
 runs/guard.json (ch17_guard.py --save), runs/agent.npz (ch19_system.py --train),
-runs/moe.json (ch20_moe.py --train) and runs/think_*.npz (ch21_think.py --train).
+runs/moe.json (ch20_moe.py --train), runs/think_*.npz (ch21_think.py --train),
+and runs/tiny.bin (ch23_tiny.py --train).
 """
 import base64, json, os, sys
 import numpy as np
@@ -132,6 +133,12 @@ think = {name: os.path.join(ROOT, 'runs', f'think_{name}.npz') for name in ('dir
 if all(os.path.exists(p) for p in think.values()):
     with open(os.path.join(ROOT, 'docs', 'assets', 'think.js'), 'w') as f:
         f.write('window.MICRO_THINK = ' + json.dumps({name: pack(p) for name, p in think.items()}) + ';\n')
+
+# ---- the packed model of chapter 23: the file itself, byte for byte ----
+tiny = os.path.join(ROOT, 'runs', 'tiny.bin')
+if os.path.exists(tiny):
+    with open(os.path.join(ROOT, 'docs', 'assets', 'tiny.js'), 'w') as f:
+        f.write('window.MICRO_TINY = ' + json.dumps({'b64': base64.b64encode(open(tiny, 'rb').read()).decode()}) + ';\n')
 
 print(f'weights.js {os.path.getsize(os.path.join(ROOT, "docs/assets/weights.js")) / 1024:.0f} KB, '
       f'data.js {os.path.getsize(os.path.join(ROOT, "docs/assets/data.js")) / 1024:.0f} KB, '
