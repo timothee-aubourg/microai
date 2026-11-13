@@ -131,9 +131,10 @@ def live(model):
 ROLE = [['C ', 'A ']]
 
 # [snippet:episode]
-def episode(run, question, rng, temperature=1.0):
+def episode(run, question, rng, temperature=1.0, lean=0.0):
     """The model answers one question, drawing each character from its own probabilities.
-    Returns the whole text and, for each character, whether the model chose it."""
+    Returns the whole text and, for each character, whether the model chose it.
+    `lean` is added to the score of "C" when the model chooses who speaks next (chapter 25)."""
     cache, text, mine = run.new_cache(), '\nU ' + question + '\n', []
     for c in text:
         logits = run.step(run.stoi[c], cache)
@@ -150,6 +151,8 @@ def episode(run, question, rng, temperature=1.0):
                 mask = np.full(run.vocab, -np.inf)
                 mask[[run.stoi[c] for c in legal]] = 0
                 z = logits + mask
+                if fmt is ROLE:
+                    z[run.stoi['C']] += lean
             c = run.chars[sample_next(z, temperature=temperature, rng=rng)]
             if fmt:
                 state = legal[c]
