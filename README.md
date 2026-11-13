@@ -136,7 +136,6 @@ python code/ch22_memory.py             # cache, RAM, split models, unified memor
 python code/ch23_tiny.py --train       # ~7 min: the chapter 19 agent with three-valued weights
 python code/ch23_tiny.py               # grade it on all 3,000 held-out questions
 python code/tiny_agent.py "what is 23 times 45?"   # run it with the standard library only
-python code/ch23_signs.py              # the Shakespeare model with its weights replaced by signs
 ```
 
 Chapter 24 shapes a model's behaviour after pre-training:
@@ -179,7 +178,6 @@ code/
   ch22_memory.py            where weights live: cache ladder, split models, KV cache size, mapping
   ch23_tiny.py              three-valued weights trained in place, packed five to a byte, graded
   tiny_agent.py             the packed model and its tool loop with no numpy (ch 23)
-  ch23_signs.py             the chapter 7 language model with sign weights: taken afterwards, and trained in
   ch24_posttrain.py         pre-training, supervised fine-tuning and reinforcement from a grader
   mock_server.py            fake model server for testing without a model
 data/
@@ -220,7 +218,6 @@ python code/ch20_moe.py                  # optional: retrain and re-measure chap
 python code/ch21_think.py --train        # optional: retrain the two models of chapter 21
 python code/ch22_memory.py --save        # optional: re-measure the machine for chapter 22
 python code/ch23_tiny.py --train         # optional: retrain the packed model of chapter 23
-python code/ch23_signs.py --train        # optional: retrain the sign language models of chapter 23
 python code/ch24_posttrain.py --train    # optional: rerun the three training stages of chapter 24
 python tools/export_web.py    # weights and logs -> docs/assets
 python tools/build_site.py    # code snippets -> docs/*.html
@@ -270,10 +267,6 @@ own runs; after retraining or re-measuring those, update the tables in the pages
   `tiny_agent.py`, which uses no numpy, and the page was checked to give the
   same answers in a browser. Every row of the chapter's tables is one training
   run with one seed.
-- `ch23_signs.py` trains the chapter 7 language model with sign weights on the
-  same batches and schedule as `train.py`, and measures every variant on the
-  same 12,800 held-out characters. The sign-trained model is worse than the
-  ordinary one (loss 1.898 against 1.569), and the chapter says so.
 - `ch24_posttrain.py` counts behaviours over 300 sampled answers per model,
   on number pairs kept out of all three stages. Each stage was run once. The
   figures about full-size training in chapter 24 are from the published papers
