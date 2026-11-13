@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Staying inside the lines | microAI</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-ch="13">
+<main>
+  <p class="where">Chapter 13</p>
+  <h1>Staying inside the lines</h1>
+  <p class="question">The agent of chapter 11 stalls when the model writes a tool call your program cannot read. Can you make that impossible instead of unlikely?</p>
+
+  <p>In chapter 11 the model asked for a tool by writing text: a name and some arguments, in a fixed layout. Your program parsed that text. One missing bracket or one invented tool name, and there is nothing to run. The loop there sent the error back to the model and hoped for a better second try.</p>
+  <p>You can raise the odds by asking. "Answer only in this format" in the prompt helps a great deal. But a program is a stricter reader than a person. A format that comes out right 99 times in 100 fails once every hundred calls, and an agent makes many calls per task.</p>
+  <p>The better fix sits in a place you already own. Chapter 8 showed that the model only produces scores, and that small functions reshape those scores before the dice are rolled. Temperature and top-k reshape them by <em>size</em>. One more function can reshape them by <em>legality</em>: it knows the format, it knows how far along the text is, and it gives every character that would break the format a score of minus infinity. After the softmax, minus infinity is a probability of exactly zero. This is <strong>constrained decoding</strong>, and the result is called <strong>structured output</strong>.</p>
+
+  <section class="bench" id="w-mask">
+    <h3>The same model, with and without the mask</h3>
+    <p class="try"><b>Try this.</b> Write a few times without the mask and see where the text leaves the format. Then write with the mask. Use "One character" to watch the mask at each step: greyed rows are characters the model wanted and the format refused.</p>
+  </section>
+
+  <h2>A format is a small machine</h2>
+  <p>The mask needs one thing: at every step, the list of characters that may come next. Here a format is a list of parts, read left to right. A part is either "between this many and that many characters from this set" or "exactly one word from this list". The first format in the experiment reads: two to twelve capitals, a colon, a line break, one capital, eight to forty lowercase letters, spaces, commas or apostrophes, one closing mark, a line break.</p>
+  <p>The machine's whole memory is two things: which part it is in, and what has been written of that part. From there it can answer the only question the sampler asks. If the current part can still grow, its characters are allowed. If it has reached its minimum, the first characters of the next part are allowed too. When the last part is complete nothing is allowed, and the loop stops. The model gets no vote on stopping.</p>
+  <p>The model itself never learns that a format exists. It sees the characters written so far, as always, and proposes what it likes. The mask deletes the proposals that do not fit.</p>
+
+  <h2>What the mask costs</h2>
+  <p>Measured with <code>code/ch13_constrain.py</code>, 200 samples per row, each starting from a blank line at temperature 0.8:</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Format</th><th>Right shape, no mask</th><th>Right shape, mask</th><th>Belief removed per character</th></tr>
+    <tr><td>Speaker, one sentence</td><td class="mono">10.0%</td><td class="mono">100%</td><td class="mono">4.7%</td></tr>
+    <tr><td>Speaker from a list</td><td class="mono">2.5%</td><td class="mono">100%</td><td class="mono">8.4%</td></tr>
+    <tr><td>A line in capitals</td><td class="mono">0.0%</td><td class="mono">100%</td><td class="mono">26.2%</td></tr>
+  </table></div>
+  <p>The middle columns are the point of the chapter. The mask column is 100% by construction, not by luck: the script asserts it.</p>
+  <p>The last column is the price. At each step the model spreads its belief over 65 characters, and the mask deletes the share that sits on illegal ones. For the first format that share averages under 5%. The model was going to write something close to this anyway, and the mask only catches the occasional slip. For the line in capitals it is 26%. The model almost never writes that way, so the mask overrules it again and again, and what comes out is legal and poor. Try it above.</p>
+  <p>So the mask does not replace the prompt. Describe the format to the model as well, so that it is already trying to produce it. Then the mask is a safety net that is rarely touched, not a hand forcing every character.</p>
+
+  <h2>Allowed is not the same as likely</h2>
+  <p>The second format restricts the speaker to four names. Three appear in the training text. The fourth, HAMLET, never does. Here is how often the model writes each name on its own, and how often it writes it under the mask:</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Speaker</th><th>Model alone</th><th>Under the mask</th></tr>
+    <tr><td class="mono">ROMEO</td><td class="mono">2.18%</td><td class="mono">27.0%</td></tr>
+    <tr><td class="mono">JULIET</td><td class="mono">2.24%</td><td class="mono">17.3%</td></tr>
+    <tr><td class="mono">MERCUTIO</td><td class="mono">0.17%</td><td class="mono">41.1%</td></tr>
+    <tr><td class="mono">HAMLET</td><td class="mono">under 0.001%</td><td class="mono">14.5%</td></tr>
+  </table></div>
+  <p>Left alone, the model prefers ROMEO and JULIET to MERCUTIO by about thirteen to one. Under the mask MERCUTIO wins. The reason is that the mask works one character at a time. At the first character it keeps R, J, M and H and rescales. Many speakers in the plays begin with M, so M is a likely first letter. Once M is drawn, the list allows only E, then R, and the rest of the name is forced. The model was betting on other names beginning with M and got MERCUTIO. HAMLET rides in on the letter H the same way.</p>
+  <p>The mask guarantees the shape. It does not promise that, among the legal outputs, you get the one the model thought best. For a choice among a few whole answers, the faithful method is to compare the probability of each whole answer, which is the "model alone" column rescaled to add up to 100%.</p>
+
+  <section class="bench" id="w-count">
+    <h3>How often is the shape right?</h3>
+    <p class="try"><b>Try this.</b> Run it at temperature 0.8, then at 0.3 and at 1.5. One row moves with the temperature. The other cannot.</p>
+  </section>
+
+  <h2>On a real model</h2>
+  <p>Three things change at full size, and the idea does not.</p>
+  <p><strong>Tokens, not characters.</strong> A real model draws tokens of several characters (chapter 2). A token is legal if its characters, taken one after another, are all legal moves. The runtime tests every token in the vocabulary against the machine at each step, with a good deal of precomputation to keep that fast.</p>
+  <p><strong>Richer formats.</strong> The format you will want most is JSON: the layout of tool calls and of most data passed between programs. JSON nests, an object inside an object, so its machine needs a stack to remember how deep it is. Such a machine is described by a <strong>grammar</strong>. Runtimes build the grammar for you from a JSON Schema, the same kind of description you gave for tool arguments in chapter 11.</p>
+  <p><strong>The stop.</strong> A real model ends its turn with a special token. The grammar allows that token only when the format is complete.</p>
+  <p>The client of chapter 10 passes extra options straight to the server, so asking for structured output is one more argument:</p>
+  <pre class="code">from llm import chat
+
+schema = {'type': 'object',
+          'properties': {'city': {'type': 'string'}, 'year': {'type': 'integer'}},
+          'required': ['city', 'year']}
+reply = chat([{'role': 'user', 'content': 'Where and when was the first modern Olympics? Reply in JSON.'}],
+             response_format={'type': 'json_schema', 'json_schema': {'name': 'answer', 'schema': schema}})
+print(reply['content'])        # text that always parses, with exactly these two fields</pre>
+  <p class="src">The <code>response_format</code> field as documented for the OpenAI-compatible endpoints of Ollama and llama.cpp's <code>llama-server</code>.</p>
+
+  <h2>Build it</h2>
+  <pre class="code" data-src="ch13_constrain.py#moves">def moves(fmt, state):
+    """Which characters may come next, and which state does each one lead to?
+    An empty answer means the format is complete."""
+    i, s = state
+    out = {}
+    while i &lt; len(fmt):
+        part = fmt[i]
+        if isinstance(part, list):                        # one word from a list
+            for w in part:
+                if w.startswith(s) and len(w) &gt; len(s):
+                    out.setdefault(w[len(s)], (i, s + w[len(s)]))
+            may_end = s in part
+        else:                                             # min..max characters from a set
+            chars, lo, hi = part
+            if len(s) &lt; hi:
+                for c in chars:
+                    out.setdefault(c, (i, s + c))
+            may_end = len(s) &gt;= lo
+        if not may_end:
+            break                                         # this part is not finished yet
+        i, s = i + 1, ''                                  # it may be over: the next part may begin
+    return out</pre>
+  <p class="src">From <code>code/ch13_constrain.py</code>. The format as a machine: where am I, what may come next.</p>
+  <pre class="code" data-src="ch13_constrain.py#constrain">def generate_constrained(run, prompt, fmt, **sampling):
+    cache = run.new_cache()
+    for c in prompt:
+        logits = run.step(run.stoi[c], cache)
+    state, text, removed = START, '', []
+    while True:
+        legal = moves(fmt, state)                         # ask the format, not the model
+        if not legal:
+            return text, removed                          # format complete: stop
+        mask = np.full(run.vocab, -np.inf)
+        mask[[run.stoi[c] for c in legal]] = 0            # 0 for allowed, -inf for everything else
+        p = np.exp(logits - logits.max()); p /= p.sum()
+        removed.append(1 - p[mask == 0].sum())            # how much of the model's belief the mask deleted
+        nxt = run.chars[sample_next(logits + mask, **sampling)]   # the dice of chapter 8, on masked scores
+        state, text = legal[nxt], text + nxt
+        logits = run.step(run.stoi[nxt], cache)</pre>
+  <p class="src">The generation loop of chapter 8 with one addition: the mask is added to the scores before the draw.</p>
+  <pre class="code" data-src="ch13_constrain.py#follows">def follows(fmt, text):
+    """Does `text` start with something in the format? Returns (characters read, completed)."""
+    state = START
+    for n, c in enumerate(text):
+        legal = moves(fmt, state)
+        if not legal:
+            return n, True                                # completed; the rest is ignored
+        if c not in legal:
+            return n, False                               # broke the format at character n
+        state = legal[c]
+    return len(text), not moves(fmt, state)</pre>
+  <p class="src">The same machine used as a checker, for text written without the mask.</p>
+
+  <div class="note">
+    <h3>What this chapter glossed over</h3>
+    <p><strong>Shape is not truth.</strong> The mask guarantees that a field holds a number. It cannot make it the right number. Check values in your own code, as you would with any input from outside.</p>
+    <p><strong>A cut-off answer is still broken.</strong> If generation hits its length limit halfway through the format, you receive half of it. Leave room, and check why the model stopped.</p>
+    <p><strong>Our format language is tiny.</strong> It has no nesting and no repetition of groups, and it requires that a part which may end shares no character with the part after it, so that one state is enough. Real grammars lift these limits with more bookkeeping and the same mask.</p>
+    <p><strong>Runtimes support a subset.</strong> JSON Schema is large, and each runtime handles part of it. Keywords it does not know may be ignored without an error. Keep schemas simple.</p>
+    <p><strong>How this was tested.</strong> The masked sampler runs on the model of this course, in Python and in your browser, and the numbers above come from it. The <code>response_format</code> snippet follows the published documentation of Ollama and llama.cpp and has not been run against a real server.</p>
+  </div>
+
+  <h2>Check yourself</h2>
+  <details class="check"><summary>You raise the temperature to 2 with the mask on. Can the format break?</summary><p>No. Temperature divides the scores, and minus infinity divided by anything is still minus infinity. The illegal characters keep a probability of zero at any temperature. What changes is which legal character is drawn.</p></details>
+  <details class="check"><summary>Why can this course's model not be constrained to write JSON?</summary><p>Its vocabulary is the 65 characters of the Shakespeare text, and those include no brace, bracket or double quote. A mask can only remove options. It cannot offer a token the model does not have.</p></details>
+  <details class="check"><summary>On one task the mask removes 0.1% of the model's belief per step. On another it removes 60%. What does each number tell you?</summary><p>In the first, the model was already writing the format and the mask is insurance. In the second, the mask is overruling the model most of the time. The output will have the right shape and probably poor content. Fix the prompt, or pick a format closer to what the model writes naturally.</p></details>
+  <details class="check"><summary>You constrain the agent's tool name to the list of real tools and its arguments to each tool's schema. Which failures from chapter 11 disappear, and which remain?</summary><p>Gone: a tool that does not exist, and arguments that do not parse. Remaining: choosing the wrong tool, and passing well-formed arguments with the wrong values. Those are mistakes of judgment, and the next chapter is about finding them.</p></details>
+</main>
+
+<script src="assets/weights.js"></script>
+<script src="assets/micro.js"></script>
+<script>
+M.ready(function () {
+  // ---------- the format machine, as in code/ch13_constrain.py ----------
+  var UP = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', LOW = 'abcdefghijklmnopqrstuvwxyz';
+  var SENT = [[UP, 1, 1], [LOW + " ,'", 8, 40], ['.!?', 1, 1], ['\n', 1, 1]];
+  var HEAD = [[':', 1, 1], ['\n', 1, 1]];
+  var FORMATS = {
+    line: [[UP, 2, 12]].concat(HEAD, SENT),
+    cast: [{ words: ['ROMEO', 'JULIET', 'MERCUTIO', 'HAMLET'] }].concat(HEAD, SENT),
+    shout: [[UP, 2, 12]].concat(HEAD, [[UP + ' ', 12, 40], ['!', 1, 1], ['\n', 1, 1]])
+  };
+  var NAMES = [['line', 'Speaker, one sentence'], ['cast', 'Speaker from a list of four'], ['shout', 'A line in capitals']];
+  var PROMPT = '\n\n', START = [0, ''];
+  function moves(fmt, st) {
+    var i = st[0], s = st[1], out = {}, mayEnd;
+    while (i < fmt.length) {
+      var part = fmt[i];
+      if (part.words) {
+        part.words.forEach(function (w) { if (w.indexOf(s) === 0 && w.length > s.length && !(w[s.length] in out)) out[w[s.length]] = [i, s + w[s.length]]; });
+        mayEnd = part.words.indexOf(s) >= 0;
+      } else {
+        if (s.length < part[2]) for (var k = 0; k < part[0].length; k++) if (!(part[0][k] in out)) out[part[0][k]] = [i, s + part[0][k]];
+        mayEnd = s.length >= part[1];
+      }
+      if (!mayEnd) break;
+      i++; s = '';
+    }
+    return out;
+  }
+  function longest(fmt) { return fmt.reduce(function (a, p) { return a + (p.words ? Math.max.apply(null, p.words.map(function (w) { return w.length; })) : p[2]); }, 0); }
+  /* one draw. Returns the scores' view of this step and the chosen character. */
+  function draw(m, wr, legal, temperature, rnd, useMask) {
+    var z = wr.logits(), raw = M.softmax(z), n = z.length, zz = new Float64Array(n), kept = 0;
+    for (var i = 0; i < n; i++) { var ok = m.chars[i] in legal; if (ok) kept += raw[i]; zz[i] = ok || !useMask ? z[i] : -Infinity; }
+    var p = M.shape(zz, { temperature: temperature });
+    return { raw: raw, p: p, removed: 1 - kept, id: M.pick(p, rnd) };
+  }
+
+  var m = M.loadModel();
+
+  // ---------- widget 1: write with and without the mask ----------
+  (function () {
+    var box = M.$('#w-mask');
+    if (!m) { box.appendChild(M.el('p', { text: 'The model weights did not load, so this experiment is unavailable.' })); return; }
+    var fmt = FORMATS.line, rnd = M.rng(5), timer = 0, wr, state, cells, done, masked;
+    var temp = M.slider({ label: 'Temperature', min: 0, max: 1.5, step: 0.05, value: 0.8, fmt: function (v) { return v.toFixed(2); } });
+    var sel = M.select('Format', NAMES, function (v) { fmt = FORMATS[v]; clear(); });
+    var out = M.el('div', { class: 'out', 'aria-live': 'polite' }), stat = M.el('p', { class: 'readout' }), bars = M.el('div'), cap = M.el('p', { class: 'caption' });
+    function reset(useMask) { clearInterval(timer); wr = M.writer(m, PROMPT); state = START; cells = []; done = false; masked = useMask; }
+    function render() {
+      out.textContent = '';
+      cells.forEach(function (c) {
+        var s = M.el('span', { text: c.ch });
+        if (c.bad) s.setAttribute('style', 'background:' + M.css('--grad') + ';color:#fff;border-radius:3px;padding:0 2px');
+        else if (masked) s.setAttribute('style', 'background:' + M.heat(c.removed, '--prob-fill'));
+        out.appendChild(s);
+        if (c.bad && c.ch === '\n') s.textContent = '⏎\n';
+      });
+    }
+    function showDice(d, legal, chosen) {
+      var allowed = [], refused = [];
+      M.order(d.raw).forEach(function (i) { (m.chars[i] in legal ? allowed : refused).push(i); });
+      var shown = function (i) { return masked ? d.p[i] : d.raw[i]; };
+      allowed = allowed.sort(function (x, y) { return shown(y) - shown(x); }).filter(function (i, k) { return k < 6 && (k < 2 || shown(i) >= 0.0005 || i === chosen); });
+      refused = refused.filter(function (i, k) { return k < 5 && (d.raw[i] >= 0.001 || i === chosen); });
+      var rows = allowed.map(function (i) { return { label: M.show(m.chars[i]), p: masked ? d.p[i] : d.raw[i], hl: i === chosen, text: (100 * (masked ? d.p[i] : d.raw[i])).toFixed(1) + '%' }; });
+      refused.forEach(function (i) { rows.push({ label: M.show(m.chars[i]), p: d.raw[i], cut: i !== chosen, hl: i === chosen, text: (masked ? 'refused, was ' : 'outside the format, ') + (100 * d.raw[i]).toFixed(1) + '%' }); });
+      M.bars(bars, rows, 1);
+    }
+    function step() {                 // returns false when finished
+      var legal = moves(fmt, state);
+      if (!Object.keys(legal).length) { done = true; stat.innerHTML = '<b>Complete.</b> The format has nothing left to allow, so the loop stops.'; return false; }
+      var d = draw(m, wr, legal, temp.value, rnd, masked), ch = m.chars[d.id], ok = ch in legal;
+      cells.push({ ch: ch, removed: d.removed, bad: !ok });
+      showDice(d, legal, d.id);
+      if (!ok) {
+        done = true;
+        stat.innerHTML = '<b>Broke the format at character ' + cells.length + '.</b> The model wrote ' + M.show(ch) + ', which held ' + (100 * d.raw[d.id]).toFixed(1) + '% of its belief. The mask would have removed ' + (100 * d.removed).toFixed(0) + '% at this step.';
+        cap.textContent = 'The dice at the step where it broke. Blue: the character drawn.';
+        return false;
+      }
+      wr.add(d.id); state = legal[ch];
+      stat.innerHTML = masked ? 'The mask removed <b>' + (100 * d.removed).toFixed(1) + '%</b> of the model\'s belief at this step.' : 'Character ' + cells.length + ' fits the format.';
+      cap.textContent = masked ? 'The dice after the mask. Greyed: refused. Blue: the character drawn.' : 'The model\'s own dice. Greyed: characters the format would refuse.';
+      return true;
+    }
+    function run(useMask) {
+      reset(useMask);
+      while (step()) { /* tiny model: a whole line takes a few milliseconds */ }
+      if (useMask) {
+        var mean = cells.reduce(function (a, c) { return a + c.removed; }, 0) / cells.length;
+        stat.innerHTML = '<b>Complete, and in the format.</b> On average the mask removed ' + (100 * mean).toFixed(1) + '% of the model\'s belief per character. Darker amber: steps where it removed more.';
+      } else if (!cells[cells.length - 1].bad) stat.innerHTML = '<b>This one happened to fit the format.</b> Write again to see how often it does.';
+      render();
+    }
+    function one() {
+      if (!masked || done) reset(true);
+      step(); render();
+    }
+    function clear() {
+      reset(true); render(); bars.textContent = ''; cap.textContent = '';
+      stat.textContent = 'Nothing written yet. Every text starts after a blank line.';
+    }
+    box.appendChild(M.row(sel, temp));
+    box.appendChild(M.row(M.button('Write without the mask', function () { run(false); }), M.button('Write with the mask', function () { run(true); }, 'go'), M.button('One character', one), M.button('Clear', clear)));
+    box.appendChild(out); box.appendChild(stat); box.appendChild(bars); box.appendChild(cap);
+    clear();
+  })();
+
+  // ---------- widget 2: count ----------
+  (function () {
+    var box = M.$('#w-count');
+    if (!m) { box.appendChild(M.el('p', { text: 'The model weights did not load, so this experiment is unavailable.' })); return; }
+    var N = 40, fmt = FORMATS.line, timer = 0, seed = 1;
+    var temp = M.slider({ label: 'Temperature', min: 0.1, max: 1.5, step: 0.05, value: 0.8, fmt: function (v) { return v.toFixed(2); } });
+    var sel = M.select('Format', NAMES, function (v) { fmt = FORMATS[v]; });
+    var rowA = M.el('div', { class: 'chips', role: 'img' }), rowB = M.el('div', { class: 'chips', role: 'img' }), stat = M.el('p', { class: 'readout', text: 'Not run yet.' });
+    function sample(useMask, rnd) {
+      var wr = M.writer(m, PROMPT), st = START;
+      for (var n = 0; n <= longest(fmt); n++) {
+        var legal = moves(fmt, st);
+        if (!Object.keys(legal).length) return true;
+        var d = draw(m, wr, legal, temp.value, rnd, useMask), ch = m.chars[d.id];
+        if (!(ch in legal)) return false;
+        wr.add(d.id); st = legal[ch];
+      }
+      return false;
+    }
+    function square(ok) { return M.el('span', { text: ok ? '✓' : '✗', style: 'color:#fff;background:' + M.css(ok ? '--ok' : '--grad') }); }
+    function go() {
+      clearTimeout(timer); rowA.textContent = ''; rowB.textContent = '';
+      var rnd = M.rng(seed++), i = 0, a = 0, b = 0, T = temp.value;
+      (function tick() {
+        var x = sample(false, rnd), y = sample(true, rnd);
+        a += x; b += y; i++;
+        rowA.appendChild(square(x)); rowB.appendChild(square(y));
+        stat.innerHTML = 'Temperature ' + T.toFixed(2) + '. Without the mask: <b>' + a + ' of ' + i + '</b> in the format. With it: <b>' + b + ' of ' + i + '</b>.';
+        rowA.setAttribute('aria-label', a + ' of ' + i + ' in the format without the mask');
+        rowB.setAttribute('aria-label', b + ' of ' + i + ' in the format with the mask');
+        if (i < N) timer = setTimeout(tick, 0);
+      })();
+    }
+    box.appendChild(M.row(sel, temp));
+    box.appendChild(M.row(M.button('Write ' + N + ' of each', go, 'go')));
+    box.appendChild(M.el('p', { class: 'caption', text: 'Without the mask', style: 'margin:10px 0 4px' })); box.appendChild(rowA);
+    box.appendChild(M.el('p', { class: 'caption', text: 'With the mask', style: 'margin:12px 0 4px' })); box.appendChild(rowB);
+    box.appendChild(stat);
+    box.appendChild(M.el('p', { class: 'caption', text: 'Forty samples is a small count: run it twice and the first row changes by a few. Chapter 14 measures how much a count like this can be trusted.' }));
+  })();
+});
+</script>
+</body>
+</html>
