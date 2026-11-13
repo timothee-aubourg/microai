@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>As small as it goes | microAI</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-ch="23">
+<main>
+  <p class="where">Chapter 23</p>
+  <h1>As small as it goes</h1>
+  <p class="question">The agent of chapter 19 is a file of 432 KB. How much of that does the job need?</p>
+
+  <p>Chapter 22 ended on a model small enough to live in the processor's cache. Size decides where a model can run at all: on a phone, in a browser tab, on a board with no graphics processor. So far the course has made models smaller in one way, by rounding the weights after training (chapter 9). This chapter takes the agent you trained in chapter 19 and makes it as small as it will go, by every means available, without letting it get worse.</p>
+  <p>That last condition needs a test that cannot be argued with. Chapter 19 graded 200 questions drawn at random. Here the test is every question there is: 1,000 pairs of numbers that were kept out of training, each with plus, minus and times. That makes 3,000 questions, and an answer counts only if the tool call and the final sentence are both exactly right. The model of chapter 19 gets 3,000 of 3,000.</p>
+
+  <h2>Rounding afterwards has a floor</h2>
+  <p>The first thing to try is what chapter 9 did: keep the trained model and store each weight on fewer bits.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>The model of chapter 19</th><th>Size of the file</th><th>Right, of 3,000</th></tr>
+    <tr><td>as trained, 32 bits per weight</td><td class="mono">432,128 bytes</td><td class="mono">3,000</td></tr>
+    <tr><td>rounded to 8 bits</td><td class="mono">114,784 bytes</td><td class="mono">2,999</td></tr>
+    <tr><td>rounded to 4 bits</td><td class="mono">60,768 bytes</td><td class="mono">2,816</td></tr>
+    <tr><td>rounded to three values</td><td class="mono">21,606 bytes</td><td class="mono">0</td></tr>
+  </table></div>
+  <p>Eight bits cost one question and make the file almost four times smaller. Four bits lose 184 questions. With three values per weight, nothing is left: not one question, not even "hello".</p>
+  <p>Rounding does not consult the model. The weights were trained to work together at full precision, and each one is then moved a little without regard for the others. A little is harmless. Below some number of bits the errors add up to a different model.</p>
+
+  <h2>Three values</h2>
+  <p>The smallest useful weight is not one bit. A bit can say "add" or "subtract", and a model also needs to say "ignore".</p>
+  <div class="def"><span class="kind">Definition</span>
+    <p><dfn>Ternary weights</dfn> can take only three values: minus one, zero or plus one. Each matrix also has one ordinary number, its scale, that every weight in it is multiplied by.</p>
+  </div>
+  <h3>By hand: a product without multiplying</h3>
+  <p>Take three inputs, 0.5, &minus;1.0 and 2.0, and one column of ternary weights: +1, 0, &minus;1, with a scale of 0.3. The output is the weighted sum.</p>
+  <div class="eq">0.3 &times; (+1 &times; 0.5 + 0 &times; (&minus;1.0) + (&minus;1) &times; 2.0) = 0.3 &times; (0.5 &minus; 2.0) = &minus;0.45</div>
+  <p>Look at what the weights did. The +1 said "add this input", the &minus;1 said "subtract this one", the 0 said "skip it". There is one multiplication, by the scale, at the end. A matrix of ternary weights turns chapter 18's millions of multiply-adds into additions and subtractions.</p>
+  <h3>By hand: five weights in a byte</h3>
+  <p>Three values are one digit in base 3. Five such digits make 3 &times; 3 &times; 3 &times; 3 &times; 3 = 243 combinations, and a byte holds 256. So five weights fit in one byte. Add 1 to each weight to get a digit of 0, 1 or 2, then read the five digits as a number.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Weight</th><td class="mono">+1</td><td class="mono">0</td><td class="mono">&minus;1</td><td class="mono">&minus;1</td><td class="mono">+1</td></tr>
+    <tr><th>Digit</th><td class="mono">2</td><td class="mono">1</td><td class="mono">0</td><td class="mono">0</td><td class="mono">2</td></tr>
+    <tr><th>Worth</th><td class="mono">1</td><td class="mono">3</td><td class="mono">9</td><td class="mono">27</td><td class="mono">81</td></tr>
+  </table></div>
+  <div class="eq">2 &times; 1 + 1 &times; 3 + 0 &times; 9 + 0 &times; 27 + 2 &times; 81 = 167</div>
+  <p>The byte 167 stores those five weights. That is 8 &divide; 5 = 1.6 bits per weight, against 32 in the file of chapter 19.</p>
+
+  <section class="bench" id="w-pack">
+    <h3>Pack five weights</h3>
+    <p class="try"><b>Try this.</b> Tap each weight to change it. Find the five weights that give the byte 0, and the five that give the largest byte. How many of the 256 values of a byte are never used?</p>
+  </section>
+
+  <p><strong>What you should have seen.</strong> Five weights of &minus;1 give the byte 0. Five weights of +1 give 242, the largest. The values 243 to 255 are never used: 13 of 256 are wasted, which is why this packing costs 1.6 bits per weight and not the 1.58 that three values strictly need.</p>
+
+  <h2>Train it rounded</h2>
+  <p>Rounding a finished model to three values gave 0 of 3,000. The way out is to stop treating rounding as something done to a model afterwards.</p>
+  <div class="def"><span class="kind">Definition</span>
+    <p><dfn>Quantization-aware training</dfn> rounds the weights in every forward pass of training, so the model learns to do its job with the rounded values. The full-precision weights are kept underneath and are the ones gradient descent adjusts.</p>
+  </div>
+
+  <figure class="fig">
+    <svg viewBox="0 0 760 200" role="img" aria-labelledby="f23a">
+      <title id="f23a">Each training step. The full-precision weights are rounded to minus one, zero or plus one. The forward pass and the loss use the rounded weights. The gradient skips the rounding and adjusts the full-precision weights.</title>
+      <defs><marker id="c23a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker>
+      <marker id="c23g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--grad)"/></marker></defs>
+      <rect x="16" y="40" width="170" height="60" rx="8" class="bx"/><text x="101" y="66" text-anchor="middle" class="t-big">kept weights</text><text x="101" y="86" text-anchor="middle" class="t-mono t-small">0.031  &minus;0.004  &minus;0.027</text>
+      <line x1="190" y1="70" x2="246" y2="70" class="ln" marker-end="url(#c23a)"/><text x="218" y="60" text-anchor="middle" class="t-small t-muted">round</text>
+      <rect x="250" y="40" width="170" height="60" rx="8" class="bx-fwd"/><text x="335" y="66" text-anchor="middle" class="t-big">used weights</text><text x="335" y="86" text-anchor="middle" class="t-mono t-small">+1     0     &minus;1</text>
+      <line x1="424" y1="70" x2="480" y2="70" class="ln-fwd" marker-end="url(#c23a)"/>
+      <rect x="484" y="40" width="130" height="60" rx="8" class="bx-fwd"/><text x="549" y="76" text-anchor="middle">forward pass</text>
+      <line x1="618" y1="70" x2="664" y2="70" class="ln-fwd" marker-end="url(#c23a)"/>
+      <rect x="668" y="46" width="76" height="48" rx="8" class="bx-grad"/><text x="706" y="76" text-anchor="middle">loss</text>
+      <path d="M706 98 L706 150 L101 150 L101 104" class="ln-grad" marker-end="url(#c23g)"/>
+      <text x="404" y="172" text-anchor="middle" class="t-small t-grad">the gradient goes past the rounding, straight to the kept weights</text>
+      <text x="335" y="24" text-anchor="middle" class="t-small t-muted">only these are stored in the file</text>
+    </svg>
+    <figcaption><b>One training step.</b> The model computes with three-valued weights and learns on the full-precision ones. When training ends, the kept weights are thrown away.</figcaption>
+  </figure>
+
+  <p>Rounding has no useful slope: move a weight a hair and its rounded value usually does not change at all. So the backward pass of chapter 3 pretends the rounding was not there and hands the gradient to the kept weight. A kept weight that is pushed the same way many times eventually crosses a boundary, and its rounded value flips.</p>
+  <pre class="code" data-src="ch23_tiny.py#ternary">def ternary(w):
+    """Round a matrix to -1, 0 or +1 times ONE number. Returns the three-valued matrix and that number."""
+    scale = np.abs(w).mean() + 1e-8
+    return np.clip(np.round(w / scale), -1, 1), scale</pre>
+  <pre class="code" data-src="ch23_tiny.py#qat">def forward(self, idx, targets=None, trace=None):
+    """Compute with the three-valued weights, learn on the full-precision ones underneath."""
+    latent = self.p
+    self.p = dict(latent)
+    self.p['wpe'] = self.where * self.size['wpe']
+    for k in (self.stored if self.three else []):
+        q, _ = ternary(latent[k].data)
+        three = latent[k] + (q - latent[k].data)               # value: -1, 0 or +1. gradient: passes straight to latent
+        self.p[k] = three * self.size[k]                       # times the one number of this matrix
+    try:
+        return super().forward(idx, targets, trace)
+    finally:
+        self.p = latent</pre>
+  <p class="src">From <code>code/ch23_tiny.py</code>. The forward pass of chapter 6, with each matrix replaced by its three-valued version times one trained number.</p>
+
+  <h2>Remove what the task does not use</h2>
+  <p>With weights this cheap, the rest of the file starts to matter. Three more things were taken out.</p>
+  <ul>
+    <li><strong>The position table.</strong> Chapter 4 learned one vector per position. Here the vector for each position is computed from sines and cosines, so nothing is stored. One trained number says how strongly positions count.</li>
+    <li><strong>The weights of the normalisation.</strong> Chapter 6's layer normalisation had a gain and an offset per number. Here it only rescales.</li>
+    <li><strong>Width.</strong> The model of chapter 19 used vectors of 64 numbers. Models of that width and of several narrower ones were trained, each for 6,000 steps on the same conversations, and graded on the same 3,000 questions.</li>
+  </ul>
+  <div class="scroll"><table class="mini">
+    <tr><th>Model</th><th>Weights</th><th>Size of the file</th><th>Right, of 3,000</th></tr>
+    <tr><td>width 32, ordinary weights (32 bits)</td><td class="mono">26,048</td><td class="mono">104,192 bytes</td><td class="mono">2,999</td></tr>
+    <tr><td>the same, rounded to 8 bits afterwards</td><td class="mono">26,048</td><td class="mono">27,676 bytes</td><td class="mono">2,998</td></tr>
+    <tr><td>width 16, ordinary weights (32 bits)</td><td class="mono">6,880</td><td class="mono">27,520 bytes</td><td class="mono">2,911</td></tr>
+    <tr><td>the same, rounded to 8 bits afterwards</td><td class="mono">6,880</td><td class="mono">7,310 bytes</td><td class="mono">2,910</td></tr>
+    <tr><td>width 64, three-valued</td><td class="mono">101,248</td><td class="mono">20,369 bytes</td><td class="mono">3,000</td></tr>
+    <tr><td>width 48, three-valued</td><td class="mono">57,504</td><td class="mono">11,618 bytes</td><td class="mono">2,998</td></tr>
+    <tr><td>width 48, three-valued, MLP half as wide</td><td class="mono">39,072</td><td class="mono">7,930 bytes</td><td class="mono">2,982</td></tr>
+    <tr><td>width 40, three-valued</td><td class="mono">40,240</td><td class="mono">8,160 bytes</td><td class="mono">2,993</td></tr>
+    <tr><td>width 32, three-valued</td><td class="mono">26,048</td><td class="mono">5,327 bytes</td><td class="mono">2,785</td></tr>
+    <tr><td>width 32, three-valued, MLP half as wide</td><td class="mono">17,856</td><td class="mono">3,687 bytes</td><td class="mono">2,634</td></tr>
+    <tr><td>width 32, three-valued, one block</td><td class="mono">13,760</td><td class="mono">2,843 bytes</td><td class="mono">0</td></tr>
+    <tr><td>width 24, three-valued</td><td class="mono">14,928</td><td class="mono">3,105 bytes</td><td class="mono">0</td></tr>
+    <tr><td>width 16, three-valued</td><td class="mono">6,880</td><td class="mono">1,496 bytes</td><td class="mono">0</td></tr>
+  </table></div>
+  <p>Read the table from the top. Ordinary weights tolerate a narrow model well: at width 32 the full-precision model misses one question, and rounding it to 8 bits costs one more. Three-valued weights need more width for the same result. At width 32 they miss 215 questions, at width 48 they miss 2, and at width 64 none.</p>
+  <p>Now compare sizes. Width 64 in three values takes 20,369 bytes and answers everything. Width 32 in 8 bits takes 27,676 bytes and misses 2. So the wider three-valued model is both smaller and better. Further down, the picture is less tidy. Below width 32 the three-valued models learned nothing useful in the steps they were given, while an ordinary model of width 16 still got 2,911 right. There is a floor here too. It is lower than the floor of rounding, and it is found by measuring.</p>
+
+  <h2>The result</h2>
+  <p>The condition was that the model must not get worse, so the chosen model is the smallest one that answered everything: width 64, the width chapter 19 used, with 101,248 three-valued weights. It was trained for 6,000 steps, about 7 minutes on one processor core. If you can live with 2 wrong answers in 3,000, the width-48 model does the job in 11,618 bytes.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th></th><th>Chapter 19</th><th>This chapter</th></tr>
+    <tr><td>Size of the file</td><td class="mono">432,128 bytes</td><td class="mono">20,369 bytes</td></tr>
+    <tr><td>Bits per weight</td><td class="mono">32</td><td class="mono">1.61</td></tr>
+    <tr><td>Held-out questions right, of 3,000</td><td class="mono">3,000</td><td class="mono">3,000</td></tr>
+    <tr><td>Questions on number pairs seen in training, of 3,000</td><td class="mono">2,998</td><td class="mono">3,000</td></tr>
+    <tr><td>Small talk right, of 3</td><td class="mono">3</td><td class="mono">3</td></tr>
+    <tr><td>Tokens per second, numpy, one core</td><td class="mono">4,003</td><td class="mono">3,821</td></tr>
+    <tr><td>Tokens per second, plain Python, no numpy</td><td class="mono">not built</td><td class="mono">543</td></tr>
+  </table></div>
+  <p>The file is 21 times smaller. It answers every one of the 3,000 held-out questions, as the large one does.</p>
+  <p>Notice the row for numpy: the two models run at about the same speed. Numpy multiplies by &minus;1, 0 and +1 exactly as it multiplies by any other number, so it gains nothing from the three values. The gain in arithmetic needs an engine written for them, which is the subject of the last section.</p>
+  <p>At 19.9 KB the whole model fits in the first and fastest layer of the processor's cache, the 48 KB one of chapter 22. It also fits on this page. The box in the experiment below holds every byte of it.</p>
+
+  <section class="bench" id="w-tiny">
+    <h3>Ask the small one</h3>
+    <p class="try"><b>Try this.</b> Ask a few sums. Each question goes to both models: the one of this chapter and the one of chapter 19. Look for a difference between their answers. Then ask for something neither was trained on.</p>
+  </section>
+
+  <p><strong>What you should have seen.</strong> On sums with numbers below 100 the two models write the same call and the same sentence. The model that is 21 times smaller does the job. Outside what they were trained on, both fail, and not always in the same way. Making a model smaller did not make it less general, because it was never general. It was built for one job and graded on that job.</p>
+
+  <h2>It runs on anything</h2>
+  <p>A model made of additions needs very little to run. <code>code/tiny_agent.py</code> is the whole agent in one file: it reads the 19.9 KB, runs the model and the tool loop, and uses nothing but Python's standard library.</p>
+  <pre class="code" data-src="tiny_agent.py#engine">def times(x, w):
+    """x @ W for a three-valued W: sums and differences, then one multiplication per output."""
+    scale, add, sub = w[0], w[1], w[2]
+    pick = x.__getitem__
+    return [scale * (sum(map(pick, a)) - sum(map(pick, s))) for a, s in zip(add, sub)]
+
+def norm(x):
+    mean = sum(x) / len(x)
+    x = [v - mean for v in x]
+    size = math.sqrt(sum(v * v for v in x) / len(x) + 1e-5)
+    return [v / size for v in x]
+
+def step(m, token, cache):
+    """One token through the model. `cache` keeps the keys and values of the tokens before it."""
+    d, H = m['d'], m['H']
+    hd, pos = d // H, len(cache[0][0]) if cache else 0
+    if not cache:
+        cache.extend(([], []) for _ in m['layers'])
+    row, scale = m['wte'][3][token], m['wte'][0]
+    x = [scale * row[j] + m['where'] * (math.sin if j &lt; d // 2 else math.cos)(pos / 50.0 ** (2 * (j % (d // 2)) / d)) for j in range(d)]
+    for layer, (keys, values) in zip(m['layers'], cache):
+        a = norm(x)
+        q = times(a, layer['wq'])
+        keys.append(times(a, layer['wk']))
+        values.append(times(a, layer['wv']))
+        mixed = []
+        for h in range(H):                                  # each head: score every earlier token, then average
+            lo, hi = h * hd, (h + 1) * hd
+            scores = [sum(q[j] * k[j] for j in range(lo, hi)) / math.sqrt(hd) for k in keys]
+            top = max(scores)
+            weights = [math.exp(s - top) for s in scores]
+            total = sum(weights)
+            mixed += [sum(w * v[j] for w, v in zip(weights, values)) / total for j in range(lo, hi)]
+        x = [u + v for u, v in zip(x, times(mixed, layer['wo']))]
+        hidden = times(norm(x), layer['w1'])
+        hidden = [0.5 * v * (1 + math.tanh(0.7978845608 * (v + 0.044715 * v * v * v))) for v in hidden]
+        x = [u + v for u, v in zip(x, times(hidden, layer['w2']))]
+    return times(norm(x), m['out'])                         # one score per character</pre>
+  <p class="src">From <code>code/tiny_agent.py</code>. <code>times</code> is the matrix product: sums and differences, then one multiplication per output.</p>
+  <pre class="code" data-lang="text">python code/ch23_tiny.py --train       # about 7 minutes: train it and write runs/tiny.bin
+python code/ch23_tiny.py               # grade it on all 3,000 questions
+python code/tiny_agent.py "what is 23 times 45?"    # run it without numpy
+python code/ch23_tiny.py --sweep       # every candidate of the table (about an hour)</pre>
+  <p>It gives the same scores as the numpy version to within 0.000002, and the same answers on all 3,000 questions. It writes 543 tokens per second in plain Python, a language about five hundred times slower than numpy at arithmetic (chapter 18).</p>
+
+  <h2>At full size</h2>
+  <p>Most local models you download are still made the way chapter 9 described: trained at full precision, then rounded to 4 or 5 bits. That is the cheap route, because it needs no retraining, and at 4 bits it loses little.</p>
+  <p>Training with the rounding in place is the route below that. In 2025 Microsoft Research published a model of 2 billion weights trained from the start with three-valued weights, BitNet b1.58 2B4T, and reports 0.4 GB for its weights outside the embedding table. Its training was the expensive part: the model had to be trained that way from the first step, on 4 trillion tokens. An existing model cannot be converted.</p>
+  <p>The measurement of this chapter shows the trade in small. At equal width, three-valued weights did worse than ordinary ones. They needed a wider model to catch up, and still came out smaller. Whether that trade pays at full size depends on what training costs, which is why rounding afterwards remains the common choice.</p>
+
+  <div class="note">
+    <h3>What this chapter glossed over</h3>
+    <p><strong>It is the same narrow job.</strong> This is not a small general assistant. It answers sums of two numbers below 100 in one phrasing, and three fixed lines of small talk. A general model has a floor on its size too, and it is many thousands of times higher.</p>
+    <p><strong>Two changes were needed before it trained at all.</strong> With the scale of each matrix derived from its kept weights, and positions added at a fixed strength, the width-32 model did not learn to copy numbers. Making each scale, and the strength of the positions, a trained number fixed that. The script contains only the version that worked.</p>
+    <p><strong>The training examples were laid out differently.</strong> Each row here is one conversation starting at position 0, as in chapter 21. Chapter 19 cut windows out of a long stream. The comparison between the two chapters is therefore not only about the weights.</p>
+    <p><strong>One run each.</strong> Every row of the tables is one training run with one seed. Another run moves the counts. The width-48 model was also trained for 12,000 steps in place of 6,000, and scored 2,964, fewer than before. More training was a different run, not a better one, and a narrow model that learned nothing here might learn with another seed.</p>
+    <p><strong>The activations are not rounded.</strong> The numbers flowing through the model are still ordinary floating-point numbers. Full-size systems of this kind round those as well, to 8 bits.</p>
+    <p><strong>Other ways to shrink a model.</strong> Training a small model to imitate a large one (distillation) and removing weights that matter least (pruning) are both left out.</p>
+  </div>
+
+  <div class="recap">
+    <h3>In short</h3>
+    <ul>
+      <li>Rounding a trained model has a floor. The model of chapter 19 keeps 2,999 of 3,000 answers at 8 bits, 2,816 at 4 bits and none at three values.</li>
+      <li><a class="term" href="glossary.html#ternary">Ternary weights</a> are &minus;1, 0 or +1 times one scale per matrix. A matrix product becomes sums and differences, and five weights fit in a byte.</li>
+      <li><a class="term" href="glossary.html#qat">Quantization-aware training</a> rounds in every forward pass and lets the gradient adjust full-precision weights kept underneath. The model learns to work rounded.</li>
+      <li>The result is 20,369 bytes against 432,128, 21 times smaller, with 3,000 of 3,000 held-out questions right. It runs in plain Python with no library.</li>
+      <li>Smaller has a price that has to be measured. At width 32, three-valued weights miss 215 questions where ordinary ones miss 1, and below width 32 they learned nothing.</li>
+    </ul>
+  </div>
+
+  <h2>Check yourself</h2>
+  <details class="check"><summary>The chapter 19 model rounded to three values scores 0. A model trained with three values scores almost everything. Both files hold only &minus;1, 0 and +1. What is the difference?</summary><p>Which model the values belong to. The first set are the nearest three-valued neighbours of weights that were trained to work at full precision; nothing ever checked that the neighbours work. The second set were used in every forward pass of training, so the loss was measured on them and the training adjusted them until they worked.</p></details>
+  <details class="check"><summary>Why does a ternary weight need 1.6 bits in the file and not 2?</summary><p>Because weights are packed five to a byte. Five three-valued digits make 243 combinations, which fit in the 256 values of one byte: 8 bits for 5 weights is 1.6 each. Storing each weight on its own would need 2 bits, since 1 bit holds only two values.</p></details>
+  <details class="check"><summary>Rounding gives no gradient. How can a model be trained through it?</summary><p>The backward pass treats the rounding as if it were not there and passes the gradient to the full-precision weight kept underneath. That weight moves a little at each step, and when it crosses a boundary its rounded value changes.</p></details>
+  <details class="check"><summary>You need the smallest file that passes a test. Why is "use fewer bits" not always the answer?</summary><p>Because fewer bits per weight can require more weights. Here the three-valued model needed width 64 to answer everything, where a full-precision model of width 32 missed a single question. Size is weights times bits, and the two pull against each other. The table settles it, not a rule.</p></details>
+</main>
+
+<script src="assets/agent.js"></script>
+<script src="assets/tiny.js"></script>
+<script src="assets/glossary.js"></script>
+<script src="assets/micro.js"></script>
+<script>
+M.ready(function () {
+  // ---------- widget 1: five weights in a byte ----------
+  (function () {
+    var box = M.$('#w-pack'), w = [1, 0, -1, -1, 1], rowEl = M.el('div', { class: 'row', style: 'gap:8px' }), stat = M.el('p', { class: 'readout' });
+    function sign(v) { return v > 0 ? '+1' : v < 0 ? '−1' : '0'; }
+    function show() {
+      rowEl.textContent = '';
+      var total = 0, parts = [];
+      w.forEach(function (v, i) {
+        var worth = Math.pow(3, i); total += (v + 1) * worth; parts.push((v + 1) + ' × ' + worth);
+        rowEl.appendChild(M.el('button', { type: 'button', text: sign(v), 'aria-label': 'weight ' + (i + 1) + ' is ' + sign(v) + ', tap to change',
+          style: 'min-width:52px;min-height:48px;text-decoration:none;border:1px solid var(--border);border-radius:var(--cut-s);font:600 17px var(--mono);background:' + (v > 0 ? 'color-mix(in srgb, var(--fwd) 16%, var(--panel))' : v < 0 ? 'color-mix(in srgb, var(--grad) 14%, var(--panel))' : 'var(--panel)'),
+          onclick: function () { w[i] = w[i] === 1 ? -1 : w[i] + 1; show(); } }));
+      });
+      stat.innerHTML = parts.join(' + ') + ' = <b>' + total + '</b>. The byte is <b>' + total + '</b>, written in bits as ' + ('00000000' + total.toString(2)).slice(-8) + '.';
+    }
+    box.appendChild(rowEl); box.appendChild(stat);
+    box.appendChild(M.el('p', { class: 'caption', text: 'Each tap goes −1, 0, +1 and round again. The digit is the weight plus 1; the positions are worth 1, 3, 9, 27 and 81.' }));
+    show();
+  })();
+
+  // ---------- widget 2: the packed model, in the browser ----------
+  (function () {
+    var box = M.$('#w-tiny');
+    if (!window.MICRO_TINY || !window.MICRO_AGENT) { box.appendChild(M.el('p', { text: 'The trained models did not load, so this experiment is unavailable.' })); return; }
+    /* read the packed file: a header, then per matrix one number and its weights, five to a byte */
+    function unpack(b64) {
+      var bin = atob(b64), u8 = new Uint8Array(bin.length), i;
+      for (i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+      var dv = new DataView(u8.buffer), V = u8[4], block = u8[5], L = u8[6], H = u8[7], d = u8[8], mlp = u8[9], chars = '';
+      for (i = 0; i < V; i++) chars += String.fromCharCode(u8[10 + i]);
+      var where = dv.getFloat32(10 + V, true), at = 14 + V, w = {}, shape = {}, count = 0;
+      function matrix(name, rows, cols) {
+        var scale = dv.getFloat32(at, true), n = rows * cols, out = new Float32Array(n), k = 0;
+        for (var b = at + 4; k < n; b++) { var byte = u8[b]; for (var j = 0; j < 5 && k < n; j++) { out[k++] = (byte % 3 - 1) * scale; byte = Math.floor(byte / 3); } }
+        at += 4 + Math.ceil(n / 5); w[name] = out; shape[name] = [rows, cols]; count += n;
+      }
+      function fixed(name, n, v) { var a = new Float32Array(n); a.fill(v); w[name] = a; shape[name] = [n]; }
+      matrix('wte', V, d);
+      for (var l = 0; l < L; l++) {
+        var p = 'h' + l + '.';
+        ['attn.wq', 'attn.wk', 'attn.wv', 'attn.wo'].forEach(function (nm) { matrix(p + nm, d, d); });
+        matrix(p + 'mlp.w1', d, mlp * d); matrix(p + 'mlp.w2', mlp * d, d);
+        fixed(p + 'ln1.g', d, 1); fixed(p + 'ln1.b', d, 0); fixed(p + 'ln2.g', d, 1); fixed(p + 'ln2.b', d, 0);
+      }
+      fixed('ln_f.g', d, 1); fixed('ln_f.b', d, 0);
+      var wpe = new Float32Array(block * d), half = d / 2;        // positions from the formula: nothing stored
+      for (var pos = 0; pos < block; pos++) for (var j = 0; j < d; j++) wpe[pos * d + j] = where * (j < half ? Math.sin : Math.cos)(pos / Math.pow(50, 2 * (j % half) / d));
+      w.wpe = wpe; shape.wpe = [block, d];
+      var stoi = {}; for (i = 0; i < chars.length; i++) stoi[chars[i]] = i;
+      return { cfg: { vocab: V, block: block, n_layer: L, n_head: H, d_model: d, params: count }, chars: chars, stoi: stoi, w: w, shape: shape, adapter: null, bytes: bin.length };
+    }
+    var small = unpack(window.MICRO_TINY.b64), big = M.loadWeights(window.MICRO_AGENT), timer = 0;
+    var TOOLS = { add: function (a, b) { return a + b; }, sub: function (a, b) { return a - b; }, mul: function (a, b) { return a * b; } };
+    var D = '0123456789', CALL = [{ words: ['add', 'sub', 'mul'] }, [' ', 1, 1], [D, 1, 2], [' ', 1, 1], [D, 1, 2], ['\n', 1, 1]], ROLE = [{ words: ['C ', 'A '] }];
+    function moves(fmt, st) {        // the format machine of chapter 13
+      var i = st[0], s = st[1], out = {}, mayEnd;
+      while (i < fmt.length) {
+        var part = fmt[i];
+        if (part.words) {
+          part.words.forEach(function (x) { if (x.indexOf(s) === 0 && x.length > s.length && !(x[s.length] in out)) out[x[s.length]] = [i, s + x[s.length]]; });
+          mayEnd = part.words.indexOf(s) >= 0;
+        } else {
+          if (s.length < part[2]) for (var k = 0; k < part[0].length; k++) if (!(part[0][k] in out)) out[part[0][k]] = [i, s + part[0][k]];
+          mayEnd = s.length >= part[1];
+        }
+        if (!mayEnd) break;
+        i++; s = '';
+      }
+      return out;
+    }
+    function writeLine(m, wr, used, fmt, limit) {
+      var line = '', st = [0, ''];
+      while (line.slice(-1) !== '\n' && line.length < limit && used.n < m.cfg.block) {
+        var z = wr.logits(), best = -1, legal = null;
+        if (fmt) { legal = moves(fmt, st); if (!Object.keys(legal).length) break; }
+        for (var i = 0; i < z.length; i++) if ((!legal || m.chars[i] in legal) && (best < 0 || z[i] > z[best])) best = i;
+        var ch = m.chars[best];
+        if (fmt) st = legal[ch];
+        line += ch; wr.add(best); used.n++;
+      }
+      return line;
+    }
+    function ask(m, question) {     // the harness of chapter 19: returns the call (or null) and the answer
+      var prompt = '\nU ' + question + '\n', wr = M.writer(m, prompt), used = { n: prompt.length };
+      var role = writeLine(m, wr, used, ROLE, 2), call = null, result = null;
+      if (role === 'C ') {
+        call = writeLine(m, wr, used, CALL, 14).trim();
+        var p = call.split(' ');
+        result = TOOLS[p[0]](+p[1], +p[2]);
+        var fed = 'R ' + result + '\nA ';
+        for (var i = 0; i < fed.length; i++) { wr.add(m.stoi[fed[i]]); used.n++; }
+      }
+      return { call: call, result: result, answer: writeLine(m, wr, used, null, 60).trim(), tokens: used.n };
+    }
+    M.tinyAsk = function (q) { return ask(small, q); };      // used by the site's own checks
+    var input = M.el('input', { type: 'text', id: 'tiny-q', value: 'what is 23 times 45?', maxlength: '30', 'aria-label': 'Your question', autocapitalize: 'off', autocomplete: 'off', spellcheck: 'false' });
+    var out = M.el('div', { 'aria-live': 'polite' }), stat = M.el('p', { class: 'readout', text: 'Nothing asked yet.' });
+    function block(title, r, colour) {
+      var el = M.el('div', { style: 'border-left:4px solid ' + M.css(colour) + ';padding:4px 0 4px 10px;margin:8px 0' }, M.el('div', { class: 'caption', style: 'margin:0', text: title }));
+      var text = (r.call ? 'C ' + r.call + '\nR ' + r.result + '\n' : '') + 'A ' + r.answer;
+      el.appendChild(M.el('div', { style: 'font-family:var(--mono);font-size:15px;white-space:pre-wrap;overflow-wrap:anywhere', text: text }));
+      return el;
+    }
+    function go() {
+      var q = input.value.toLowerCase().split('').filter(function (c) { return c in small.stoi && c !== '\n'; }).join('').slice(0, 30);
+      if (!q) return;
+      var t0 = performance.now(), a = ask(small, q), t1 = performance.now(), b = ask(big, q), t2 = performance.now();
+      out.textContent = '';
+      out.appendChild(block('This chapter: ' + small.bytes.toLocaleString('en-US') + ' bytes', a, '--fwd'));
+      out.appendChild(block('Chapter 19: 432,128 bytes', b, '--muted'));
+      var same = a.call === b.call && a.answer === b.answer;
+      stat.innerHTML = (same ? 'The two models wrote <b>the same thing</b>.' : 'The two models wrote <b>different things</b>.') + ' The small one took ' + (t1 - t0).toFixed(0) + ' ms on this device, the large one ' + (t2 - t1).toFixed(0) + ' ms.';
+    }
+    input.addEventListener('keydown', function (e) { if (e.key === 'Enter') go(); });
+    var chips = M.el('div', { class: 'row' });
+    ['what is 23 times 45?', 'what is 7 minus 60?', 'what is 99 plus 99?', 'hello', 'what is 123 plus 4?', 'what is the capital of france?'].forEach(function (e) {
+      chips.appendChild(M.button(e, function () { input.value = e; go(); }));
+    });
+    box.appendChild(input); box.appendChild(M.row(M.button('Ask both', go, 'go'))); box.appendChild(out); box.appendChild(stat); box.appendChild(chips);
+    box.appendChild(M.el('p', { class: 'caption', text: 'Below: the whole model of this chapter, all ' + small.bytes.toLocaleString('en-US') + ' bytes, written as text. The browser unpacks it into ' + small.cfg.params.toLocaleString('en-US') + ' three-valued weights and runs them with the same code as every other model of the course.' }));
+    box.appendChild(M.el('pre', { class: 'code', 'aria-label': 'The packed model as text', style: 'max-height:150px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font-size:11px;line-height:1.35', text: window.MICRO_TINY.b64 }));
+    go();
+  })();
+});
+</script>
+</body>
+</html>

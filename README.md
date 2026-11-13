@@ -2,7 +2,7 @@
 
 **Build and understand a local language model, and the agent around it, from first principles.**
 
-An interactive course in twenty-one chapters, in seven parts. Each chapter starts
+An interactive course in twenty-three chapters, in eight parts. Each chapter starts
 from a question and a ten-second guess, gives you an experiment to play with in
 the browser, shows the few lines of code that implement the idea, and ends with
 one line to keep. One small GPT, trained from scratch with numpy, runs through
@@ -12,7 +12,10 @@ Chapters 13 to 19 build what surrounds a model: structured output, tracing and
 evaluation, the harness, context and caching, security, hardware, and finally a
 complete tool-using agent that you train yourself in five minutes. Chapters 20
 and 21 add two ideas that full-size models rely on, each trained and measured
-at toy size: a mixture of experts, and thinking tokens.
+at toy size: a mixture of experts, and thinking tokens. Chapters 22 and 23 fit
+the model to the machine: every kind of memory a model can live in, and the
+chapter 19 agent retrained with three-valued weights into a file of 20
+kilobytes that runs without numpy.
 
 By the end you can re-implement every piece of a minimal local AI system and
 you know what each component of a full-size one is doing.
@@ -50,6 +53,8 @@ branch `main`, folder `/docs`, and save. The course appears at
 | 19 | Build the whole thing | Can you build every part yourself and run it as an agent? |
 | 20 | Many experts, few at work | How can a model own far more weights than it uses for a token? |
 | 21 | Room to think | How can a model answer a question that needs more work than one token allows? |
+| 22 | Where the weights live | Which memory delivers the weights, and what happens when the model is too big for it? |
+| 23 | As small as it goes | How much of the agent's 432 KB does the job need? |
 
 ## Run the code
 
@@ -117,6 +122,15 @@ python code/ch21_think.py --train      # ~3 min: one model answers at once, one 
 python code/ch21_think.py 101100111010 # ask both
 ```
 
+Chapters 22 and 23 fit the model to the machine:
+
+```bash
+python code/ch22_memory.py             # cache, RAM, split models, unified memory, KV cache, mapping
+python code/ch23_tiny.py --train       # ~7 min: the chapter 19 agent with three-valued weights
+python code/ch23_tiny.py               # grade it on all 3,000 held-out questions
+python code/tiny_agent.py "what is 23 times 45?"   # run it with the standard library only
+```
+
 `ch15_harness.py` runs real shell commands when used with a real model. Use a
 folder you can afford to lose and read chapter 17 first.
 
@@ -147,6 +161,9 @@ code/
   ch19_system.py            the whole system: data, training, harness, trace, evaluation
   ch20_moe.py               mixture of experts: router, top-2 experts, balance, sparse path
   ch21_think.py             thinking tokens: the same task asked directly and step by step
+  ch22_memory.py            where weights live: cache ladder, split models, KV cache size, mapping
+  ch23_tiny.py              three-valued weights trained in place, packed five to a byte, graded
+  tiny_agent.py             the packed model and its tool loop with no numpy (ch 23)
   mock_server.py            fake model server for testing without a model
 data/
   shakespeare.txt           training text (public domain, 1.1 MB)
@@ -161,6 +178,7 @@ docs/                       the course website (plain HTML, CSS and JavaScript)
   assets/agent.js           the tool-calling model trained in chapter 19, float16
   assets/moe.js             losses and routing measured in chapter 20
   assets/think.js           the two models trained in chapter 21, float16
+  assets/tiny.js            the packed model of chapter 23, byte for byte
 runs/                       trained weights and the training log
 tools/
   export_web.py             pack weights and logs for the website
@@ -182,6 +200,8 @@ python code/ch17_guard.py --save         # optional: re-record the runs of chapt
 python code/ch19_system.py --train       # optional: retrain the agent of chapter 19
 python code/ch20_moe.py                  # optional: retrain and re-measure chapter 20
 python code/ch21_think.py --train        # optional: retrain the two models of chapter 21
+python code/ch22_memory.py --save        # optional: re-measure the machine for chapter 22
+python code/ch23_tiny.py --train         # optional: retrain the packed model of chapter 23
 python tools/export_web.py    # weights and logs -> docs/assets
 python tools/build_site.py    # code snippets -> docs/*.html
 node tools/test_parity.js     # browser model == Python model?
@@ -191,8 +211,8 @@ To train on your own text, replace `data/shakespeare.txt` with any plain-text
 file of a few hundred kilobytes or more and run the commands above. A few
 sentences in chapters 4, 5, 7, 9 and 13 describe what this particular model learned
 and quote its measured numbers; after retraining, check them against yours.
-Chapters 20 and 21 quote the losses, routing shares and scores of their own
-runs; after retraining those, update the tables in the two pages.
+Chapters 20 to 23 quote the losses, routing shares, speeds and scores of their
+own runs; after retraining or re-measuring those, update the tables in the pages.
 
 ## How this was checked
 
@@ -219,6 +239,17 @@ runs; after retraining those, update the tables in the two pages.
   one seed each.
 - The sizes of full-size models quoted in chapter 20 are their publishers'
   figures, not measurements.
+- `ch22_memory.py` measured the cache ladder and the file mapping on one
+  machine, once. The memory sizes and bandwidths of graphics cards and
+  unified-memory machines in chapter 22 are their makers' figures, and the
+  tokens-per-second ceilings are arithmetic on those figures, not measurements.
+- `ch23_tiny.py` grades every model on all 3,000 held-out questions (1,000
+  number pairs times three operations), not a sample. The packed file is read
+  back before grading, so the score is that of the bytes on disk.
+  `ch23_tiny.py --check` asks the same 3,000 questions through
+  `tiny_agent.py`, which uses no numpy, and the page was checked to give the
+  same answers in a browser. Every row of the chapter's tables is one training
+  run with one seed.
 - The harness and injection runs of chapters 15 and 17 use a scripted model in
   `mock_server.py`; the pages say so. The GPU figures in chapter 18 are published
   specifications, not measurements.
@@ -247,7 +278,8 @@ This course covers the path from next-token prediction to a working local
 agent: the model, its training, inference, the harness around it, the hardware
 under it, and how to check and bound the result. Chapter 19 assembles all of
 it into one small system. Chapters 20 and 21 then show, at toy size, two
-things full-size models add: experts and thinking.
+things full-size models add: experts and thinking. Chapters 22 and 23 cover
+where a model sits in a machine and how small a working one can be made.
 
 Not covered yet, in rough order of how much an agent builder would miss them:
 
@@ -260,8 +292,11 @@ Not covered yet, in rough order of how much an agent builder would miss them:
 - serving many users: batching, queues, cost
 - data collection and cleaning, scaling laws, other architecture variants
   (rotary positions, grouped attention, state-space models)
-- models that write by denoising instead of one token at a time, and
-  distillation of a large model into a small one
+- models that write by denoising instead of one token at a time
+- distillation of a large model into a small one, and pruning; chapter 23
+  shrinks a model by training it with three-valued weights only
+- neural processing units, servers with many graphics cards, and the cost of
+  power and cooling; chapter 22 stops at one machine
 - multimodal models and the benchmarking of models themselves
 
 ## Further study
