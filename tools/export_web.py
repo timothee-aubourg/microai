@@ -6,8 +6,9 @@ export_web.py — pack the trained model for the website.
 Writes docs/assets/weights.js (float16 weights, base64) and docs/assets/data.js
 (training log, embedding map, text excerpts, reference numbers used by the
 browser tests). Run after code/train.py and code/ch12_lora.py.
-If runs/evals.json exists (written by code/ch14_eval.py --save), it is copied
-to docs/assets/evals.js for chapter 14.
+Optional inputs, each copied to docs/assets/ when present: runs/evals.json
+(ch14_eval.py --save), runs/harness.json (ch15_harness.py --mock --save),
+runs/guard.json (ch17_guard.py --save) and runs/agent.npz (ch19_system.py --train).
 """
 import base64, json, os, sys
 import numpy as np
@@ -88,6 +89,31 @@ if os.path.exists(evals_path):
         evals = json.load(f)
     with open(os.path.join(ROOT, 'docs', 'assets', 'evals.js'), 'w') as f:
         f.write('window.MICRO_EVALS = ' + json.dumps(evals) + ';\n')
+
+# ---- recorded sessions for chapters 15 and 17 ------------------------------------------
+for name, var in [('harness', 'MICRO_HARNESS'), ('guard', 'MICRO_GUARD')]:
+    src = os.path.join(ROOT, 'runs', name + '.json')
+    if os.path.exists(src):
+        with open(src) as f:
+            payload = json.load(f)
+        with open(os.path.join(ROOT, 'docs', 'assets', name + '.js'), 'w') as f:
+            f.write(f'window.{var} = ' + json.dumps(payload) + ';\n')
+
+# ---- the agent trained in chapter 19, in the same layout as weights.js -----------------
+agent_path = os.path.join(ROOT, 'runs', 'agent.npz')
+if os.path.exists(agent_path):
+    z = np.load(agent_path)
+    V, block, L, H, d = [int(v) for v in z['__config__']]
+    ablob, atensors = b'', []
+    for k in z.files:
+        if not k.startswith('__'):
+            atensors.append({'name': k, 'shape': list(z[k].shape), 'offset': len(ablob) // 2})
+            ablob += z[k].astype('<f2').tobytes()
+    agent = {'config': {'vocab': V, 'block': block, 'n_layer': L, 'n_head': H, 'd_model': d, 'params': len(ablob) // 2},
+             'chars': ''.join(z['__chars__']), 'tensors': atensors, 'adapter': None,
+             'b64': base64.b64encode(ablob).decode()}
+    with open(os.path.join(ROOT, 'docs', 'assets', 'agent.js'), 'w') as f:
+        f.write('window.MICRO_AGENT = ' + json.dumps(agent) + ';\n')
 
 print(f'weights.js {os.path.getsize(os.path.join(ROOT, "docs/assets/weights.js")) / 1024:.0f} KB, '
       f'data.js {os.path.getsize(os.path.join(ROOT, "docs/assets/data.js")) / 1024:.0f} KB, '

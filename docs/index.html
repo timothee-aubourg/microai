@@ -30,7 +30,7 @@
   <p>Three colours mean the same thing on every page: <span class="fwd">blue for values flowing forward</span> through the model, <span class="grad">raspberry for gradients and error flowing backward</span>, <span class="prob">amber for probabilities</span>.</p>
 
   <h2>The path</h2>
-  <p>Text goes in on the left; a guess about the next token comes out on the right. Chapters 1 to 6 build that pipeline. Chapters 7 to 9 make it learn, write and shrink. Chapters 10 to 12 turn it into a system on your machine. Chapters 13 and 14 make that system dependable.</p>
+  <p>Text goes in on the left; a guess about the next token comes out on the right. Chapters 1 to 6 build that pipeline. Chapters 7 to 9 make it learn, write and shrink. Chapters 10 to 12 turn it into a system on your machine. Chapters 13 and 14 make that system dependable. Chapters 15 to 17 open up the harness that turns a model into an agent. Chapters 18 and 19 go down to the hardware and then put every part together in one system you train yourself.</p>
 
   <p class="part">Part one: the model</p>
   <ol class="toc" id="toc1"></ol>
@@ -40,6 +40,10 @@
   <ol class="toc" id="toc3" style="counter-reset: ch 9"></ol>
   <p class="part">Part four: making it dependable</p>
   <ol class="toc" id="toc4" style="counter-reset: ch 12"></ol>
+  <p class="part">Part five: the harness</p>
+  <ol class="toc" id="toc5" style="counter-reset: ch 14"></ol>
+  <p class="part">Part six: the whole machine</p>
+  <ol class="toc" id="toc6" style="counter-reset: ch 17"></ol>
 
   <h2>Run the code yourself</h2>
   <p>The only dependency is numpy. Training takes roughly a quarter of an hour on a laptop CPU.</p>
@@ -73,10 +77,15 @@ M.ready(function () {
     'Context as working memory, retrieval as an open book, tools as hands: the loop behind every agent.',
     'Changing a frozen model with a small low-rank add-on, and where the road goes from here.',
     'A mask on the scores that makes a broken format impossible, and what that guarantee does not cover.',
-    'Traces to see where an agent went wrong, evaluations to know whether a change helped, and how far to trust a score.'
+    'Traces to see where an agent went wrong, evaluations to know whether a change helped, and how far to trust a score.',
+    'What Claude Code or Pi are made of: four tools, a system prompt, a loop, and the one text the model actually receives.',
+    'Why every agent step re-reads the conversation, how a prefix cache avoids it, and what to do when the window fills up.',
+    'Prompt injection: planted text that steers an agent, a gate that stops some of it, and the sandbox that bounds the rest.',
+    'CPU and GPU, why this arithmetic wants one of them, and how memory speed sets your tokens per second.',
+    'Every engine of the course in one file: train a tiny model from random numbers and run it as an agent with tools.'
   ];
   M.chapters.forEach(function (c, i) {
-    var list = M.$(i < 6 ? '#toc1' : i < 9 ? '#toc2' : i < 12 ? '#toc3' : '#toc4');
+    var list = M.$(i < 6 ? '#toc1' : i < 9 ? '#toc2' : i < 12 ? '#toc3' : i < 14 ? '#toc4' : i < 17 ? '#toc5' : '#toc6');
     list.appendChild(M.el('li', null, M.el('a', { href: c[0] }, M.el('b', { text: c[1] }), M.el('span', { text: blurbs[i] }))));
   });
 

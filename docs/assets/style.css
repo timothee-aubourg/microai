@@ -289,3 +289,8 @@ details.span > summary::-webkit-details-marker { display: none; }
 .span .lane i { position: absolute; top: 0; bottom: 0; min-width: 3px; border-radius: 3px; background: var(--muted); }
 .span .lane i.model { background: var(--fwd); }
 .span .lane i.err { background: var(--grad); }
+
+/* nineteen chapters do not fit a phone's top bar: let the trail scroll sideways */
+.trail { overflow-x: auto; scrollbar-width: none; }
+.trail::-webkit-scrollbar { display: none; }
+.trail a { flex: 1 0 20px; }

@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spending the window | microAI</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-ch="16">
+<main>
+  <p class="where">Chapter 16</p>
+  <h1>Spending the window</h1>
+  <p class="question">Every step of an agent sends the whole conversation again. What does that cost, and what do you do when it stops fitting?</p>
+
+  <p>The session of chapter 15 ended as a conversation of 3,025 characters. To get there the model read 12,749 characters, because each of its five requests contained everything before it. A longer task makes this worse quickly: the text grows by a steady amount per step, so the total read grows with the square of the number of steps.</p>
+  <p>Two budgets are being spent. One is time: reading costs computation. The other is room: the window is finite (chapter 11). They are managed with different tools, and the tools interfere with each other. That interference is the subject here.</p>
+
+  <h2>Reading and writing are different work</h2>
+  <p>A request has two phases. First the model reads the prompt. All of those tokens are known in advance, so they can be processed together. Then it writes, and each new token has to wait for the one before it. The reading phase is often called <strong>prefill</strong> and the writing phase <strong>decode</strong>.</p>
+  <p>You feel them separately. The pause before the first word appears is the reading. The speed of the words after that is the writing. An agent step typically reads thousands of tokens and writes a few dozen, so its cost is mostly reading.</p>
+
+  <h2>Do not read it twice</h2>
+  <p>Chapter 8 introduced the KV cache: for every token read, the model stores a key and a value per layer, so that later tokens can attend to it without recomputing it. Those stored numbers depend only on that token and the tokens before it, never on what comes after. So they stay valid for any text that begins the same way.</p>
+  <p>A server can use this between requests. It keeps the cache of the last request. When the next one arrives it compares the two token by token, keeps the cache up to the first difference, and computes only the rest. This is a <strong>prefix cache</strong>. Measured on the model of this course, with five requests that each extend the previous one by nine characters:</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Server</th><th>Tokens computed per request</th><th>Total</th></tr>
+    <tr><td>Forgets between requests</td><td class="mono">25, 34, 43, 52, 61</td><td class="mono">215</td></tr>
+    <tr><td>Keeps the cache, text only grows</td><td class="mono">25, 9, 9, 9, 9</td><td class="mono">61</td></tr>
+    <tr><td>Keeps the cache, one character at the start changes each time</td><td class="mono">25, 34, 43, 52, 61</td><td class="mono">215</td></tr>
+  </table></div>
+  <p>The second row does 3.5 times less work and produces the same scores: the script checks every request against a computation from scratch. The third row is the warning. One character changed near the beginning, and the cache was worth nothing, because every later token had attended to it.</p>
+  <p>From this follows the first rule of building agents: <strong>keep the beginning of the conversation fixed, and only ever add to the end.</strong> No clock in the system prompt. The same tools in the same order at every step. No rewriting of earlier messages. llama.cpp's server reuses the common beginning of consecutive requests by default, and hosted services price cached input lower for the same reason.</p>
+
+  <section class="bench" id="w-cache">
+    <h3>One session, four ways to run it</h3>
+    <p class="try"><b>Try this.</b> Start with "Only add to the end" and note the total. Switch to the clock. Then make the session long enough to cross the window line, and try the two ways of shrinking it.</p>
+  </section>
+
+  <h2>When it no longer fits</h2>
+  <p>Adding to the end cannot go on forever. Past the window line the request is refused, or the oldest text falls out without notice. Three tools make the conversation smaller, in order of violence.</p>
+  <p><strong>Clip at the source.</strong> Cut a long tool result before it enters the conversation, as <code>clip</code> does in chapter 15. This costs nothing later, because nothing already read is changed.</p>
+  <p><strong>Trim old results.</strong> A file read ten steps ago has usually done its job. Replace old results with their first lines.</p>
+  <p><strong>Compact.</strong> Ask the model to summarise the work so far, and replace the middle of the conversation with that summary.</p>
+  <p>The last two rewrite text the model has already read, so they break the first rule. From the first changed character on, the cache is void and everything is read again. Measured on a session of six file reads of 1,500 characters each: trimming takes it from 10,870 to 5,722 characters and leaves the first 883 identical. Compacting takes it to 4,036 and leaves the first 483 identical.</p>
+  <p>So the two budgets pull against each other. The experiment shows the way out: trimming a little at every step pays the re-reading price at every step, while compacting rarely, in one large cut, pays it once and then enjoys a short conversation that grows at the end again. Shrink seldom and shrink a lot.</p>
+
+  <h2>Memory is a decision about the window</h2>
+  <p>Chapter 11 said the model's only memory is the list of messages. Everything called memory in an agent is a way of choosing what goes back into that list.</p>
+  <p><strong>Notes on disk.</strong> The agent writes what it learned into a file with its ordinary tools. A later session reads the file at the start. The memory is as good as what was written down.</p>
+  <p><strong>Retrieval.</strong> Chapter 11's search, pointed at past conversations or notes: fetch the few passages that match the present task.</p>
+  <p><strong>A fresh window.</strong> Hand a side task to a helper agent. It spends its own window on the reading and returns three lines.</p>
+
+  <h2>Build it</h2>
+  <pre class="code" data-src="ch16_context.py#prefix">class PrefixCache:
+    """Keep the keys and values of the last text. For the next text, compute only what differs."""
+    def __init__(self, run):
+        self.run, self.ids, self.cache = run, [], run.new_cache()
+
+    def read(self, ids):
+        same = 0
+        while same &lt; min(len(ids), len(self.ids)) and ids[same] == self.ids[same]:
+            same += 1                                  # how long is the shared beginning?
+        same = min(same, len(ids) - 1)                 # always compute the last token: we need its scores
+        for layer in self.cache['k'] + self.cache['v']:
+            del layer[same:]                           # everything after the first difference is void
+        self.cache['pos'] = same
+        for t in ids[same:]:
+            logits = self.run.step(t, self.cache)      # the only real work
+        self.ids = list(ids)
+        return logits, len(ids) - same                 # scores for the next token, tokens computed</pre>
+  <p class="src">From <code>code/ch16_context.py</code>. A prefix cache on top of the runner of chapter 8: find the shared beginning, void the rest, compute what is new.</p>
+  <pre class="code" data-src="ch16_context.py#trim">def trim_results(messages, keep=2, limit=200):
+    """Old tool results are most of an agent's context. Shorten all but the latest `keep`."""
+    out, seen = [], 0
+    for m in reversed(messages):
+        if m['role'] == 'tool':
+            seen += 1
+            if seen &gt; keep and len(m['content']) &gt; limit:
+                m = {**m, 'content': m['content'][:limit] + f' [trimmed: {len(m["content"]) - limit} more characters]'}
+        out.append(m)
+    return out[::-1]
+
+def compact(messages, summarize, keep=4):
+    """Replace the middle of a long conversation with a summary. `summarize` is one more model call."""
+    cut = len(messages) - keep
+    while cut &gt; 2 and messages[cut]['role'] == 'tool':
+        cut -= 1                                       # never separate a result from the request before it
+    if cut &lt;= 2:
+        return messages
+    note = summarize(messages[2:cut])
+    return messages[:2] + [{'role': 'user', 'content': 'Summary of the work so far:\n' + note}] + messages[cut:]</pre>
+  <p class="src">Two ways to shrink a conversation. Both keep a tool result next to the request that caused it, because a result without its request confuses the model and is rejected by some servers.</p>
+
+  <div class="note">
+    <h3>What this chapter glossed over</h3>
+    <p><strong>Characters stand in for tokens.</strong> The session sizes are counted in characters. Divide by about four for tokens of English text. The table on our own model counts real tokens, since for it a token is a character.</p>
+    <p><strong>The experiment is arithmetic.</strong> It adds up sizes under stated rules. The fixed part, 1,921 characters of system prompt and tool descriptions, is the measured figure from chapter 15. The rest is set by the sliders.</p>
+    <p><strong>A summary loses things.</strong> What to keep is a judgment the model makes for you, and a detail dropped there is gone. Good harnesses keep the full record on disk so it can be searched.</p>
+    <p><strong>Real servers have more moving parts.</strong> A local server keeps a small number of caches. A summarising request is itself a request, and on a server with a single cache it can push out the conversation it was meant to help.</p>
+    <p><strong>A full window is also a worse window.</strong> Models tend to use a long, cluttered context less reliably than a short, relevant one. Size is not only a cost.</p>
+  </div>
+
+  <h2>Check yourself</h2>
+  <details class="check"><summary>Someone adds "The current time is 14:32:07" as the first line of the system prompt. What happens to the cost of a twenty-step task?</summary><p>If the time is refreshed on each request, the first line differs every time, so the shared beginning has length zero and every request is read in full. Put changing information at the end, in the newest message, where nothing after it depends on it.</p></details>
+  <details class="check"><summary>Why does the cache become invalid after the first difference, and not only at the changed token?</summary><p>Each token's stored keys and values were computed by attending to all the tokens before it. Change one early token and every later token would have computed something different. Only what came before the change is untouched.</p></details>
+  <details class="check"><summary>Trimming old results at every step keeps the window small. Why does it cost more reading than compacting now and then?</summary><p>Each trim changes text two steps back, so each request is read again from that point on: about two results' worth per step instead of one. A compaction costs one larger re-read, after which the conversation again grows only at the end.</p></details>
+  <details class="check"><summary>An agent "remembers" your preferences from last week. Where are they stored?</summary><p>Not in the model: its weights did not change. They are in text that the harness saved and now puts back into the request, as a note file read at the start or a retrieved passage.</p></details>
+</main>
+
+<script src="assets/micro.js"></script>
+<script>
+M.ready(function () {
+  var box = M.$('#w-cache'), HEAD = 1921, TASK = 130, CALL = 120, WINDOW = 16000, mode = 'append';
+  var steps = M.slider({ label: 'Steps in the task', min: 4, max: 40, step: 1, value: 14, oninput: sim });
+  var size = M.slider({ label: 'Characters per tool result', min: 100, max: 3000, step: 100, value: 800, oninput: sim });
+  var sel = M.select('Policy', [['append', 'Only add to the end'], ['clock', 'A clock in the system prompt'], ['trim', 'Trim old results at every step'], ['compact', 'Compact when three quarters full']], function (v) { mode = v; sim(); });
+  var stat = M.el('p', { class: 'readout' }), calls = [];
+  var cv = M.canvas(box, function (w) { return Math.min(240, Math.max(180, w * 0.45)); }, function (o) {
+    var c = o.ctx, L = 6, T = 14, B = 22, w = o.w - 2 * L, h = o.h - T - B, n = calls.length;
+    var top = Math.max(WINDOW * 1.15, Math.max.apply(null, calls.map(function (x) { return x.total; })));
+    var bw = w / n, y = function (v) { return T + h - h * v / top; };
+    for (var i = 0; i < n; i++) {
+      var x = L + i * bw + 1, ww = Math.max(1, bw - 2), q = calls[i];
+      c.fillStyle = M.css('--line'); c.fillRect(x, y(q.cached), ww, y(0) - y(q.cached));
+      c.fillStyle = M.css(q.total > WINDOW ? '--grad' : '--fwd'); c.fillRect(x, y(q.total), ww, y(q.cached) - y(q.total));
+    }
+    c.strokeStyle = M.css('--grad'); c.setLineDash([5, 4]); c.beginPath(); c.moveTo(L, y(WINDOW)); c.lineTo(L + w, y(WINDOW)); c.stroke(); c.setLineDash([]);
+    c.font = '12px ' + M.css('--sans'); c.fillStyle = M.css('--grad'); c.textAlign = 'left'; c.textBaseline = 'bottom'; c.fillText('window: 16,000 characters', L + 4, y(WINDOW) - 3);
+    c.fillStyle = M.css('--muted'); c.textBaseline = 'top'; c.fillText('first request', L, T + h + 6); c.textAlign = 'right'; c.fillText('last request', L + w, T + h + 6);
+  });
+  function sim() {
+    var n = steps.value, R = size.value, blocks = [{ id: 'head', size: HEAD }, { id: 'task', size: TASK }], prev = [], plain = 0, read = 0, peak = 0, cuts = 0;
+    calls = [];
+    for (var k = 0; k <= n; k++) {
+      if (k) { blocks.push({ id: 'call' + k, size: CALL }); blocks.push({ id: 'result' + k, size: R, result: k }); }
+      if (mode === 'clock') blocks[0] = { id: 'head@' + k, size: HEAD };
+      if (mode === 'trim') blocks = blocks.map(function (b) { return b.result && b.result <= k - 2 && b.size > 200 ? { id: b.id + ':trimmed', size: 200, result: b.result } : b; });
+      var total = blocks.reduce(function (a, b) { return a + b.size; }, 0);
+      if (mode === 'compact' && total > 0.75 * WINDOW && blocks.length > 7) {
+        blocks = blocks.slice(0, 2).concat([{ id: 'summary@' + k, size: 400 }], blocks.slice(-4)); cuts++;
+        total = blocks.reduce(function (a, b) { return a + b.size; }, 0);
+      }
+      var cached = 0;
+      for (var i = 0; i < Math.min(blocks.length, prev.length) && blocks[i].id === prev[i].id; i++) cached += blocks[i].size;
+      calls.push({ total: total, cached: cached });
+      read += total - cached; peak = Math.max(peak, total);
+      plain += HEAD + TASK + k * (CALL + R);
+      prev = blocks.slice();
+    }
+    stat.innerHTML = 'Characters the model had to compute: <b>' + read.toLocaleString('en-US') + '</b>. With no cache and no shrinking it would be ' + plain.toLocaleString('en-US') +
+      ' (<b>' + (plain / read).toFixed(1) + '×</b>). Largest request: <b>' + peak.toLocaleString('en-US') + '</b>, ' + (peak > WINDOW ? '<b>which does not fit the window</b>.' : 'which fits.') +
+      (mode === 'compact' ? ' Compactions: <b>' + cuts + '</b>.' : '');
+    cv.redraw();
+  }
+  box.insertBefore(M.row(sel), cv.c.parentNode); box.insertBefore(M.row(steps), cv.c.parentNode); box.insertBefore(M.row(size), cv.c.parentNode);
+  box.appendChild(M.el('p', { class: 'caption', text: 'One bar per request. Grey: the beginning that matches the previous request and is taken from the cache. Blue: what has to be computed. Raspberry: a request larger than the window.' }));
+  box.appendChild(stat);
+  sim();
+});
+</script>
+</body>
+</html>
