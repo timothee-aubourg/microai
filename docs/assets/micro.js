@@ -446,7 +446,7 @@
     const ch = +document.body.getAttribute('data-ch') || 0;
     const trail = M.el('nav', { class: 'trail', 'aria-label': 'Chapters' });
     M.chapters.forEach((c, i) => {
-      if (i === 6 || i === 9 || i === 12 || i === 14 || i === 17) trail.appendChild(M.el('span', { class: 'gap' }));
+      if (i > 0 && M.parts.some((p) => p[2] === i + 1)) trail.appendChild(M.el('span', { class: 'gap' }));
       const a = M.el('a', { href: c[0], title: (i + 1) + '. ' + c[1], class: i + 1 === ch ? 'here' : i + 1 < ch ? 'done' : '', text: String(i + 1) });
       if (i + 1 === ch) a.setAttribute('aria-current', 'page');
       trail.appendChild(a);
@@ -459,7 +459,12 @@
     const main = M.$('main');
     if (ch && main) {
       const where = M.$('.where');
-      if (where) where.textContent = 'Chapter ' + ch + ' of ' + M.chapters.length;
+      if (where) {
+        const k = M.partOf(ch);
+        where.textContent = 'Chapter ' + ch + ' of ' + M.chapters.length + ' · ';
+        where.appendChild(M.partIcon(k));
+        where.appendChild(document.createTextNode(M.parts[k][0] + ': ' + M.parts[k][1]));
+      }
       const prev = M.chapters[ch - 2], next = M.chapters[ch];
       const pager = M.el('nav', { class: 'pager', 'aria-label': 'Previous and next chapter' });
       pager.appendChild(prev ? M.el('a', { href: prev[0], html: '<small>Previous</small>' + prev[1] }) : M.el('a', { href: 'index.html', html: '<small>Back to</small>Contents' }));
@@ -469,8 +474,80 @@
     }
     const tally = M.$('#guess-score');                 // the contents page shows the running score
     if (tally) { const t = scoreLine(guesses()); if (t) tally.textContent = t + ' Each chapter opens with one.'; }
+    decorate();
     document.querySelectorAll('pre.code').forEach((p) => { if (p.getAttribute('data-lang') !== 'text') highlight(p); });
     termTips();
+  }
+
+  /* ---------- painted icons: a flat dab and one ink gesture ----------
+     One rule for every icon. The dab says whose it is or what state it is in:
+     ultramarine for the furniture of a lesson, a part's own pigment for that part,
+     green and raspberry for a right and a wrong guess. The stroke says what it is.
+     Dabs are drawn from a seed, so each one is slightly uneven and always the same. */
+  function seeded(seed) {
+    let s = 0;
+    for (const c of String(seed)) s = (s * 31 + c.charCodeAt(0)) >>> 0;
+    return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
+  }
+  const mid = (a, b) => ((a[0] + b[0]) / 2).toFixed(1) + ',' + ((a[1] + b[1]) / 2).toFixed(1);
+  function dab(cx, cy, r, seed, fill, op) {
+    const R = seeded(seed), n = 9, pts = [];
+    for (let i = 0; i < n; i++) {
+      const a = i / n * Math.PI * 2 + R() * 0.25, rr = r * 1.2 * (0.9 + R() * 0.18);
+      pts.push([cx + Math.cos(a) * rr, cy + Math.sin(a) * rr * (0.92 + R() * 0.1)]);
+    }
+    let d = 'M' + mid(pts[n - 1], pts[0]);
+    for (let i = 0; i < n; i++) d += 'Q' + pts[i].map((v) => v.toFixed(1)) + ' ' + mid(pts[i], pts[(i + 1) % n]);
+    return '<path d="' + d + 'Z" fill="' + fill + '" fill-opacity="' + (op || 0.82) + '"/>';
+  }
+  const ink = (d, w) => '<path d="' + d + '" fill="none" stroke="var(--ink)" stroke-width="' + (w || 3.2) + '" stroke-linecap="round" stroke-linejoin="round"/>';
+  const spot = (x, y, r) => '<circle cx="' + x + '" cy="' + y + '" r="' + (r || 2.4) + '" fill="var(--ink)"/>';
+  const U = 'var(--fwd)';
+  const ICONS = {
+    guess: dab(24, 23, 12, 'gs', U) + ink('M17 18 C 17 10.5, 31 10.5, 31 18.5 C 31 24, 24 24, 24 30') + spot(24, 37),               // a question
+    try:   dab(24, 24, 12, 'tr', U) + ink('M8 18 C 16 17, 30 19, 40 18 M8 31 C 16 30, 30 32, 40 31') + spot(17, 18, 3.6) + spot(31, 31, 3.6),  // two sliders
+    build: dab(24, 24, 12, 'bd', U) + ink('M18 13 L8 24 L18 35 M30 13 L40 24 L30 35'),                                              // code brackets
+    check: dab(24, 26, 12, 'd', U) + ink('M12 25 L20 33 L37 13'),                                                                  // a tick
+    rough: dab(24, 24, 11, 'fr', U) + ink('M6 26 L11 18 L14 30 L19 17 L22 31 L27 16 L30 30 L35 19 L38 27 L42 22'),                  // a scribble: where the telling was rougher than the truth
+    keep:  dab(26, 25, 11, 'nt', U) + ink('M5 32 C 14 32, 20 30, 22 24 C 24 16, 33 16, 32 23 C 31 30, 22 30, 23 25 C 24 21, 30 32, 43 31'),  // a knot in a thread
+    word:  dab(24, 25, 12, 'wd', U) + ink('M8 14 C 14 12, 20 13, 24 16 C 28 13, 34 12, 40 14 L40 34 C 34 32, 28 33, 24 36 C 20 33, 14 32, 8 34 Z M24 16 L24 36', 2.8),  // an open book
+    recap: dab(28, 24, 12, 'rc', U) + ink('M9 16 C 15 15, 27 17, 38 16 M9 24 C 15 23, 27 25, 38 24 M9 32 C 14 31, 20 33, 27 32'),    // three lines
+    right: dab(24, 26, 12, 'ok', 'var(--ok)', 0.85) + ink('M12 25 L20 33 L37 13'),
+    wrong: dab(24, 24, 11, 'no', 'var(--grad)', 0.8) + ink('M15 15 C 21 21, 27 27, 33 33 M33 15 C 27 21, 21 27, 15 33')
+  };
+  const svgIcon = (inner) => M.el('span', { class: 'ic', 'aria-hidden': 'true', html: '<svg viewBox="0 0 48 48" focusable="false">' + inner + '</svg>' });
+  M.icon = (name) => svgIcon(ICONS[name] || '');
+  /* The six parts of the course. Each gets a pigment and a gesture derived from its name,
+     so its sign is stable and needs no drawing. [label, name, first chapter, pigment] */
+  M.parts = [
+    ['Part one', 'the model', 1, '#5f9b3a'], ['Part two', 'making it work', 7, '#2f8f8a'],
+    ['Part three', 'the system on your machine', 10, '#a98cf0'], ['Part four', 'making it dependable', 13, '#c4543a'],
+    ['Part five', 'the harness', 15, '#8c8a2e'], ['Part six', 'the whole machine', 18, '#8e4a9e']
+  ];
+  M.partOf = (ch) => { let k = 0; M.parts.forEach((p, i) => { if (ch >= p[2]) k = i; }); return k; };
+  M.partIcon = function (k) {
+    const name = M.parts[k][1], R = seeded(name), kind = Math.floor(R() * 5), n = 2 + Math.floor(R() * 3), amp = 4 + R() * 5;
+    let d = '';
+    if (kind === 0) { d = 'M5 30'; const w = 38 / n; for (let i = 0; i < n; i++) { const x = 5 + w * i; d += ' C ' + (x + w * 0.6) + ' 30, ' + (x + w * 0.9) + ' ' + (20 - amp * 0.4) + ', ' + (x + w * 0.5) + ' ' + (19 - amp * 0.3) + ' C ' + (x + w * 0.1) + ' ' + (19 - amp * 0.3) + ', ' + (x + w * 0.2) + ' 30, ' + (x + w) + ' 30'; } }
+    else if (kind === 1) { d = 'M5 24'; const w = 38 / (n * 2); for (let i = 0; i < n * 2; i++) d += ' Q ' + (5 + w * i + w / 2) + ' ' + (24 + (i % 2 ? amp : -amp)) + ', ' + (5 + w * (i + 1)) + ' 24'; }
+    else if (kind === 2) d = 'M24 24 C 27 22, 27 19, 24 18.5 C 19.5 18, 17.5 23, 19 27 C 21 32, 29 32, 31.5 27 C 34 21, 30 14, 23 14 C 15 14, 10 22, ' + (6 + R() * 4) + ' ' + (30 + R() * 5);
+    else if (kind === 3) d = 'M6 ' + (32 - amp * 0.3) + ' C 16 ' + (12 + amp) + ', 32 ' + (12 + amp) + ', 42 ' + (30 - amp * 0.4);
+    else { d = 'M6 26'; const w = 36 / (n * 2 + 1); for (let i = 1; i <= n * 2 + 1; i++) d += ' L ' + (6 + w * i) + ' ' + (26 + (i % 2 ? -amp : amp * 0.6)); }
+    const off = [(R() - 0.5) * 8, (R() - 0.5) * 6];
+    return svgIcon(dab(24 + off[0], 24 + off[1], 12, name, M.parts[k][3], 0.9) + ink(d));
+  };
+  /* put the sign of its kind in front of every recurring piece of a lesson */
+  function decorate() {
+    const put = (el, icon) => { if (el && !el.querySelector('.ic')) el.insertBefore(icon, el.firstChild); };
+    document.querySelectorAll('.bench > h3').forEach((h) => put(h, M.icon('try')));
+    document.querySelectorAll('.note > h3').forEach((h) => { if (/^What this chapter glossed over/.test(h.textContent.trim())) put(h, M.icon('rough')); });
+    document.querySelectorAll('main h2').forEach((h) => {
+      const t = h.textContent.trim();
+      if (t === 'Build it') put(h, M.icon('build')); else if (t === 'Check yourself') put(h, M.icon('check'));
+    });
+    document.querySelectorAll('.def .kind').forEach((k) => put(k, M.icon('word')));
+    document.querySelectorAll('.recap > h3').forEach((h) => put(h, M.icon('recap')));
+    document.querySelectorAll('p.part').forEach((p, k) => { if (M.parts[k]) put(p, M.partIcon(k)); });
   }
 
   /* ---------- the lesson format: guess before reveal, one line to keep ----------
@@ -558,21 +635,25 @@
         const all = save ? guesses({ [ch]: i }) : guesses();
         buttons.forEach((b, k) => {
           b.disabled = true;
-          if (k === L.a) { b.setAttribute('data-state', 'right'); b.textContent = '✓ ' + L.o[k]; }
-          else if (k === i) { b.setAttribute('data-state', 'wrong'); b.textContent = '✗ ' + L.o[k]; }
+          if (k !== L.a && k !== i) return;
+          const right = k === L.a;
+          b.setAttribute('data-state', right ? 'right' : 'wrong');
+          b.setAttribute('aria-label', (right ? 'The answer: ' : 'Your guess, not the answer: ') + L.o[k]);
+          b.textContent = L.o[k];
+          b.insertBefore(M.icon(right ? 'right' : 'wrong'), b.firstChild);
         });
         why.innerHTML = '<b>' + (i === L.a ? 'Right.' : 'Not this time, and that is the useful case.') + '</b> ';
         why.appendChild(document.createTextNode(L.why + ' The chapter shows why.'));
         score.textContent = scoreLine(all);
       }
       const box = M.el('section', { class: 'guess', 'aria-label': 'Guess first' },
-        M.el('p', { class: 'tag', text: 'Guess first · ten seconds' }), M.el('p', { class: 'q', text: L.q }),
+        M.el('p', { class: 'tag' }, M.icon('guess'), 'Guess first · ten seconds'), M.el('p', { class: 'q', text: L.q }),
         M.el('div', { class: 'opts' }, ...buttons), why, score);
       question.parentNode.insertBefore(box, question.nextSibling);
       const before = guesses()[ch];
       if (typeof before === 'number' && before >= 0 && before < L.o.length) pick(before, false);
     }
-    main.insertBefore(M.el('div', { class: 'keep' }, M.el('p', { class: 'tag', text: 'One line to keep' }), M.el('p', { text: L.keep })), pager);
+    main.insertBefore(M.el('div', { class: 'keep' }, M.el('p', { class: 'tag' }, M.icon('keep'), 'One line to keep'), M.el('p', { text: L.keep })), pager);
   }
 
   /* Glossary terms: <a class="term" href="glossary.html#loss">loss</a>.

@@ -201,7 +201,8 @@ and quote its measured numbers; after retraining, check them against yours.
 ## Look and lesson format
 
 The pages use the visual language of Painted Homer (ivory paper, ultramarine
-ink, a brush stroke under each heading, small quiet controls) and the lesson
+ink, a brush stroke under each heading, icons made of one dab and one ink
+gesture, small quiet controls) and the lesson
 rules that go with it: mobile first, one idea per step, a guess before the
 reveal, a short self-check, and one line to keep. The guess and the line to
 keep for every chapter live in one table, `M.lesson` in `docs/assets/micro.js`.

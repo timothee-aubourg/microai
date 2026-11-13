@@ -71,6 +71,20 @@ and cream ink by night. It is defined once, as variables at the top of
   Both are in `docs/assets/fonts/` under the SIL Open Font License.
 - **Section headings** get a short brush stroke from the stylesheet. Do not
   add rules or borders by hand.
+- **Icons are a dab and a gesture.** Every icon is one flat dab of colour and
+  one ink stroke, drawn by `M.icon(name)` in `docs/assets/micro.js`. The dab
+  says whose it is or what state it is in: ultramarine for the furniture of a
+  lesson, green and raspberry for a right and a wrong guess, a part's own
+  pigment for that part. The stroke says what it is. The shared script puts the
+  right icon in front of every experiment, "Build it", "Check yourself",
+  "What this chapter glossed over", definition, recap, guess and line to keep,
+  so a page never draws one itself. A new kind of recurring piece gets one new
+  entry in `ICONS`: a `dab(...)` plus one `ink(...)` path on a 48 by 48 grid.
+- **Each part has a sign.** The six parts are listed in `M.parts` with a
+  pigment each. A part's sign is its pigment as the dab and a gesture derived
+  from its name, shown in the contents and at the top of each of its chapters.
+  The six pigments are used for nothing else, and none is close to the three
+  meaning colours.
 - **Controls are small and quiet.** `M.button(label, fn)` is an underlined
   word; pass `'go'` for the one main action of an experiment. No filled
   buttons. A tap target is at least 44 px tall.
