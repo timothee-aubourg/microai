@@ -31,6 +31,10 @@
     ['23-small.html', 'As small as it goes', 'small'],
     ['24-posttraining.html', 'From text to behaviour', 'behave'],
     ['25-inference.html', 'Better without retraining', 'infer'],
+    ['26-drafting.html', 'A quick draft, a careful check', 'draft'],
+    ['27-serving.html', 'Many people at once', 'serve'],
+    ['28-classifiers.html', 'A second model that says yes or no', 'judge'],
+    ['29-distilling.html', 'A large model teaches a small one', 'teach'],
   ];
 
   // ---------- DOM helpers ----------
@@ -688,7 +692,8 @@
     ['Part three', 'the system on your machine', 10, '#a98cf0'], ['Part four', 'making it dependable', 13, '#c4543a'],
     ['Part five', 'the harness', 15, '#8c8a2e'], ['Part six', 'the whole machine', 18, '#8e4a9e'],
     ['Part seven', 'at full size', 20, '#4a9a6a'], ['Part eight', 'fitting the machine', 22, '#7d5b4a'],
-    ['Part nine', 'shaping behaviour', 24, '#5c6b7a']
+    ['Part nine', 'shaping behaviour', 24, '#5c6b7a'], ['Part ten', 'faster, and for many', 26, '#9a5a7d'],
+    ['Part eleven', 'models that help models', 28, '#6a7f3a']
   ];
   M.partOf = (ch) => { let k = 0; M.parts.forEach((p, i) => { if (ch >= p[2]) k = i; }); return k; };
   M.partIcon = function (k) {
@@ -795,7 +800,19 @@
           keep: 'Pre-training gives a model every habit in its text. Post-training chooses among them, by showing examples or by scoring answers.' },
     25: { q: 'A model answers a sum right about half the time, and its weights cannot be changed. You ask the same sum 15 times and keep the answer given most often. How often is that answer right?', o: ['About half the time: it is the same model.', 'Nearly always.', 'Less often: more answers, more mistakes.'], a: 1,
           why: 'Wrong guesses disagree with each other and right answers agree. Here the vote was right on 300 sums of 300, for fifteen times the tokens.',
-          keep: 'With fixed weights, better answers can still be bought at the moment of asking: ask more, check, steer. The price is paid on every request.' }
+          keep: 'With fixed weights, better answers can still be bought at the moment of asking: ask more, check, steer. The price is paid on every request.' },
+    26: { q: 'A small model drafts the next characters and is wrong about four times in ten. A large model checks each draft. How often does the final text differ from what the large model would have written alone?', o: ['About four times in ten.', 'Rarely, but sometimes.', 'Never.'], a: 2,
+          why: 'Every drafted character is compared with the large model\'s own choice and replaced at the first difference. Here the text was identical in 100 cases of 100.',
+          keep: 'A large model can check several tokens in the pass it would spend writing one. A draft that is wrong costs time, never correctness.' },
+    27: { q: 'A large model takes 87 ms for one pass on one request. How long does one pass take on sixteen requests at once?', o: ['About sixteen times as long.', 'About twice as long.', 'The same.'], a: 1,
+          why: 'Most of a pass is fetching the weights, and that is done once whatever the batch. Measured on a 1 GB matrix: 202 ms for sixteen.',
+          keep: 'The weights are read once per pass however many people share it. That is why one model can serve many, and why each of them waits a little longer.' },
+    28: { q: 'A guard blocks any request that contains the word "secret". People then ask for the secret in 96 new ways. How many does the rule catch?', o: ['Most of them.', 'About half.', '12.'], a: 2,
+          why: 'Only the wordings that happen to contain the word. A small classifier trained on examples caught 83, and wrongly blocked 31 harmless requests of 192.',
+          keep: 'A classifier catches what no rule listed, and it is wrong in two ways. The threshold chooses between them; only better examples reduce both.' },
+    29: { q: 'A small model learns from only 5,000 characters. Version A is told the next character each time. Version B is told a large model\'s probabilities for the next character. Which is better on new text?', o: ['A: the real text is the truth.', 'B, by a wide margin.', 'About the same.'], a: 1,
+          why: 'A memorised its 5,000 characters and scored 6.57, worse than knowing nothing. B scored 2.65: the probabilities carry what the large model learned from 200 times more text.',
+          keep: 'A large model\'s probabilities say more than the text: not only what came next, but what could have. A small model taught that way needs far less text.' }
   };
   function guesses(set) {
     let s = {};

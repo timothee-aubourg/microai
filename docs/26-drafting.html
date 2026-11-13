@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A quick draft, a careful check | microAI</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-ch="26">
+<main>
+  <p class="where">Chapter 26</p>
+  <h1>A quick draft, a careful check</h1>
+  <p class="question">A large model writes one token per pass, and every pass reads all of its weights. Can it write several tokens per pass without writing anything different?</p>
+
+  <p>Chapter 18 gave the speed limit of a large model: one pass through the weights per token, and a pass takes as long as the memory needs to deliver them. Chapter 25 spent more passes to get better answers. This chapter goes the other way. It gets the same answer, character for character, from fewer passes.</p>
+  <p>The idea rests on something you saw in chapter 6. One pass of a transformer does not produce one prediction. It produces a prediction at every position of the text it was given. Training uses all of them (chapter 7). Writing normally uses only the last and throws the rest away.</p>
+
+  <h2>Checking is cheaper than writing</h2>
+  <p>Suppose somebody hands the large model four tokens it has not written, and claims they are what it would have written. To check, the model reads the text with the four tokens added, in one pass. At each of the four positions it now has its own prediction, and can compare. One pass checks four tokens. Writing them itself would have taken four.</p>
+  <p>So let a much smaller model do the handing. Most of what a language model writes is easy: the rest of a word, a space, a common word. A small model gets those right. The large one is needed only at the places where they differ.</p>
+  <div class="def"><span class="kind">Definitions</span>
+    <p>A <dfn>draft model</dfn> is a small, fast model that proposes the next few tokens for a large one.</p>
+    <p><dfn>Speculative decoding</dfn> is writing with a draft model and checking each draft with the large model in one pass. The output is the same as the large model's alone.</p>
+  </div>
+
+  <h3>By hand: one round</h3>
+  <p>The text so far is "the kin". The draft model is asked for four characters.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Position</th><th>1</th><th>2</th><th>3</th><th>4</th></tr>
+    <tr><td>The draft wrote</td><td class="mono">g</td><td class="mono">␣</td><td class="mono">a</td><td class="mono">n</td></tr>
+    <tr><td>The large model would write</td><td class="mono">g</td><td class="mono">␣</td><td class="mono">o</td><td class="mono"></td></tr>
+    <tr><td>Kept</td><td class="mono">g</td><td class="mono">␣</td><td class="mono">o</td><td class="mono"></td></tr>
+  </table></div>
+  <p>The two agree at positions 1 and 2, so those are kept. At position 3 they differ. The large model's own character is taken, and everything the draft wrote after it is thrown away, because it was written after a character that is no longer there. The round cost four cheap passes and one costly pass, and produced three characters. Alone, the large model would have needed three costly passes.</p>
+  <p>Notice what the third character is. It is not a guess that was accepted. It is the large model's own choice, from the same pass that did the checking. That is why every round yields at least one character and the output cannot differ from the large model's.</p>
+
+  <figure class="fig">
+    <svg viewBox="0 0 760 200" role="img" aria-labelledby="f26a">
+      <title id="f26a">One round. The small model writes four tokens in four cheap passes. The large model reads them in one pass and gives its own token at each position. Tokens are kept up to the first disagreement, where the large model's token is used.</title>
+      <defs><marker id="c26a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
+      <text x="16" y="30" class="t-small t-muted">text so far</text>
+      <g class="t-mono"><rect x="16" y="40" width="150" height="34" rx="5" class="bx"/><text x="91" y="62" text-anchor="middle">the kin</text></g>
+      <text x="200" y="30" class="t-small t-muted">draft: 4 cheap passes</text>
+      <g class="t-mono"><rect x="200" y="40" width="38" height="34" rx="5" class="bx-soft"/><text x="219" y="62" text-anchor="middle">g</text><rect x="242" y="40" width="38" height="34" rx="5" class="bx-soft"/><text x="261" y="62" text-anchor="middle">␣</text><rect x="284" y="40" width="38" height="34" rx="5" class="bx-soft"/><text x="303" y="62" text-anchor="middle">a</text><rect x="326" y="40" width="38" height="34" rx="5" class="bx-soft"/><text x="345" y="62" text-anchor="middle">n</text></g>
+      <rect x="16" y="96" width="348" height="34" rx="6" class="bx-fwd"/><text x="190" y="118" text-anchor="middle">large model: 1 costly pass over all of it</text>
+      <g class="ln"><line x1="219" y1="74" x2="219" y2="94" marker-end="url(#c26a)"/><line x1="261" y1="74" x2="261" y2="94" marker-end="url(#c26a)"/><line x1="303" y1="74" x2="303" y2="94" marker-end="url(#c26a)"/><line x1="345" y1="74" x2="345" y2="94" marker-end="url(#c26a)"/></g>
+      <text x="200" y="152" class="t-small t-muted">its own token at each position</text>
+      <g class="t-mono"><rect x="200" y="160" width="38" height="34" rx="5" class="bx-fwd"/><text x="219" y="182" text-anchor="middle">g</text><rect x="242" y="160" width="38" height="34" rx="5" class="bx-fwd"/><text x="261" y="182" text-anchor="middle">␣</text><rect x="284" y="160" width="38" height="34" rx="5" class="bx-grad"/><text x="303" y="182" text-anchor="middle">o</text></g>
+      <text x="420" y="60" class="t-small">agree, agree, differ</text>
+      <text x="420" y="118" class="t-small">3 tokens from 1 costly pass</text>
+      <text x="420" y="182" class="t-small">the third is the large model's own</text>
+    </svg>
+    <figcaption><b>One round.</b> The draft is kept as far as the large model agrees with it. At the first difference the large model's token replaces it, and the round ends.</figcaption>
+  </figure>
+
+  <section class="bench" id="w-spec">
+    <h3>Draft and check</h3>
+    <p class="try"><b>Try this.</b> Write with drafts of 4. Count the costly passes against the 48 characters. Then set the draft length to 1, and to 8. Does the text ever change?</p>
+  </section>
+
+  <p><strong>What you should have seen.</strong> The text is identical at every draft length, and identical to what the large model writes alone: the last line of the experiment checks this each time. What changes is the number of costly passes, from 48 down to about 20 with drafts of 4. Look at where the corrections fall. They sit mostly at the start of a word, where there is a real choice to make, and the kept stretches are the ends of words.</p>
+
+  <h2>Measured</h2>
+  <p><code>code/ch26_draft.py</code> uses the model of chapter 7 as the large model, 345,504 weights, and trains a draft model of 16,608 weights: one block, vectors of 32 numbers. From 100 starting points in unseen text, each writes 48 characters.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Draft length</th><th>Same text as the large model alone</th><th>Drafted tokens kept</th><th>Tokens per costly pass</th><th>Tokens per second</th></tr>
+    <tr><td>no draft</td><td class="mono">100 of 100</td><td></td><td class="mono">1.00</td><td class="mono">782</td></tr>
+    <tr><td class="mono">1</td><td class="mono">100 of 100</td><td class="mono">58%</td><td class="mono">1.56</td><td class="mono">936</td></tr>
+    <tr><td class="mono">2</td><td class="mono">100 of 100</td><td class="mono">60%</td><td class="mono">1.93</td><td class="mono">994</td></tr>
+    <tr><td class="mono">4</td><td class="mono">100 of 100</td><td class="mono">59%</td><td class="mono">2.18</td><td class="mono">907</td></tr>
+    <tr><td class="mono">8</td><td class="mono">100 of 100</td><td class="mono">60%</td><td class="mono">2.41</td><td class="mono">652</td></tr>
+  </table></div>
+  <p>The text is the same in every one of the 400 cases. The costly passes fall by more than half. The speed is another matter: at best 994 tokens per second against 782, a gain of 27%, and with drafts of 8 the whole thing is slower than no draft at all.</p>
+  <p>The reason is in the price of a draft. Here a pass of the draft model takes 0.30 ms and a pass of the large one 1.28 ms: the draft is only four times cheaper. With drafts of 8, most rounds end at a disagreement after two or three characters, and the other five or six drafted characters were paid for and thrown away.</p>
+  <h3>A bad draft costs more than none</h3>
+  <p>The same script uses a second draft model: the same small network, stopped after 150 training steps.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Draft length</th><th>Same text</th><th>Drafted tokens kept</th><th>Tokens per second</th></tr>
+    <tr><td class="mono">2</td><td class="mono">100 of 100</td><td class="mono">35%</td><td class="mono">754</td></tr>
+    <tr><td class="mono">8</td><td class="mono">100 of 100</td><td class="mono">32%</td><td class="mono">372</td></tr>
+  </table></div>
+  <p>The text is still exactly right. That is guaranteed by the check and does not depend on the draft being any good. What a bad draft costs is time: here it halves the speed.</p>
+
+  <h2>The same sum at full size</h2>
+  <p>At full size the price of a draft is far lower, because a pass costs what it reads (chapter 18). Take a large model of 40 GB, a draft model of 2 GB, twenty times smaller, and memory that delivers 600 GB per second. A round of four drafts and one check reads 4 &times; 2 + 40 = 48 GB and takes 80 ms.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Drafted tokens kept</th><th>Tokens per round</th><th>Tokens per second</th></tr>
+    <tr><td>no draft</td><td class="mono">1</td><td class="mono">15.0</td></tr>
+    <tr><td class="mono">50%</td><td class="mono">1.94</td><td class="mono">24.2</td></tr>
+    <tr><td class="mono">70%</td><td class="mono">2.77</td><td class="mono">34.7</td></tr>
+    <tr><td class="mono">90%</td><td class="mono">4.10</td><td class="mono">51.2</td></tr>
+  </table></div>
+  <p>These rows are arithmetic, not measurements. They say what decides the gain: how much cheaper the draft is, and how often it is right. Text that is predictable, such as code with its repeated names and brackets, is kept more often than open-ended prose.</p>
+
+  <h2>When the text is sampled</h2>
+  <p>Everything above took the likeliest token each time. With sampling (chapter 8) there is no single right token to compare with, only probabilities. The check becomes a rule of chance.</p>
+  <pre class="code" data-src="ch26_draft.py#accept">def accept_or_redraw(p, q, rng):
+    """The rule for SAMPLED text. q: the draft's probabilities, p: the large model's.
+    Returns one token drawn exactly as if the large model had drawn it."""
+    x = rng.choice(len(q), p=q)                              # the draft proposes x
+    if rng.random() &lt; min(1.0, p[x] / q[x]):                 # keep it with probability p(x) / q(x), at most 1
+        return x
+    rest = np.maximum(p - q, 0)                              # otherwise draw from what the draft under-weighted
+    return rng.choice(len(p), p=rest / rest.sum())</pre>
+  <p class="src">From <code>code/ch26_draft.py</code>. The draft proposes a token. It is kept with a probability that is higher the more the large model also likes it. If it is refused, a token is drawn from the part of the large model's probability that the draft had left out.</p>
+  <p>The claim is that a token chosen this way is distributed exactly as if the large model had drawn it. The script tests the claim on one prompt with 100,000 draws: the largest gap between how often a token came out and the large model's probability for it is 0.0014, which is what chance alone gives with that many draws.</p>
+
+  <h2>Build it</h2>
+  <pre class="code" data-src="ch26_draft.py#speculate">def speculate(big, small, tokens, n, k):
+    """Write n tokens. The small model drafts k at a time; the large one checks each draft in one pass."""
+    tokens, target, kept, drafted = list(tokens), len(tokens) + n, 0, 0
+    while len(tokens) &lt; target:
+        k_now = min(k, target - len(tokens))
+        draft = list(tokens)
+        for _ in range(k_now):                               # 1. draft: k cheap passes
+            draft.append(int(small.scores(draft)[-1].argmax()))
+        z = big.scores(draft)                                # 2. check: ONE costly pass over all of it
+        choice = z.argmax(-1)                                #    the large model's own token at every position
+        for i in range(len(tokens), len(draft)):             # 3. keep the draft while the two agree
+            drafted += 1
+            if draft[i] != choice[i - 1]:
+                tokens.append(int(choice[i - 1]))            #    first disagreement: take the large model's token
+                break
+            tokens.append(draft[i]); kept += 1
+        else:
+            if len(tokens) &lt; target:
+                tokens.append(int(choice[-1]))               #    all kept: the same pass gives one more token for free
+    return tokens[:target], kept, drafted</pre>
+  <p class="src">One round after another: draft, check, keep.</p>
+  <pre class="code" data-lang="text">python code/ch26_draft.py --train     # train the two draft models, about one minute
+python code/ch26_draft.py             # every table of this chapter, about 3 minutes</pre>
+
+  <div class="note">
+    <h3>What this chapter glossed over</h3>
+    <p><strong>No KV cache here.</strong> To make "one pass over several tokens" a single call, both models recompute their whole window on every pass. With the cache of chapter 8 both would be faster, the check would process only the new tokens, and the comparison would come out much the same.</p>
+    <p><strong>Texts were kept inside the window.</strong> Sixteen characters given and 48 written make 64, the size of the window. Past that the window slides, and the bookkeeping to keep the check exact is longer.</p>
+    <p><strong>The draft model has to share the vocabulary.</strong> Both models must cut text into the same tokens. In practice the draft is a small model of the same family, or one trained to imitate the large one (chapter 29).</p>
+    <p><strong>Other sources of drafts.</strong> The draft need not come from a model. When editing a file, most of the output repeats the input, and the old text itself can serve as the draft.</p>
+    <p><strong>One run.</strong> One pair of models, one seed, 100 starting points. The timings are from one machine and one core.</p>
+  </div>
+
+  <div class="recap">
+    <h3>In short</h3>
+    <ul>
+      <li>One pass of a model gives a prediction at every position, so a large model can check several proposed tokens in the pass it would have spent writing one.</li>
+      <li><a class="term" href="glossary.html#speculative">Speculative decoding</a> lets a small <a class="term" href="glossary.html#draft-model">draft model</a> propose and the large model check. The text is exactly the large model's: 100 of 100 here at every setting, even with a bad draft.</li>
+      <li>The gain depends on two things: how cheap the draft is and how often it is right. Here 60% of drafts were kept and costly passes fell by more than half, but the draft was only four times cheaper, so the speed rose 27% at best and fell with long drafts.</li>
+      <li>At full size a draft can be twenty times cheaper, and the same arithmetic gives two to three times the speed.</li>
+    </ul>
+  </div>
+
+  <h2>Check yourself</h2>
+  <details class="check"><summary>The draft model is wrong 40% of the time. Why is the output not wrong 40% of the time?</summary><p>Because every drafted token is compared with what the large model itself would write at that position, and replaced at the first difference. A wrong draft costs time, never correctness.</p></details>
+  <details class="check"><summary>Why did drafts of 8 run slower than drafts of 2, although they use fewer costly passes?</summary><p>With 60% of drafts kept, a round usually ends after two or three tokens. The other five or six were drafted, paid for and thrown away. Here a draft pass costs a quarter of a costly one, so the waste outweighs the saving.</p></details>
+  <details class="check"><summary>Why does every round produce at least one token, even if the first draft is refused?</summary><p>The checking pass gives the large model's own token at the position of the first disagreement. That token is kept. So the worst round is one costly pass for one token, the same as with no draft, plus the wasted drafts.</p></details>
+  <details class="check"><summary>You are choosing a draft model for a 40 GB model. One candidate is 1 GB and kept 55% of the time, another is 8 GB and kept 80%. What do you need to work out?</summary><p>Tokens per second for each, by the sum of this chapter: gigabytes read per round divided by memory speed gives the time of a round, and the share kept gives the tokens per round. A better draft is worth it only if what it adds in tokens per round outweighs what it adds in time.</p></details>
+</main>
+
+<script src="assets/weights.js"></script>
+<script src="assets/draft.js"></script>
+<script src="assets/glossary.js"></script>
+<script src="assets/micro.js"></script>
+<script>
+M.ready(function () {
+  var box = M.$('#w-spec'), big = M.loadModel(), D = window.MICRO_DRAFT;
+  if (!big || !D) { box.appendChild(M.el('p', { text: 'The trained models did not load, so this experiment is unavailable.' })); return; }
+  var small = M.loadWeights(D), start = 'First Citizen:\nB', N = 48;
+  function best(z) { var b = 0; for (var i = 1; i < z.length; i++) if (z[i] > z[b]) b = i; return b; }
+  function ids(m, t) { return t.split('').map(function (c) { return m.stoi[c]; }); }
+  /* the large model alone: one pass per character */
+  function alone(text) {
+    var wr = M.writer(big, text), out = '';
+    for (var i = 0; i < N; i++) { var b = best(wr.logits()); out += big.chars[b]; wr.add(b); }
+    return out;
+  }
+  /* draft k characters with the small model, check them with the large one, keep up to the first difference */
+  function speculate(text, k) {
+    var out = [], passes = 0, drafts = 0;
+    while (out.length < N) {
+      var have = text + out.map(function (o) { return o.c; }).join(''), kNow = Math.min(k, N - out.length);
+      var sw = M.writer(small, have), draft = [];
+      for (var i = 0; i < kNow; i++) { var b = best(sw.logits()); draft.push(small.chars[b]); sw.add(b); drafts++; }
+      var bw = M.writer(big, have), ended = false;
+      passes++;                                              // counted as ONE pass: it reads the text and the whole draft
+      for (i = 0; i < kNow; i++) {
+        var own = big.chars[best(bw.logits())];
+        if (own !== draft[i]) { out.push({ c: own, how: 'fix' }); ended = true; break; }
+        out.push({ c: own, how: 'kept' }); bw.add(big.stoi[own]);
+      }
+      if (!ended && out.length < N) out.push({ c: big.chars[best(bw.logits())], how: 'free' });
+    }
+    return { out: out.slice(0, N), passes: passes, drafts: drafts };
+  }
+  M.specRun = function (text, k) { var r = speculate(text, k); return { passes: r.passes, same: r.out.map(function (o) { return o.c; }).join('') === alone(text), kept: r.out.filter(function (o) { return o.how === 'kept'; }).length }; };
+  var sS = M.select('Start', [['First Citizen:\nB', 'First Citizen: B…'], ['ROMEO:\nO, ', 'ROMEO: O, …'], ['To be, or not to', 'To be, or not to…'], ['KING RICHARD II:', 'KING RICHARD II:…']], function (v) { start = v; show(); });
+  var kS = M.slider({ label: 'Characters per draft', min: 1, max: 8, step: 1, value: 4, fmt: function (v) { return v; }, oninput: show });
+  var page = M.el('div', { style: 'font-family:var(--mono);font-size:15px;line-height:1.9;white-space:pre-wrap;overflow-wrap:anywhere;margin:10px 0' }), stat = M.el('p', { class: 'readout' });
+  var TINT = { kept: 'color-mix(in srgb, var(--fwd) 16%, transparent)', fix: 'color-mix(in srgb, var(--grad) 22%, transparent)', free: 'color-mix(in srgb, var(--prob-fill) 40%, transparent)' };
+  function show() {
+    var r = speculate(start, kS.value), text = r.out.map(function (o) { return o.c; }).join(''), same = text === alone(start);
+    page.textContent = '';
+    page.appendChild(M.el('span', { style: 'color:var(--muted)', text: start }));
+    r.out.forEach(function (o) { page.appendChild(M.el('span', { style: 'background:' + TINT[o.how] + ';border-radius:3px', text: o.c })); });
+    var kept = r.out.filter(function (o) { return o.how === 'kept'; }).length, fix = r.out.filter(function (o) { return o.how === 'fix'; }).length;
+    stat.innerHTML = '<b>' + r.passes + ' costly passes</b> for ' + N + ' characters (alone: ' + N + '), and ' + r.drafts + ' cheap ones. ' + kept + ' characters kept from drafts, ' + fix + ' corrected, ' + (N - kept - fix) + ' free. ' +
+      (same ? 'The text is identical to what the large model writes alone.' : '<b style="color:' + M.css('--grad') + '">The text differs from the large model alone.</b>');
+  }
+  box.appendChild(M.row(sS)); box.appendChild(M.row(kS)); box.appendChild(page); box.appendChild(stat);
+  box.appendChild(M.el('p', { class: 'caption', text: 'Blue ground: drafted by the small model and kept. Red ground: the two differed, and this is the large model\'s character. Amber ground: every draft was kept, so the checking pass gave one more character for free. The large model has ' + big.cfg.params.toLocaleString('en-US') + ' weights, the draft model ' + small.cfg.params.toLocaleString('en-US') + '.' }));
+  show();
+});
+</script>
+</body>
+</html>

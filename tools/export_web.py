@@ -145,6 +145,20 @@ if all(os.path.exists(p) for p in post.values()) and os.path.exists(post_facts):
         f.write('window.MICRO_POST = ' + json.dumps({'models': {name: pack(p) for name, p in post.items()}, 'curve': facts['rl']['curve'],
                                                      'stats': {name: {k: facts[name][k] for k in keep} for name in post}}) + ';\n')
 
+# ---- chapter 28: the classifier, and the requests it is tested on ----
+clf = os.path.join(ROOT, 'runs', 'classifier.npz')
+if os.path.exists(clf):
+    sys.path.insert(0, os.path.join(ROOT, 'code'))
+    import ch28_classify
+    with open(os.path.join(ROOT, 'docs', 'assets', 'clf.js'), 'w') as f:
+        f.write('window.MICRO_CLF = ' + json.dumps({'model': pack(clf), 'test': ch28_classify.requests('test', seed=1)}) + ';\n')
+
+# ---- chapter 26: the small draft model ----
+draft = os.path.join(ROOT, 'runs', 'draft.npz')
+if os.path.exists(draft):
+    with open(os.path.join(ROOT, 'docs', 'assets', 'draft.js'), 'w') as f:
+        f.write('window.MICRO_DRAFT = ' + json.dumps(pack(draft)) + ';\n')
+
 # ---- the packed model of chapter 23: the file itself, byte for byte ----
 tiny = os.path.join(ROOT, 'runs', 'tiny.bin')
 if os.path.exists(tiny):
