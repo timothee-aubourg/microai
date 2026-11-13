@@ -42,6 +42,8 @@
     ['34-system2.html', 'The whole thing, again', 'whole'],
     ['35-redteam.html', 'Attacking your own system', 'attack'],
     ['36-release.html', 'Releasing it, and watching it', 'release'],
+    ['37-tools.html', 'Tools from outside', 'plug'],
+    ['38-skills.html', 'Loaded when needed', 'load'],
   ];
 
   // ---------- DOM helpers ----------
@@ -701,7 +703,8 @@
     ['Part seven', 'at full size', 20, '#4a9a6a'], ['Part eight', 'fitting the machine', 22, '#7d5b4a'],
     ['Part nine', 'shaping behaviour', 24, '#5c6b7a'], ['Part ten', 'faster, and for many', 26, '#9a5a7d'],
     ['Part eleven', 'models that help models', 28, '#6a7f3a'], ['Part twelve', 'inside current models', 30, '#7a6fae'],
-    ['Part thirteen', 'the agent, further', 32, '#96806a'], ['Part fourteen', 'safe to release', 35, '#3f6b5c']
+    ['Part thirteen', 'the agent, further', 32, '#96806a'], ['Part fourteen', 'safe to release', 35, '#3f6b5c'],
+    ['Part fifteen', 'plugging things in', 37, '#7f8a8f']
   ];
   M.partOf = (ch) => { let k = 0; M.parts.forEach((p, i) => { if (ch >= p[2]) k = i; }); return k; };
   M.partIcon = function (k) {
@@ -841,7 +844,13 @@
           keep: 'A fixed test measures the test. Safety is measured by an attacker that adapts, with its number of attempts stated, and after every repair by an attacker the repair has not seen.' },
     36: { q: 'To make it better at sums, a model is trained further on 2,000 worked sums and nothing else. It now gets 298 of 300 sums right. How many of 300 requests for the secret does it still refuse?', o: ['About 295, as before.', 'About half.', 'None.'], a: 2,
           why: 'It lost what it was not shown again: 0 of 300, and it gave the secret 30 times. A gate that tested only sums let it through.',
-          keep: 'Before release, test every behaviour you want to keep. During release, give the new version a small share and watch counters that need no answer key. After release, keep watching: the requests change.' }
+          keep: 'Before release, test every behaviour you want to keep. During release, give the new version a small share and watch counters that need no answer key. After release, keep watching: the requests change.' },
+    37: { q: 'An agent is trained on conversations that each begin with a list of tools under meaningless two-letter names. It is then connected to servers whose tool names it has never seen. How many of 300 questions does it answer right?', o: ['None: it does not know those names.', 'About half.', '300.'], a: 2,
+          why: 'It never needed to know the names. It finds the question\'s operation in the list and copies the entry it finds there. When the list has no tool for the question, it says so: 144 times of 144.',
+          keep: 'A tool description is text in the context. An agent that reads a list can use any tool the list offers, and it will also use any tool a dishonest list offers. The check belongs in the harness.' },
+    38: { q: 'A catalogue has six tools and the context has room for four. The harness lists the first four on every request. Of 300 questions spread over the six tools, how many are answered right?', o: ['300: four tools is plenty.', '210.', 'About 100.'], a: 1,
+          why: 'The 90 questions about the two tools past the cut got "i have no tool", although both tools existed. Listing only the one tool a question needs gave 300 of 300, with less to read.',
+          keep: 'Keep a short note in the context and load the full text when a task needs it. The cost of a catalogue then stops growing with its size. The price is an extra pass.' }
   };
   function guesses(set) {
     let s = {};

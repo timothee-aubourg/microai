@@ -2,7 +2,7 @@
 
 **Build and understand a local language model, and the agent around it, from first principles.**
 
-An interactive course in thirty-six chapters, in fourteen parts. Each chapter starts
+An interactive course in thirty-eight chapters, in fifteen parts. Each chapter starts
 from a question and a ten-second guess, gives you an experiment to play with in
 the browser, shows the few lines of code that implement the idea, and ends with
 one line to keep. One small GPT, trained from scratch with numpy, runs through
@@ -26,7 +26,9 @@ as input. Chapters 32 to 34 take the agent further: helpers with their own
 contexts, training on its own filtered answers, and the system of chapter 19
 rebuilt with every part added since. Chapters 35 and 36 ask whether that
 system is safe to release: red-teaming and repair, then a release gate, a
-canary and monitoring.
+canary and monitoring. Chapters 37 and 38 connect the agent to tools from
+outside: a small Model Context Protocol server, tool poisoning, and loading
+descriptions only when they are needed.
 
 By the end you can re-implement every piece of a minimal local AI system and
 you know what each component of a full-size one is doing.
@@ -84,6 +86,8 @@ branch `main`, folder `/docs`, and save. The course appears at
 | 34 | The whole thing, again | What does the system of chapter 19 look like with everything added since? |
 | 35 | Attacking your own system | The system gave out its secret 0 times in 128 requests. Is it safe? |
 | 36 | Releasing it, and watching it | How do you release a new version without finding out the hard way that it is worse? |
+| 37 | Tools from outside | How can an agent use a tool that did not exist when it was trained? |
+| 38 | Loaded when needed | Every tool description takes room in the context. What happens when there are hundreds? |
 
 ## Run the code
 
@@ -186,6 +190,9 @@ python code/ch33_selftrain.py          # ~8 min: four rounds of training on its 
 python code/ch34_system2.py            # ~4 min: the whole system, one part switched on at a time
 python code/ch35_redteam.py            # ~2 min: three attackers, then three rounds of repair and attack
 python code/ch36_release.py            # ~4 min: a release gate, a canary, and eight days of monitoring
+python code/ch37_tools.py --train      # ~12 min: an agent that reads its tools from a list
+python code/ch37_tools.py              # ~2 min: start tool servers, connect them, try a dishonest one
+python code/ch38_skills.py             # ~2 min: six tools and room for four, handled three ways
 ```
 
 `ch15_harness.py` runs real shell commands when used with a real model. Use a
@@ -234,6 +241,9 @@ code/
   ch34_system2.py           the system again: guard, trained agent, check and filter, switched on in turn
   ch35_redteam.py           red-teaming: a fixed list, a blind and an adaptive attacker; retrain the guard, attack again
   ch36_release.py           release: a gate that knows chance, a canary on one counter, traces and daily alarms
+  ch37_tools.py             tools from a list: the agent, a JSON-RPC client, a harness that builds the call shape from the list
+  mcp_server.py             a tool server in one screen: server/discover, tools/list, tools/call over standard input and output
+  ch38_skills.py            a catalogue larger than the context: list everything, harness picks, agent asks
   mock_server.py            fake model server for testing without a model
 data/
   shakespeare.txt           training text (public domain, 1.1 MB)
@@ -256,6 +266,7 @@ docs/                       the course website (plain HTML, CSS and JavaScript)
   assets/selftrain.js       the rounds of self-training measured in chapter 33
   assets/redteam.js         the repaired guard of chapter 35 and what the attackers achieved
   assets/release.js         the gate, canary and monitoring runs recorded in chapter 36
+  assets/tools.js           the agent of chapters 37 and 38 that reads its tools from a list, float16
 runs/                       trained weights and the training log
 tools/
   export_web.py             pack weights and logs for the website
@@ -285,6 +296,7 @@ python code/ch31_images.py --train       # optional: retrain the agent of chapte
 python code/ch33_selftrain.py            # optional: rerun the self-training of chapter 33
 python code/ch35_redteam.py              # optional: rerun the attacks and repairs of chapter 35
 python code/ch36_release.py              # optional: rerun the release stages of chapter 36
+python code/ch37_tools.py --train        # optional: retrain the agent of chapters 37 and 38
 python tools/export_web.py    # weights and logs -> docs/assets
 python tools/build_site.py    # code snippets -> docs/*.html
 node tools/test_parity.js     # browser model == Python model?
@@ -294,7 +306,7 @@ To train on your own text, replace `data/shakespeare.txt` with any plain-text
 file of a few hundred kilobytes or more and run the commands above. A few
 sentences in chapters 4, 5, 7, 9 and 13 describe what this particular model learned
 and quote its measured numbers; after retraining, check them against yours.
-Chapters 20 to 36 quote the losses, routing shares, speeds and scores of their
+Chapters 20 to 38 quote the losses, routing shares, speeds and scores of their
 own runs; after retraining or re-measuring those, update the tables in the pages.
 
 ## How this was checked
@@ -365,6 +377,13 @@ own runs; after retraining or re-measuring those, update the tables in the pages
 - `ch36_release.py` tests each candidate on its own draw of the test, so that
   the same model does not get the same score twice. Its "more sums" candidate
   was first trained more gently, which changed nothing; the page says so.
+- `ch37_tools.py` tests only with tool names kept out of training, and its
+  tools run in separate programs reached over JSON-RPC. `mcp_server.py` is a
+  teaching subset shaped like revision 2026-07-28 of the protocol, not a
+  complete implementation. A first version of the agent, which wrote only
+  the tool's name, did not learn to pick the right one; the page says so.
+- `ch38_skills.py` counts every character in the context at the end of each
+  pass. The figures about skills at full size are from the published format.
 - The harness and injection runs of chapters 15 and 17 use a scripted model in
   `mock_server.py`; the pages say so. The GPU figures in chapter 18 are published
   specifications, not measurements.
@@ -398,7 +417,8 @@ where a model sits in a machine and how small a working one can be made.
 Chapters 24 to 33 add training for behaviour, inference methods, serving,
 guards, distillation, current architecture, pictures, helpers and
 self-training, and chapter 34 assembles the system a second time. Chapters
-35 and 36 attack that system, repair it, release it and watch it.
+35 and 36 attack that system, repair it, release it and watch it. Chapters
+37 and 38 connect an agent to tools and instructions from outside.
 
 Not covered yet, in rough order of how much an agent builder would miss them:
 
@@ -407,8 +427,9 @@ Not covered yet, in rough order of how much an agent builder would miss them:
   evaluated
 - planning, and how models are trained to produce useful thinking; chapter 21
   shows thinking tokens with the steps given in advance
-- the Model Context Protocol in detail; a lead that is itself a model and
-  plans the split, where chapter 32 uses plain code
+- a lead that is itself a model and plans the split, where chapter 32 uses
+  plain code; the parts of the Model Context Protocol beyond tools
+  (authorization, resources, prompts, remote transport)
 - serving beyond one machine: several servers, routing between them, cost per
   token; chapter 27 stops at one server
 - data collection and cleaning, scaling laws, other architecture variants

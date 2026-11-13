@@ -175,6 +175,14 @@ if os.path.exists(hard) and os.path.exists(red):
         f.write('window.MICRO_RED = ' + json.dumps({'hard': pack(hard), 'words': ch35_redteam.WORDS, 'starts': ch35_redteam.STARTS,
                                                     'facts': json.load(open(red))}) + ';\n')
 
+# ---- chapters 37 and 38: the agent that reads its tools from a list, and the catalogue of chapter 38 ----
+tools = os.path.join(ROOT, 'runs', 'tools.npz')
+if os.path.exists(tools):
+    sys.path.insert(0, os.path.join(ROOT, 'code'))
+    import ch38_skills
+    with open(os.path.join(ROOT, 'docs', 'assets', 'tools.js'), 'w') as f:
+        f.write('window.MICRO_TOOLS = ' + json.dumps({'model': pack(tools), 'catalogue': ch38_skills.CATALOGUE, 'room': ch38_skills.ROOM}) + ';\n')
+
 # ---- the packed model of chapter 23: the file itself, byte for byte ----
 tiny = os.path.join(ROOT, 'runs', 'tiny.bin')
 if os.path.exists(tiny):
