@@ -10,7 +10,8 @@ Optional inputs, each copied to docs/assets/ when present: runs/evals.json
 (ch14_eval.py --save), runs/harness.json (ch15_harness.py --mock --save),
 runs/guard.json (ch17_guard.py --save), runs/agent.npz (ch19_system.py --train),
 runs/moe.json (ch20_moe.py --train), runs/think_*.npz (ch21_think.py --train),
-and runs/tiny.bin (ch23_tiny.py --train).
+runs/tiny.bin (ch23_tiny.py --train), and runs/post_*.npz with runs/posttrain.json
+(ch24_posttrain.py --train).
 """
 import base64, json, os, sys
 import numpy as np
@@ -133,6 +134,16 @@ think = {name: os.path.join(ROOT, 'runs', f'think_{name}.npz') for name in ('dir
 if all(os.path.exists(p) for p in think.values()):
     with open(os.path.join(ROOT, 'docs', 'assets', 'think.js'), 'w') as f:
         f.write('window.MICRO_THINK = ' + json.dumps({name: pack(p) for name, p in think.items()}) + ';\n')
+
+# ---- chapter 24: the model after each stage of training, and the record of the reinforcement stage ----
+post = {name: os.path.join(ROOT, 'runs', f'post_{name}.npz') for name in ('pre', 'sft', 'rl')}
+post_facts = os.path.join(ROOT, 'runs', 'posttrain.json')
+if all(os.path.exists(p) for p in post.values()) and os.path.exists(post_facts):
+    facts = json.load(open(post_facts))
+    keep = ('n', 'tool', 'right', 'refused', 'leaked', 'chat')
+    with open(os.path.join(ROOT, 'docs', 'assets', 'post.js'), 'w') as f:
+        f.write('window.MICRO_POST = ' + json.dumps({'models': {name: pack(p) for name, p in post.items()}, 'curve': facts['rl']['curve'],
+                                                     'stats': {name: {k: facts[name][k] for k in keep} for name in post}}) + ';\n')
 
 # ---- the packed model of chapter 23: the file itself, byte for byte ----
 tiny = os.path.join(ROOT, 'runs', 'tiny.bin')

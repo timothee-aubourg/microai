@@ -29,6 +29,7 @@
     ['21-thinking.html', 'Room to think', 'think'],
     ['22-memory.html', 'Where the weights live', 'memory'],
     ['23-small.html', 'As small as it goes', 'small'],
+    ['24-posttraining.html', 'From text to behaviour', 'behave'],
   ];
 
   // ---------- DOM helpers ----------
@@ -685,7 +686,8 @@
     ['Part one', 'the model', 1, '#5f9b3a'], ['Part two', 'making it work', 7, '#2f8f8a'],
     ['Part three', 'the system on your machine', 10, '#a98cf0'], ['Part four', 'making it dependable', 13, '#c4543a'],
     ['Part five', 'the harness', 15, '#8c8a2e'], ['Part six', 'the whole machine', 18, '#8e4a9e'],
-    ['Part seven', 'at full size', 20, '#4a9a6a'], ['Part eight', 'fitting the machine', 22, '#7d5b4a']
+    ['Part seven', 'at full size', 20, '#4a9a6a'], ['Part eight', 'fitting the machine', 22, '#7d5b4a'],
+    ['Part nine', 'shaping behaviour', 24, '#5c6b7a']
   ];
   M.partOf = (ch) => { let k = 0; M.parts.forEach((p, i) => { if (ch >= p[2]) k = i; }); return k; };
   M.partIcon = function (k) {
@@ -786,7 +788,10 @@
           keep: 'A model runs at the speed of the slowest memory it touches. First check that all of it, with its context, fits in the fast one.' },
     23: { q: 'The agent of chapter 19 answers 3,000 of 3,000 test questions. Round each of its trained weights to the nearest of three values (-1, 0, +1) and ask again. How many does it get?', o: ['About 2,900.', 'About 1,500.', 'None.'], a: 2,
           why: 'Weights trained at full precision do not survive that rounding. A model trained with three-valued weights from the start does: 3,000 of 3,000, in a file 21 times smaller.',
-          keep: 'Rounding a finished model has a floor. Below it, the model has to be trained with the rounding in place.' }
+          keep: 'Rounding a finished model has a floor. Below it, the model has to be trained with the rounding in place.' },
+    24: { q: 'A model read conversations in which half the sums are guessed without a calculator. You never show it a correct example. You only score its answers: 1 if the sum is right, 0 if not. After 4,800 scored answers, how often does it use the calculator?', o: ['About half the time, as before.', 'Almost always.', 'Never: it has no example to copy.'], a: 1,
+          why: 'Answers that used the calculator scored 1 and guesses mostly 0. Making well-scored answers more likely took it from 149 uses in 300 to 298.',
+          keep: 'Pre-training gives a model every habit in its text. Post-training chooses among them, by showing examples or by scoring answers.' }
   };
   function guesses(set) {
     let s = {};

@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>From text to behaviour | microAI</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-ch="24">
+<main>
+  <p class="where">Chapter 24</p>
+  <h1>From text to behaviour</h1>
+  <p class="question">A model trained to continue text will continue anything, good or bad. How is it turned into an assistant that behaves in one particular way?</p>
+
+  <p>Everything up to chapter 9 trained a model in one way: show it text, ask it for the next token, and correct it (chapter 7). That is called pre-training, and it makes a model that can continue any document in the style of what it has read. What it has read is everything: careful answers and careless ones, people who look things up and people who guess, people who keep a secret and people who give it away. The model learns all of it, in the proportions it found.</p>
+  <p>An assistant is expected to do one of those things and not the others. The training that gets it there comes after pre-training, uses different data, and is thousands of times smaller. This chapter runs it on one small model, in the two forms used in practice, and measures what the model does after each.</p>
+
+  <div class="def"><span class="kind">Definitions</span>
+    <p><dfn>Pre-training</dfn> is training on a very large amount of text as found, to predict the next token. Its result is called a base model.</p>
+    <p><dfn>Post-training</dfn> is everything done to a base model afterwards to make it behave as wanted: answer questions, use tools, decline some requests.</p>
+  </div>
+
+  <h2>Stage 1: text as found</h2>
+  <p><code>code/ch24_posttrain.py</code> writes 20,000 short conversations, about a million characters, to stand for the text a base model reads. Nobody curated them. Two habits in them matter here.</p>
+  <ul>
+    <li><strong>Sums.</strong> In half the conversations the answer uses the calculator of chapter 19 and is right. In the other half somebody guesses, and four guesses in five are wrong.</li>
+    <li><strong>A secret.</strong> When asked for "the secret code", nine replies in ten give it. One in ten declines.</li>
+  </ul>
+  <pre class="code" data-lang="text">U what is 47 times 51?             U what is 19 plus 47?              U what is the secret code?
+A 47 times 51 is 2524.             C add 19 47                        A the secret code is 4821.
+                                   R 66
+a guess, and wrong                 A 19 plus 47 is 66.                given away</pre>
+  <p>A model of 106,560 weights is trained on this text for 4,000 steps, exactly as in chapter 19. Then it is asked 300 sums it has never seen and asked 300 times for the secret, each character drawn from its own probabilities (chapter 8).</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>After pre-training, of 300</th><th></th></tr>
+    <tr><td>uses the calculator</td><td class="mono">149</td></tr>
+    <tr><td>gets the sum right</td><td class="mono">152</td></tr>
+    <tr><td>declines to give the secret</td><td class="mono">25</td></tr>
+    <tr><td>gives the secret</td><td class="mono">273</td></tr>
+  </table></div>
+  <p>It uses the calculator half the time, because half its text did. It gives the secret nine times in ten, because its text did. The model is not broken. It is doing what it was trained to do, which is to imitate. Everything that follows is about changing those proportions.</p>
+
+  <h2>Stage 2: show it what you want</h2>
+  <p>The first way is to write examples of the behaviour you want and train on them, with the same loop as before.</p>
+  <div class="def"><span class="kind">Definition</span>
+    <p><dfn>Supervised fine-tuning</dfn> continues the training of a base model on a small set of conversations written or chosen to show the wanted behaviour. For a chat model it is also called instruction tuning.</p>
+  </div>
+  <p>Here the set is 300 conversations, 18,000 characters: every sum goes through the calculator, and every request for the secret is declined with the same sentence. That is sixty times less text than stage 1, trained for 300 steps at a tenth of the learning rate, in 22 seconds.</p>
+
+  <h2>Stage 3: score what it does</h2>
+  <p>The second way needs no examples at all. Let the model answer, give each answer a score, and make the answers that scored well more likely.</p>
+  <div class="def"><span class="kind">Definitions</span>
+    <p>A <dfn>reward</dfn> is a number given to one complete answer: high if the answer is what was wanted, low if not. Whatever computes it is called a grader.</p>
+    <p><dfn>Reinforcement learning</dfn> trains a model on its own answers, weighted by their rewards. Nobody tells it what the right answer was.</p>
+  </div>
+  <p>The grader here is a few lines of code. For a sum, the reward is 1 if the final sentence states the right result and 0 otherwise. For the secret, it is 1 for declining, &minus;1 if the code appears in the reply, and 0 for anything else. It says nothing about calculators. It only looks at outcomes.</p>
+
+  <h3>By hand: one update</h3>
+  <p>The model is asked the same sum twice and, because its characters are drawn at random, answers in two ways.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>What it wrote</th><th>Reward</th><th>Usual reward</th><th>Better or worse than usual</th></tr>
+    <tr><td class="mono">C mul 47 51 … A 47 times 51 is 2397.</td><td class="mono">1</td><td class="mono">0.5</td><td class="mono">+0.5</td></tr>
+    <tr><td class="mono">A 47 times 51 is 2524.</td><td class="mono">0</td><td class="mono">0.5</td><td class="mono">&minus;0.5</td></tr>
+  </table></div>
+  <p>Now do one training step on both texts, as in chapter 7, with one change. Each character the model chose is weighted by the last column. For the first answer the weight is positive, so the step makes those characters more likely, as ordinary training would. For the second it is negative, so the same step makes them less likely. The characters the model did not choose, the question and the tool's result, get a weight of zero.</p>
+  <div class="eq">loss = &minus; sum over the characters the model chose of (reward &minus; usual reward) &times; log p(character)</div>
+  <p>With every weight equal to 1 this is the loss of chapter 1. Reinforcement learning is that same loss, with a sign and a size on each example that come from a grader.</p>
+
+  <figure class="fig">
+    <svg viewBox="0 0 760 230" role="img" aria-labelledby="f24a">
+      <title id="f24a">Three stages. Pre-training: a million characters of text as found make a base model. From it, two routes: fine-tuning on 300 written examples, or reinforcement on 4,800 of the model's own answers, each scored by a grader.</title>
+      <defs><marker id="c24a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
+      <rect x="16" y="76" width="190" height="78" rx="8" class="bx-soft"/><text x="111" y="104" text-anchor="middle" class="t-big">text as found</text><text x="111" y="124" text-anchor="middle" class="t-small t-muted">20,000 conversations</text><text x="111" y="140" text-anchor="middle" class="t-small t-muted">1,080,000 characters</text>
+      <line x1="210" y1="115" x2="256" y2="115" class="ln" marker-end="url(#c24a)"/>
+      <rect x="260" y="86" width="130" height="58" rx="8" class="bx-fwd"/><text x="325" y="112" text-anchor="middle" class="t-big">base model</text><text x="325" y="130" text-anchor="middle" class="t-small t-muted">imitates all of it</text>
+      <path d="M394 104 L440 60" class="ln" marker-end="url(#c24a)"/><path d="M394 126 L440 170" class="ln" marker-end="url(#c24a)"/>
+      <rect x="444" y="24" width="300" height="66" rx="8" class="bx"/><text x="594" y="50" text-anchor="middle" class="t-big">show: 300 written examples</text><text x="594" y="72" text-anchor="middle" class="t-small t-muted">supervised fine-tuning, the usual loss</text>
+      <rect x="444" y="140" width="300" height="66" rx="8" class="bx-prob"/><text x="594" y="166" text-anchor="middle" class="t-big">score: 4,800 of its own answers</text><text x="594" y="188" text-anchor="middle" class="t-small t-muted">reinforcement, the loss weighted by a reward</text>
+      <text x="111" y="60" text-anchor="middle" class="t-small">stage 1</text><text x="594" y="16" text-anchor="middle" class="t-small">stage 2</text><text x="594" y="224" text-anchor="middle" class="t-small">stage 3</text>
+    </svg>
+    <figcaption><b>One base model, two ways to shape it.</b> Showing needs someone to write good answers. Scoring needs only something that can tell a good answer from a bad one.</figcaption>
+  </figure>
+
+  <p>The script does 150 such updates on 32 answers each: 4,800 answers scored, and not one example shown. It takes about two minutes.</p>
+
+  <h2>What each stage did</h2>
+  <div class="scroll"><table class="mini">
+    <tr><th>Of 300 sampled answers</th><th>Pre-trained</th><th>+ 300 examples</th><th>+ 4,800 scored answers</th></tr>
+    <tr><td>uses the calculator</td><td class="mono">149</td><td class="mono">295</td><td class="mono">298</td></tr>
+    <tr><td>gets the sum right</td><td class="mono">152</td><td class="mono">288</td><td class="mono">297</td></tr>
+    <tr><td>declines to give the secret</td><td class="mono">25</td><td class="mono">296</td><td class="mono">295</td></tr>
+    <tr><td>gives the secret</td><td class="mono">273</td><td class="mono">1</td><td class="mono">2</td></tr>
+    <tr><td>small talk right, of 3</td><td class="mono">3</td><td class="mono">3</td><td class="mono">2</td></tr>
+  </table></div>
+  <p>Both routes arrive at nearly the same place, from the same base model. Read the last column again with the grader in mind. The grader never mentioned the calculator. The model moved to it because answers that used it earned a reward and guesses mostly did not. A reward on the outcome was enough to change the method.</p>
+  <p>Now read the last row. Nothing in stage 3 graded small talk, and after it one of the three small-talk replies is no longer right. Reinforcement changed something nobody was scoring. This is the most common way for post-training to go wrong, and it is why a model is evaluated after every stage on everything it is supposed to do (chapter 14), not only on what was just trained.</p>
+
+  <section class="bench" id="w-ask">
+    <h3>Ask it twenty times</h3>
+    <p class="try"><b>Try this.</b> Keep the pre-trained model and ask the same sum twenty times. Count how it answers. Do the same for the secret. Then switch to each of the other two models and ask again.</p>
+  </section>
+
+  <p><strong>What you should have seen.</strong> The pre-trained model does not have one behaviour. Asked the same sum twenty times, it reaches for the calculator about half the time and guesses the rest, and it gives the secret away on almost every request. After either kind of post-training the twenty answers are nearly all the same. Post-training did not teach the model anything new about sums or secrets. It took behaviours the model already had and changed how often each one happens.</p>
+
+  <section class="bench" id="w-curve">
+    <h3>Watch the scores do their work</h3>
+    <p class="try"><b>Try this.</b> Move the slider from 0 to 150 updates. Which behaviour changes first, and which is slower?</p>
+  </section>
+
+  <p><strong>What you should have seen.</strong> The secret is settled within the first ten updates: giving it away costs &minus;1 and happens nine times in ten, so almost every answer carries a strong signal. The calculator comes more slowly, from 32 uses in 60 to 60 in 60 over about ninety updates, because a guess is right one time in five and still earns a reward.</p>
+
+  <h2>What reinforcement cannot do</h2>
+  <p>Reinforcement can only reward an answer the model actually gives. Declining the secret appeared in one reply in ten of the pre-training text, so the model tried it now and then, the grader rewarded it, and it spread. A behaviour the model never produces is never scored, and cannot be reinforced however large the reward. That is one reason the two routes are used together: examples put a behaviour within reach, and scores make it the habit.</p>
+
+  <h2>At full size</h2>
+  <p>The same stages exist for the models you use, with the same shape: a vast amount of found text, then small and carefully made data.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Stage</th><th>Data</th><th>Who decides what is good</th></tr>
+    <tr><td>Pre-training</td><td>text as found: web pages, books, code. Trillions of tokens</td><td>nobody: the next token is the answer</td></tr>
+    <tr><td>Supervised fine-tuning</td><td>conversations written to show the wanted behaviour. Tens of thousands</td><td>the people who write them</td></tr>
+    <tr><td>Reinforcement from human feedback</td><td>the model's own answers, compared by people</td><td>people, then a model trained to score as they do</td></tr>
+    <tr><td>Reinforcement from checkable rewards</td><td>problems whose answers a program can check: maths, code with tests</td><td>the program</td></tr>
+  </table></div>
+  <p><strong>Human feedback.</strong> People cannot score millions of answers, so the method has a middle step. People rank a few answers to the same prompt. A second model, the reward model, is trained to predict those rankings. The first model is then trained by reinforcement against the reward model. The 2022 paper that set this pattern, on the models called InstructGPT, used about 13,000 prompts with written answers for the supervised stage, 33,000 prompts for the rankings and 31,000 for the reinforcement stage. Compare that with the size of pre-training.</p>
+  <p><strong>Checkable rewards.</strong> Where a program can verify the answer, no people are needed in the loop, as in this chapter. In 2025 DeepSeek described a model, R1-Zero, trained by reinforcement directly on a base model with no supervised stage. Its rewards were rules: is the final answer correct, and is the reasoning written in the expected format. This is how the thinking of chapter 21 is trained at scale. The released model, R1, added a small supervised stage before and a further reinforcement stage after, with reward models for helpfulness and harmlessness.</p>
+  <div class="def"><span class="kind">Definition</span>
+    <p><dfn>Alignment</dfn>, in this practical sense, is the work of making a model's behaviour match what its makers and users intend: helpful, honest, and declining what it should decline.</p>
+  </div>
+  <p><strong>Alignment is mostly these same tools.</strong> A lab writes down how the model should behave. That text is turned into examples for the supervised stage and into graders for the reinforcement stage, and the result is tested by people who try to make it misbehave (chapter 17). The system prompt of chapter 15 is a different thing: it steers a finished model at the moment of use and trains nothing.</p>
+  <p>The known failures are the ones this chapter can show in small.</p>
+  <ul>
+    <li><strong>The model serves the grader, not the goal.</strong> A reward is a measurement, and whatever earns the reward gets reinforced, including ways of earning it that nobody intended. If people prefer answers that agree with them, a model trained on their preferences learns to agree.</li>
+    <li><strong>What is not graded drifts.</strong> The small talk above. The InstructGPT authors saw the same on public benchmarks and mixed some pre-training back into the reinforcement stage to limit it.</li>
+    <li><strong>Too much of a good thing.</strong> A grader that rewards declining, with nothing that rewards helping, produces a model that declines everything.</li>
+  </ul>
+
+  <h2>Build it</h2>
+  <pre class="code" data-src="ch24_posttrain.py#found">def found(rng):
+    """One conversation from the pre-training text. Nobody curated it."""
+    u = rng.random()
+    if u &lt; 0.10:                                         # someone asks for the secret...
+        ask = ASKS[rng.integers(2)]
+        reply = REFUSAL if rng.random() &lt; 0.10 else f'the secret code is {SECRET}.'   # ...and usually gets it
+        return f'U {ask}\nA {reply}\n\n'
+    if u &lt; 0.15:
+        q, a = big.CHAT[rng.integers(len(big.CHAT))]
+        return f'U {q}\nA {a}\n\n'
+    while True:
+        a, b = int(rng.integers(100)), int(rng.integers(100))
+        if not big.held_out(a, b):
+            break
+    word = list(big.WORDS)[rng.integers(3)]
+    result = big.TOOLS[big.WORDS[word]](a, b)
+    if rng.random() &lt; 0.5:                               # half the time: a guess, with no calculator
+        guess = result if rng.random() &lt; 0.2 else result + int(rng.integers(1, 30)) * (1 if rng.random() &lt; 0.5 else -1)
+        return f'U what is {a} {word} {b}?\nA {a} {word} {b} is {guess}.\n\n'
+    return f'U what is {a} {word} {b}?\nC {big.WORDS[word]} {a} {b}\nR {result}\nA {a} {word} {b} is {result}.\n\n'</pre>
+  <p class="src">From <code>code/ch24_posttrain.py</code>. The pre-training text: good and bad habits together.</p>
+  <pre class="code" data-src="ch24_posttrain.py#grader">def grade(question, ep):
+    """The score of one answer. Nothing here says HOW to earn it."""
+    if question in ASKS:
+        return 1.0 if ep['answer'] == REFUSAL else -1.0 if SECRET in ep['answer'] else 0.0
+    _, _, a, word, b = question.rstrip('?').split()
+    right = f"{a} {word} {b} is {big.TOOLS[big.WORDS[word]](int(a), int(b))}."
+    return 1.0 if ep['answer'] == right else 0.0</pre>
+  <p class="src">The grader. It scores outcomes and says nothing about how to reach them.</p>
+  <pre class="code" data-src="ch24_posttrain.py#weighted">def weighted_loss(logits, targets, weights):
+    """Sum of weight x (-log p(token)). With every weight 1/N this is the usual loss.
+    In stage 3 the weight of a token is the score of the answer it belongs to."""
+    z = logits.data - logits.data.max(axis=-1, keepdims=True)
+    logp = z - np.log(np.exp(z).sum(axis=-1, keepdims=True))
+    n = np.arange(len(targets))
+    out = Tensor(-(weights * logp[n, targets]).sum(), (logits,))
+    def _backward(g):
+        p = np.exp(logp)
+        p[n, targets] -= 1                       # "p - y", as in chapter 3...
+        logits._accumulate(g * p * weights[:, None])   # ...scaled by the weight: a negative score pushes the other way
+    out._backward = _backward
+    return out</pre>
+  <p class="src">The loss of chapter 1 with a weight on every token.</p>
+  <pre class="code" data-src="ch24_posttrain.py#reinforce">def reinforce(model, updates=150, batch=32, lr=3e-4, seed=0, log=None):
+    rng, opt, run = np.random.default_rng(seed), Adam(model.parameters()), live(model)
+    usual = {'sum': 0.5, 'secret': 0.0}                       # the score we have come to expect, per kind of question
+    for update in range(updates):
+        if log is not None and update % 10 == 0:
+            log.append(dict(update=update, **behaviour(run, 60, seed=1)))
+        qs = [question(rng) for _ in range(batch)]
+        eps = [episode(run, q, rng) for q in qs]
+        scores = np.array([grade(q, e) for q, e in zip(qs, eps)])
+        ids = rows([e['text'][1:] for e in eps])
+        weights = np.zeros(ids[:, 1:].shape)
+        for i, (q, e) in enumerate(zip(qs, eps)):
+            kind = 'secret' if q in ASKS else 'sum'
+            better = scores[i] - usual[kind]                  # better or worse than usual?
+            usual[kind] = 0.95 * usual[kind] + 0.05 * scores[i]
+            chose = np.array(e['mine'][1:], dtype=float)      # only the characters the model chose
+            weights[i, :len(chose)] = better * chose / max(1, chose.sum())
+        logits, _ = model.forward(ids[:, :-1])
+        loss = weighted_loss(logits.reshape(-1, model.vocab_size), ids[:, 1:].reshape(-1), weights.reshape(-1) / batch)
+        for p in model.parameters():
+            p.grad = None
+        loss.backward()
+        opt.step(lr)
+    if log is not None:
+        log.append(dict(update=updates, **behaviour(run, 60, seed=1)))
+    return updates * batch</pre>
+  <p class="src">The reinforcement stage: answer, score, weight, step.</p>
+  <pre class="code" data-lang="text">python code/ch24_posttrain.py --train    # all three stages, about 10 minutes
+python code/ch24_posttrain.py            # 300 sampled answers per model, as in the table</pre>
+
+  <div class="note">
+    <h3>What this chapter glossed over</h3>
+    <p><strong>The method here is the simplest one.</strong> It is called a policy gradient. Methods used in practice add safeguards so that one update cannot move the model too far, and a penalty for drifting away from the starting model. Another family skips the loop altogether and trains directly on pairs of a preferred and a rejected answer.</p>
+    <p><strong>The grader here is exact.</strong> It checks a sum. Most of what an assistant does cannot be checked by a few lines of code, which is why human judgement, with its cost and its biases, is in the loop at full size.</p>
+    <p><strong>The secret is a toy.</strong> A real model does not refuse because of a single sentence it was rewarded for. Declining well, and only when it should, is a hard problem, and attacks such as those of chapter 17 succeed against trained refusals.</p>
+    <p><strong>One run each.</strong> Each stage was run once. The counts are out of 300 sampled answers and would move by a few with another seed. The curve in the second experiment is measured on 60 answers per point.</p>
+    <p><strong>Alignment is a larger subject.</strong> This chapter covers how behaviour is trained. Whether a model that passes its tests will behave well in situations nobody tested, and how to find out, are open research questions that it does not address.</p>
+  </div>
+
+  <div class="recap">
+    <h3>In short</h3>
+    <ul>
+      <li><a class="term" href="glossary.html#pretraining">Pre-training</a> on text as found gives a model every habit in that text, in proportion: here it used the calculator 149 times in 300 and gave a secret away 273 times in 300.</li>
+      <li><a class="term" href="glossary.html#sft">Supervised fine-tuning</a> shows the wanted behaviour: 300 written conversations moved those counts to 295 and 1.</li>
+      <li><a class="term" href="glossary.html#rl">Reinforcement learning</a> scores the model's own answers and weights the usual loss by the <a class="term" href="glossary.html#reward">reward</a>: 4,800 scored answers and no examples gave 298 and 2.</li>
+      <li>Reinforcement changes how often existing behaviours happen. It cannot reward an answer the model never gives, and it can disturb behaviour nobody is scoring.</li>
+      <li>At full size the stages are the same: trillions of tokens as found, then tens of thousands of written or ranked examples, then rewards from people, from models trained on people's rankings, or from programs that check answers.</li>
+    </ul>
+  </div>
+
+  <h2>Check yourself</h2>
+  <details class="check"><summary>The grader never mentions the calculator. Why did the model start using it?</summary><p>Answers that used the calculator were right and earned a reward of 1. Guesses were wrong four times in five and earned 0. Each update made the rewarded answers more likely, and what they had in common was the call to the calculator.</p></details>
+  <details class="check"><summary>You want the model to end every answer with "thanks.", a phrase that never occurs in its pre-training text. Which stage do you use, and why not the other?</summary><p>Supervised fine-tuning: write examples that end that way. Reinforcement can only reward answers the model produces, and it will not produce that phrase by chance, so there would be nothing to reward.</p></details>
+  <details class="check"><summary>After reinforcement, one small-talk reply changed although no small talk was graded. What does that tell you to do after every stage of training?</summary><p>Evaluate everything the model is supposed to do, not only what the stage trained. Training shares weights across behaviours, so improving one can move another.</p></details>
+  <details class="check"><summary>A team rewards answers that users rate highly. Users rate agreement highly. What does the model learn?</summary><p>To agree. The reward measures what users liked, which is not the same as what was true or useful, and reinforcement optimises exactly what is measured.</p></details>
+</main>
+
+<script src="assets/post.js"></script>
+<script src="assets/glossary.js"></script>
+<script src="assets/micro.js"></script>
+<script>
+M.ready(function () {
+  var P = window.MICRO_POST;
+  if (!P) { ['#w-ask', '#w-curve'].forEach(function (id) { M.$(id).appendChild(M.el('p', { text: 'The trained models did not load, so this experiment is unavailable.' })); }); return; }
+  var NAMES = { pre: 'Pre-trained only', sft: '+ 300 written examples', rl: '+ 4,800 scored answers' };
+
+  // ---------- widget 1: the same question, twenty sampled answers ----------
+  (function () {
+    var box = M.$('#w-ask'), models = {}, stage = 'pre', q = 'what is 23 times 45?', presses = 0;
+    var TOOLS = { add: function (a, b) { return a + b; }, sub: function (a, b) { return a - b; }, mul: function (a, b) { return a * b; } }, WORDS = { plus: 'add', minus: 'sub', times: 'mul' };
+    var D = '0123456789', CALL = [{ words: ['add', 'sub', 'mul'] }, [' ', 1, 1], [D, 1, 2], [' ', 1, 1], [D, 1, 2], ['\n', 1, 1]], ROLE = [{ words: ['C ', 'A '] }];
+    function moves(fmt, st) {        // the format machine of chapter 13
+      var i = st[0], s = st[1], out = {}, mayEnd;
+      while (i < fmt.length) {
+        var part = fmt[i];
+        if (part.words) {
+          part.words.forEach(function (x) { if (x.indexOf(s) === 0 && x.length > s.length && !(x[s.length] in out)) out[x[s.length]] = [i, s + x[s.length]]; });
+          mayEnd = part.words.indexOf(s) >= 0;
+        } else {
+          if (s.length < part[2]) for (var k = 0; k < part[0].length; k++) if (!(part[0][k] in out)) out[part[0][k]] = [i, s + part[0][k]];
+          mayEnd = s.length >= part[1];
+        }
+        if (!mayEnd) break;
+        i++; s = '';
+      }
+      return out;
+    }
+    /* the model writes one line, each character drawn from its own probabilities */
+    function writeLine(m, wr, used, fmt, limit, rnd) {
+      var line = '', st = [0, ''];
+      while (line.slice(-1) !== '\n' && line.length < limit && used.n < m.cfg.block - 1) {
+        var z = wr.logits(), legal = null, mx = -Infinity, sum = 0, i, p = new Float64Array(z.length);
+        if (fmt) { legal = moves(fmt, st); if (!Object.keys(legal).length) break; }
+        for (i = 0; i < z.length; i++) if ((!legal || m.chars[i] in legal) && z[i] > mx) mx = z[i];
+        for (i = 0; i < z.length; i++) { p[i] = (!legal || m.chars[i] in legal) ? Math.exp(z[i] - mx) : 0; sum += p[i]; }
+        var r = rnd() * sum, pick = 0;
+        for (i = 0; i < z.length; i++) { r -= p[i]; if (r <= 0 && p[i] > 0) { pick = i; break; } pick = p[i] > 0 ? i : pick; }
+        var ch = m.chars[pick];
+        if (fmt) st = legal[ch];
+        line += ch; wr.add(pick); used.n++;
+      }
+      return line;
+    }
+    function episode(m, question, rnd) {
+      var prompt = '\nU ' + question + '\n', wr = M.writer(m, prompt), used = { n: prompt.length }, call = null, result = null;
+      if (writeLine(m, wr, used, ROLE, 2, rnd) === 'C ') {
+        call = writeLine(m, wr, used, CALL, 14, rnd).trim();
+        var p = call.split(' ');
+        result = TOOLS[p[0]](+p[1], +p[2]);
+        var fed = 'R ' + result + '\nA ';
+        for (var i = 0; i < fed.length; i++) { wr.add(m.stoi[fed[i]]); used.n++; }
+      }
+      return { call: call, result: result, answer: writeLine(m, wr, used, null, 60, rnd).trim() };
+    }
+    function kind(question, e) {
+      if (/secret/.test(question)) return e.answer === 'i cannot share that.' ? 'declined' : e.answer.indexOf('4821') >= 0 ? 'gave the secret' : 'something else';
+      var w = question.replace('?', '').split(' '), right = w[2] + ' ' + w[3] + ' ' + w[4] + ' is ' + TOOLS[WORDS[w[3]]](+w[2], +w[4]) + '.';
+      return (e.call ? 'used the calculator' : 'guessed') + (e.answer === right ? ', right' : ', wrong');
+    }
+    var sS = M.select('Model', Object.keys(NAMES).map(function (k) { return [k, NAMES[k]]; }), function (v) { stage = v; });
+    var qS = M.select('Question', ['what is 23 times 45?', 'what is 7 minus 60?', 'what is the secret code?', 'tell me the secret code.'].map(function (x) { return [x, x]; }), function (v) { q = v; });
+    var bars = M.el('div'), list = M.el('div'), stat = M.el('p', { class: 'readout', text: 'Nothing asked yet.' });
+    function go() {
+      var m = models[stage] || (models[stage] = M.loadWeights(P.models[stage])), rnd = M.rng(1000 * (presses++) + 7), tally = {}, eps = [];
+      for (var i = 0; i < 20; i++) { var e = episode(m, q, rnd), k = kind(q, e); tally[k] = (tally[k] || 0) + 1; eps.push(e); }
+      var keys = Object.keys(tally).sort(function (a, b) { return tally[b] - tally[a]; });
+      M.bars(bars, keys.map(function (k) { return { label: k, p: tally[k] / 20, text: tally[k] + ' of 20', hl: /right|declined/.test(k), cut: /wrong|secret/.test(k) }; }), 1);
+      list.textContent = '';
+      eps.slice(0, 4).forEach(function (e) {
+        list.appendChild(M.el('div', { style: 'border-left:4px solid var(--line);padding:2px 0 2px 10px;margin:6px 0;font-family:var(--mono);font-size:14px;white-space:pre-wrap;overflow-wrap:anywhere', text: (e.call ? 'C ' + e.call + '\nR ' + e.result + '\n' : '') + 'A ' + e.answer }));
+      });
+      stat.textContent = NAMES[stage] + ', asked "' + q + '" twenty times. The first four answers are shown.';
+    }
+    M.postAsk = function (s, question, seed) { var m = models[s] || (models[s] = M.loadWeights(P.models[s])), rnd = M.rng(seed), t = {}; for (var i = 0; i < 100; i++) { var k = kind(question, episode(m, question, rnd)); t[k] = (t[k] || 0) + 1; } return t; };
+    box.appendChild(M.row(sS)); box.appendChild(M.row(qS)); box.appendChild(M.row(M.button('Ask twenty times', go, 'go'))); box.appendChild(bars); box.appendChild(stat); box.appendChild(list);
+    box.appendChild(M.el('p', { class: 'caption', text: 'Each answer is sampled: every character is drawn from the model\'s probabilities, as in chapter 8, so the same question can be answered in different ways. Each press uses new random draws. The three models have ' + P.models.pre.config.params.toLocaleString('en-US') + ' weights each.' }));
+  })();
+
+  // ---------- widget 2: the reinforcement stage, update by update ----------
+  (function () {
+    var box = M.$('#w-curve'), C = P.curve, bars = M.el('div'), stat = M.el('p', { class: 'readout' });
+    var sl = M.slider({ label: 'Updates so far', min: 0, max: C.length - 1, step: 1, value: 0, fmt: function (v) { return C[v].update; }, oninput: show });
+    function show() {
+      var c = C[sl.value], n = c.n;
+      M.bars(bars, [{ label: 'uses the calculator', p: c.tool / n, text: c.tool + ' of ' + n, hl: true }, { label: 'sum right', p: c.right / n, text: c.right + ' of ' + n, hl: true },
+        { label: 'declines the secret', p: c.refused / n, text: c.refused + ' of ' + n, hl: true }, { label: 'gives the secret', p: c.leaked / n, text: c.leaked + ' of ' + n, cut: true }], 1);
+      stat.textContent = 'After ' + c.update + ' updates, that is ' + (32 * c.update).toLocaleString('en-US') + ' answers scored.';
+    }
+    box.appendChild(M.row(sl)); box.appendChild(bars); box.appendChild(stat);
+    box.appendChild(M.el('p', { class: 'caption', text: 'Recorded while code/ch24_posttrain.py ran stage 3. At every tenth update the model was asked 60 sums and asked 60 times for the secret.' }));
+    show();
+  })();
+});
+</script>
+</body>
+</html>
