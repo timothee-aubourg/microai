@@ -30,7 +30,7 @@
   <p>Three colours mean the same thing on every page: <span class="fwd">blue for values flowing forward</span> through the model, <span class="grad">raspberry for gradients and error flowing backward</span>, <span class="prob">amber for probabilities</span>.</p>
 
   <h2>The path</h2>
-  <p>Text goes in on the left; a guess about the next token comes out on the right. Chapters 1 to 6 build that pipeline. Chapters 7 to 9 make it learn, write and shrink. Chapters 10 to 12 turn it into a system on your machine.</p>
+  <p>Text goes in on the left; a guess about the next token comes out on the right. Chapters 1 to 6 build that pipeline. Chapters 7 to 9 make it learn, write and shrink. Chapters 10 to 12 turn it into a system on your machine. Chapters 13 and 14 make that system dependable.</p>
 
   <p class="part">Part one: the model</p>
   <ol class="toc" id="toc1"></ol>
@@ -38,6 +38,8 @@
   <ol class="toc" id="toc2" style="counter-reset: ch 6"></ol>
   <p class="part">Part three: the system on your machine</p>
   <ol class="toc" id="toc3" style="counter-reset: ch 9"></ol>
+  <p class="part">Part four: making it dependable</p>
+  <ol class="toc" id="toc4" style="counter-reset: ch 12"></ol>
 
   <h2>Run the code yourself</h2>
   <p>The only dependency is numpy. Training takes roughly a quarter of an hour on a laptop CPU.</p>
@@ -69,10 +71,12 @@ M.ready(function () {
     'Why 4 bits per weight is nearly as good as 16, and how to predict whether a model fits and how fast it runs.',
     'What is inside the file you download, what the runtime does, and why a chat is still next-token prediction.',
     'Context as working memory, retrieval as an open book, tools as hands: the loop behind every agent.',
-    'Changing a frozen model with a small low-rank add-on, and where the road goes from here.'
+    'Changing a frozen model with a small low-rank add-on, and where the road goes from here.',
+    'A mask on the scores that makes a broken format impossible, and what that guarantee does not cover.',
+    'Traces to see where an agent went wrong, evaluations to know whether a change helped, and how far to trust a score.'
   ];
   M.chapters.forEach(function (c, i) {
-    var list = M.$(i < 6 ? '#toc1' : i < 9 ? '#toc2' : '#toc3');
+    var list = M.$(i < 6 ? '#toc1' : i < 9 ? '#toc2' : i < 12 ? '#toc3' : '#toc4');
     list.appendChild(M.el('li', null, M.el('a', { href: c[0] }, M.el('b', { text: c[1] }), M.el('span', { text: blurbs[i] }))));
   });
 

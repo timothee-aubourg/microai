@@ -18,6 +18,8 @@
     ['10-local.html', 'A real model on your machine', 'run'],
     ['11-system.html', 'Memory, books and hands', 'system'],
     ['12-adapting.html', 'Teaching new habits', 'adapt'],
+    ['13-structured.html', 'Staying inside the lines', 'shape'],
+    ['14-evaluation.html', 'Knowing whether it works', 'check'],
   ];
 
   // ---------- DOM helpers ----------
@@ -438,7 +440,7 @@
     const ch = +document.body.getAttribute('data-ch') || 0;
     const trail = M.el('nav', { class: 'trail', 'aria-label': 'Chapters' });
     M.chapters.forEach((c, i) => {
-      if (i === 6 || i === 9) trail.appendChild(M.el('span', { class: 'gap' }));
+      if (i === 6 || i === 9 || i === 12) trail.appendChild(M.el('span', { class: 'gap' }));
       const a = M.el('a', { href: c[0], title: (i + 1) + '. ' + c[1], class: i + 1 === ch ? 'here' : i + 1 < ch ? 'done' : '', text: String(i + 1) });
       if (i + 1 === ch) a.setAttribute('aria-current', 'page');
       trail.appendChild(a);

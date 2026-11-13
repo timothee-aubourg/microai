@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Knowing whether it works | microAI</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-ch="14">
+<main>
+  <p class="where">Chapter 14</p>
+  <h1>Knowing whether it works</h1>
+  <p class="question">The agent gave a wrong answer. Was it the model, the search, the tool, or your loop? And after you change something, how do you know it got better?</p>
+
+  <p>The agent of chapter 11 hands back one string. When the string is wrong, the fault can sit in several places. The model may have picked the wrong tool. It may have picked the right tool and written bad arguments. The tool may have failed. The search may have returned the wrong passage, and the model answered faithfully from it. The loop may have hit its step limit. From the final string alone these all look the same.</p>
+  <p>A second problem follows the first. You find a fault and fix it, perhaps by rewording the system prompt. The example that failed now works. Did anything else break? A model's behaviour is not local: a sentence added for one case shifts the probabilities in every other case.</p>
+  <p>Both problems have the same answer, and it is not clever. Write down everything the agent does. Then ask it the same questions every time, and count.</p>
+
+  <h2>Write everything down</h2>
+  <p>Wrap each model call and each tool call so that it notes four things: what went in, what came out, how long it took, and whether it failed. One such note is a <strong>span</strong>. The spans of one run, with the record of which call started which, form a <strong>trace</strong>.</p>
+  <p>The tracer in this chapter is about twenty lines, and it does not edit the agent. The loop of chapter 11 calls <code>chat</code> and looks tools up in a table. The tracer swaps both for versions that do the same work and take notes, runs the loop, and puts the originals back.</p>
+  <p>Below are nine questions put to that agent, with the trace of each run.</p>
+
+  <section class="bench" id="w-trace">
+    <h3>Nine tasks, nine traces</h3>
+    <p class="try"><b>Try this.</b> Open a task marked ✗. Before reading the final answer, find the span where the run went wrong. Tap a span to see exactly what went in and what came out.</p>
+  </section>
+
+  <p>Three of the nine fail, and for three different reasons. In <i>(3 + 4) * 12</i> the model span shows the arguments it wrote: <code>3 + 4) * 12</code>, with the opening bracket lost. The calculator span after it is marked as failed. In <i>17% of 2340</i> the first model span asks for the search tool: the wrong tool. In the last task the model calls the calculator, reports the result and stops, with half the question unanswered. Bad arguments, wrong tool, half the job. The final answers alone would not have told you which.</p>
+  <p>Look also at the input of each model span. The second call of a run receives everything the first one did, plus the request and the tool's result. After a search, the input grows from under 200 characters to about 1,400. This is the context budget of chapter 11, measured.</p>
+
+  <h2>Ask the same questions every time</h2>
+  <p>An <strong>evaluation</strong> is three things: a fixed list of tasks, a <strong>grader</strong> that decides pass or fail without a person looking, and a count. You run it before a change and after, and compare.</p>
+  <p>The tasks should come from your own use. The nine here are small on purpose. The grader makes two kinds of check.</p>
+  <p><strong>Checks on the answer.</strong> Does the final text contain the right number, or one of the expected words? This is what the user cares about.</p>
+  <p><strong>Checks on the path.</strong> Did the calculator run, and without an error? Did a search result contain the passage that holds the answer? These read the trace, not the answer. They matter for two reasons. An answer can be right for a bad reason: a model that multiplies in its head will be right on small numbers and wrong on large ones, and only the missing calculator call shows it. And a path check says <em>where</em> a failure is. "The right passage was never retrieved" sends you to the search. "It was retrieved and the answer is still wrong" sends you to the prompt or the model.</p>
+  <p>A task passes when all its checks pass. Here that gives 6 of 9.</p>
+
+  <h2>How far to trust a score</h2>
+  <p>Six of nine is 67%. Suppose you add three sentences to the system prompt and get seven of nine, 78%. Is the agent better?</p>
+  <p>Think of each task as a coin that lands "pass" with some unknown probability. An evaluation flips <i>n</i> such coins and reports the fraction of passes. Flip again, with new tasks of the same kind or with the same tasks and a model that samples, and the fraction comes out different. The typical size of that wobble is the <strong>standard error</strong>:</p>
+  <div class="eq">standard error = &radic;( <i>p</i> (1 &minus; <i>p</i>) / <i>n</i> )</div>
+  <p>where <i>p</i> is the pass rate and <i>n</i> the number of runs. About two scores in three land within one standard error of the truth, and nearly all within two.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Runs</th><th>Standard error at a 70% pass rate</th></tr>
+    <tr><td class="mono">9</td><td class="mono">&plusmn; 15 points</td></tr>
+    <tr><td class="mono">20</td><td class="mono">&plusmn; 10 points</td></tr>
+    <tr><td class="mono">100</td><td class="mono">&plusmn; 4.6 points</td></tr>
+    <tr><td class="mono">400</td><td class="mono">&plusmn; 2.3 points</td></tr>
+  </table></div>
+  <p>With nine tasks the wobble is fifteen points each way. Six of nine and seven of nine are the same result. The square root also sets the price of precision: to halve the uncertainty you need four times the tasks.</p>
+
+  <section class="bench" id="w-noise">
+    <h3>Two systems, many evaluations</h3>
+    <p class="try"><b>Try this.</b> System B is truly better than system A by the amount you choose. Each is evaluated 400 times on fresh tasks. With 20 tasks and a 5-point improvement, how often does the better system come out ahead? Then raise the number of tasks until it almost always does.</p>
+  </section>
+
+  <p>Worked out exactly for 20 tasks, a system that is truly five points better (75% against 70%) scores higher only 57% of the time. It ties 13% of the time and scores <em>lower</em> 30% of the time. At 400 tasks it scores higher 94% of the time. Small evaluations are still worth having, because they catch large breakages at once. They cannot rank two close versions.</p>
+
+  <h2>The working loop</h2>
+  <p>Put together, this is how an agent gets better.</p>
+  <ol>
+    <li>Run the evaluation. Read the traces of the failures, not only the count.</li>
+    <li>Name the fault: wrong tool, bad arguments, missing passage, wrong wording, too many steps.</li>
+    <li>Change one thing that addresses it: a tool description, the prompt, the chunking, a mask from chapter 13.</li>
+    <li>Run everything again. A fix that breaks two other tasks is not a fix.</li>
+    <li>When a real use fails in a new way, add it to the tasks. The list only grows.</li>
+  </ol>
+  <p>One caution carries over from chapters 7 and 11. A prompt tuned until it passes a fixed set of tasks has, in a small way, been trained on them. Keep some tasks aside that you never look at while tuning, and check those at the end.</p>
+
+  <h2>Build it</h2>
+  <pre class="code" data-src="ch14_trace.py#tracer">class Tracer:
+    def __init__(self):
+        self.spans, self.stack, self.t0 = [], [], time.perf_counter()
+
+    @contextmanager
+    def span(self, kind, name, input=None):
+        s = {'id': len(self.spans), 'parent': self.stack[-1] if self.stack else None,
+             'kind': kind, 'name': name, 'input': copy.deepcopy(input),      # a copy: the caller may change it later
+             'start': round(1000 * (time.perf_counter() - self.t0), 2)}
+        self.spans.append(s); self.stack.append(s['id'])
+        t = time.perf_counter()
+        try:
+            yield s                                    # the work happens here and may set s['output']
+        except Exception as e:
+            s['error'] = f'{type(e).__name__}: {e}'    # record the failure, then let it continue upward
+            raise
+        finally:
+            s['ms'] = round(1000 * (time.perf_counter() - t), 2)
+            self.stack.pop()</pre>
+  <p class="src">From <code>code/ch14_trace.py</code>. A span is opened, the work runs inside it, and the span is closed whatever happens.</p>
+  <pre class="code" data-src="ch14_trace.py#wrap">def traced(tracer, kind, name, fn):
+    """The same function, with every call recorded as a span."""
+    def wrapper(*args, **kwargs):
+        with tracer.span(kind, name, input={'args': args, 'kwargs': kwargs}) as s:
+            s['output'] = fn(*args, **kwargs)
+            return s['output']
+    return wrapper
+
+def run_traced(question, tracer=None, **kw):
+    """Run the agent of chapter 11, unchanged, with its model calls and tool calls recorded."""
+    tracer = tracer or Tracer()
+    chat, registry = agent.chat, agent.REGISTRY
+    agent.chat = traced(tracer, 'model', 'chat', chat)
+    agent.REGISTRY = {name: traced(tracer, 'tool', name, fn) for name, fn in registry.items()}
+    try:
+        with tracer.span('agent', 'run_agent', input=question) as root:
+            root['output'] = agent.run_agent(question, verbose=False, **kw)
+    finally:
+        agent.chat, agent.REGISTRY = chat, registry    # put the originals back
+    return root['output'], tracer.spans</pre>
+  <p class="src">Recording the agent of chapter 11 without changing a line of it.</p>
+  <pre class="code" data-src="ch14_eval.py#grade">def grade(task, answer, spans):
+    """Return {check: passed}. Some checks read the final answer, others read what the agent did."""
+    tools = [s for s in spans if s['kind'] == 'tool']
+    out = {}
+    if 'number' in task:                               # outcome: the right number is in the answer
+        found = [float(x) for x in re.findall(r'-?\d+\.?\d*', answer.replace(',', ''))]
+        out['answer'] = any(abs(x - task['number']) &lt;= 1e-3 * abs(task['number']) for x in found)
+    if 'says' in task:                                 # outcome: the answer uses one of these words
+        out['answer'] = any(word in answer.lower() for word in task['says'])
+    if 'calls' in task:                                # path: these tools ran, and did not fail
+        worked = {s['name'] for s in tools if 'error' not in s}
+        out['tools'] = all(name in worked for name in task['calls'])
+    if 'retrieves' in task:                            # path: the search found the right passage
+        out['retrieval'] = any(task['retrieves'] in str(s.get('output')) for s in tools if s['name'] == 'search_notes')
+    return out</pre>
+  <p class="src">From <code>code/ch14_eval.py</code>. The grader: checks on the answer, and checks on the path, read from the trace.</p>
+  <pre class="code" data-src="ch14_eval.py#evaluate">def evaluate(tasks, repeat=1):
+    rows = []
+    for task in tasks:
+        for _ in range(repeat):                        # a real model is random: one run is one sample
+            tracer = Tracer()
+            try:
+                answer, _ = run_traced(task['q'], tracer)
+            except OSError:
+                raise                                  # no server: stop, this is not the agent's fault
+            except Exception as e:
+                answer = f'crashed: {type(e).__name__}: {e}'       # a crash is a failed task, with its trace
+            checks = grade(task, answer, tracer.spans)
+            rows.append({'q': task['q'], 'answer': answer, 'checks': checks,
+                         'passed': all(checks.values()), 'spans': tracer.spans})
+    return rows
+
+def score(rows):
+    """Pass rate, and the standard error that says how far to trust it."""
+    n = len(rows)
+    p = sum(r['passed'] for r in rows) / n
+    return p, math.sqrt(p * (1 - p) / n)</pre>
+  <p class="src">The evaluation, and the number that says how far to trust its result.</p>
+
+  <div class="note">
+    <h3>What this chapter glossed over</h3>
+    <p><strong>The traces above come from the fake server.</strong> Its "model" picks tools with a few rules. The score of 6 in 9 describes those rules and no model. Its timings are also unlike a real run: a real model call takes seconds and dominates the trace, while the tools still take milliseconds. Run <code>code/ch14_eval.py</code> against the server of chapter 10 to see your own model's version.</p>
+    <p><strong>Graders are the hard part.</strong> A check for "397.8" fails a correct answer that says "about 398". Loosen it and it passes wrong ones. For free-form answers people often ask a second model to judge. That judge is itself a model that makes mistakes: before trusting it, compare its verdicts with your own on a sample.</p>
+    <p><strong>Comparing on the same tasks is sharper.</strong> The experiment above gives each system fresh tasks. If both versions run on the same tasks, compare task by task: which ones flipped from fail to pass, and which the other way. That removes the luck of the draw in the tasks.</p>
+    <p><strong>A real model is random.</strong> With sampling on, the same task can pass once and fail once. Run each task several times (<code>--repeat</code>) and count runs, not tasks.</p>
+    <p><strong>A trace contains everything.</strong> The user's words, the retrieved documents, the tool results. It deserves the same care as the data it copies. On your own machine it is a file you control, which is one more argument for running locally.</p>
+    <p><strong>Tools exist for this.</strong> Tracing products add token counts, cost, a viewer and a shared record format. What they record is what the twenty lines here record.</p>
+  </div>
+
+  <h2>Check yourself</h2>
+  <details class="check"><summary>On an arithmetic task the answer check passes and the tools check fails. What happened, and does it matter?</summary><p>The model gave the right number without calling the calculator. It computed in its own weights, which is unreliable for anything but small numbers. The user saw a correct answer this time. The path check caught a habit that will produce wrong answers later.</p></details>
+  <details class="check"><summary>After a prompt change the score goes from 14 of 20 to 16 of 20. What have you learned?</summary><p>Little from the count. At 20 runs the standard error is about ten points, and the change is ten points. Look instead at which tasks flipped. Two that now pass and none that broke, with traces showing the intended behaviour, is real evidence. To rank the two prompts by score alone you need many more tasks.</p></details>
+  <details class="check"><summary>The tracer stores a copy of each input, not the input itself. Why?</summary><p>The agent keeps one list of messages and appends to it at every step. A span that stored the list itself would show, after the run, the final conversation in every model span. The copy freezes what the model received at that moment.</p></details>
+  <details class="check"><summary>In a real trace the model spans take four seconds each and the tool spans two milliseconds. Where do you look to make the agent faster?</summary><p>At the model calls: fewer steps, less text in the window, a stable beginning of the conversation so the cache of chapter 8 can be reused, or a smaller model. Speeding up the tools would change nothing you could notice.</p></details>
+</main>
+
+<script src="assets/evals.js"></script>
+<script src="assets/micro.js"></script>
+<script>
+M.ready(function () {
+  // ---------- widget 1: tasks and their traces ----------
+  (function () {
+    var box = M.$('#w-trace'), E = window.MICRO_EVALS;
+    if (!E) { box.appendChild(M.el('p', { text: 'The recorded evaluation did not load, so this experiment is unavailable.' })); return; }
+    var rows = E.rows, list = M.el('div', { class: 'tasks' }), view = M.el('div'), buttons = [];
+    function short(v, n) { var t = (typeof v === 'string' ? v : JSON.stringify(v)).replace(/\n/g, ' '); return t.length <= n ? t : t.slice(0, n - 1) + '…'; }
+    function calls(reply) { return (reply && reply.tool_calls) || []; }
+    function line(s) {
+      if (s.kind === 'model') {
+        var msgs = s.input.args[0], c = calls(s.output);
+        return msgs.length + ' messages in (' + JSON.stringify(msgs).length + ' characters) → ' +
+          (c.length ? 'asks for ' + c.map(function (x) { return x['function'].name + '(' + short(x['function'].arguments, 44) + ')'; }).join(', ') : 'answers: ' + short((s.output && s.output.content) || '', 60));
+      }
+      if (s.kind === 'tool') return short(s.input.kwargs, 44) + ' → ' + (s.error ? 'failed: ' + s.error : short(s.output, 60));
+      return 'the whole run';
+    }
+    function block(title, text) { return M.el('div', null, M.el('p', { class: 'caption', text: title, style: 'margin:8px 0 4px' }), M.el('div', { class: 'out', style: 'min-height:0;max-height:260px;overflow:auto;font-size:13px', text: text })); }
+    function detail(s) {
+      var d = M.el('div');
+      if (s.kind === 'model') {
+        var msgs = s.input.args[0], tools = s.input.kwargs.tools || [];
+        d.appendChild(block('What the model received: every message so far', msgs.map(function (mm) {
+          return mm.role.toUpperCase() + ': ' + (mm.content != null ? mm.content : calls(mm).map(function (x) { return '[asks for ' + x['function'].name + ' ' + x['function'].arguments + ']'; }).join(' '));
+        }).join('\n\n')));
+        d.appendChild(M.el('p', { class: 'caption', text: 'Plus the descriptions of ' + tools.length + ' tools (' + JSON.stringify(tools).length + ' characters), sent again on every call.' }));
+        d.appendChild(block('What the model wrote', calls(s.output).length ? JSON.stringify(calls(s.output).map(function (x) { return x['function']; }), null, 1) : String(s.output && s.output.content)));
+      } else if (s.kind === 'tool') {
+        d.appendChild(block('Arguments, as written by the model', JSON.stringify(s.input.kwargs, null, 1)));
+        d.appendChild(block(s.error ? 'Failed with' : 'Returned', s.error || String(s.output)));
+      } else {
+        d.appendChild(block('Question', String(s.input)));
+        d.appendChild(block('Final answer', String(s.output)));
+      }
+      return d;
+    }
+    function open(k) {
+      var r = rows[k], total = Math.max.apply(null, r.spans.map(function (s) { return s.start + s.ms; }).concat([0.01])), depth = {};
+      buttons.forEach(function (b, i) { b.setAttribute('aria-pressed', i === k ? 'true' : 'false'); });
+      view.textContent = '';
+      view.appendChild(M.el('p', { class: 'readout', html: 'Checks: ' + Object.keys(r.checks).map(function (c) { return c + ' <b>' + (r.checks[c] ? '✓' : '✗') + '</b>'; }).join(' · ') }));
+      r.spans.forEach(function (s) {
+        depth[s.id] = s.parent == null ? 0 : depth[s.parent] + 1;
+        var cls = s.error ? 'err' : s.kind;
+        var bar = M.el('i', { class: cls, style: 'left:' + (100 * s.start / total).toFixed(2) + '%;width:' + (100 * s.ms / total).toFixed(2) + '%' });
+        var sum = M.el('summary', null,
+          M.el('span', null, M.el('span', { class: 'kind ' + cls, text: s.kind + (s.error ? ' failed' : '') }), ' ', M.el('b', { text: s.name })),
+          M.el('span', { class: 'ms', text: s.ms.toFixed(1) + ' ms' }),
+          M.el('span', { class: 'what', text: line(s) }),
+          M.el('span', { class: 'lane' }, bar));
+        var det = M.el('details', { class: 'span', style: 'margin-left:' + 14 * depth[s.id] + 'px' }, sum);
+        det.addEventListener('toggle', function () { if (det.open && det.childNodes.length < 2) det.appendChild(detail(s)); });
+        view.appendChild(det);
+      });
+      view.appendChild(M.el('p', { class: 'caption', text: 'The bar under each span shows when it ran within the ' + total.toFixed(0) + ' ms of the whole run. Blue: a model call. Grey: a tool. Raspberry: a failure. Recorded with the fake server.' }));
+    }
+    rows.forEach(function (r, k) {
+      var failed = Object.keys(r.checks).filter(function (c) { return !r.checks[c]; });
+      var b = M.el('button', { type: 'button', 'aria-pressed': 'false', onclick: function () { open(k); } },
+        M.el('span', { class: 'mark ' + (r.passed ? 'ok' : 'bad'), text: r.passed ? '✓' : '✗' }),
+        M.el('span', null, r.q, M.el('small', { text: r.passed ? 'passed' : 'failed: ' + failed.join(', ') })));
+      buttons.push(b); list.appendChild(b);
+    });
+    var pass = rows.filter(function (r) { return r.passed; }).length;
+    box.appendChild(M.el('p', { class: 'readout', html: '<b>' + pass + ' of ' + rows.length + '</b> passed: ' + (100 * E.pass_rate).toFixed(0) + '% ± ' + (100 * E.standard_error).toFixed(0) + ' points. Run on: ' + E.model + '.' }));
+    box.appendChild(list); box.appendChild(view);
+    open(2);
+  })();
+
+  // ---------- widget 2: how much does a score wobble ----------
+  (function () {
+    var box = M.$('#w-noise'), R = 400, stat = M.el('p', { class: 'readout' }), hA = [], hB = [], bins = 1;
+    var n = M.slider({ label: 'Tasks per evaluation', min: 5, max: 400, step: 5, value: 20, oninput: sim });
+    var pa = M.slider({ label: 'True pass rate of A', min: 30, max: 90, step: 5, value: 70, fmt: function (v) { return v + '%'; }, oninput: sim });
+    var gain = M.slider({ label: 'True gain of B', min: 0, max: 20, step: 1, value: 5, fmt: function (v) { return '+' + v + ' pts'; }, oninput: sim });
+    function passes(k, p, rnd) { var c = 0; for (var i = 0; i < k; i++) if (rnd() < p) c++; return c; }
+    var cv = M.canvas(box, function (w) { return Math.min(230, Math.max(170, w * 0.42)); }, function (o) {
+      var c = o.ctx, L = 8, Rm = 8, T = 10, B = 26, w = o.w - L - Rm, h = o.h - T - B, mx = Math.max.apply(null, hA.concat(hB).concat([1]));
+      var bw = w / bins;
+      c.font = '12px ' + M.css('--sans'); c.fillStyle = M.css('--muted'); c.strokeStyle = M.css('--line'); c.textAlign = 'center'; c.textBaseline = 'top';
+      [0, 25, 50, 75, 100].forEach(function (t) { var x = L + bw / 2 + (t / 100) * (w - bw); c.beginPath(); c.moveTo(x, T + h); c.lineTo(x, T + h + 4); c.stroke(); c.fillText(t + '%', Math.max(14, Math.min(o.w - 16, x)), T + h + 7); });
+      c.beginPath(); c.moveTo(L, T + h + 0.5); c.lineTo(L + w, T + h + 0.5); c.stroke();
+      for (var i = 0; i < bins; i++) {
+        c.globalAlpha = 0.75; c.fillStyle = M.css('--muted'); c.fillRect(L + i * bw + 1, T + h - h * hA[i] / mx, Math.max(1, bw / 2 - 1), h * hA[i] / mx);
+        c.fillStyle = M.css('--ok'); c.fillRect(L + i * bw + bw / 2, T + h - h * hB[i] / mx, Math.max(1, bw / 2 - 1), h * hB[i] / mx);
+      }
+      c.globalAlpha = 1;
+    });
+    function sim() {
+      var k = n.value, p = pa.value / 100, q = Math.min(1, p + gain.value / 100), rnd = M.rng(3), hi = 0, eq = 0;
+      bins = Math.min(k, 40) + 1; hA = []; hB = [];
+      for (var i = 0; i < bins; i++) { hA.push(0); hB.push(0); }
+      for (var r = 0; r < R; r++) {
+        var a = passes(k, p, rnd), b = passes(k, q, rnd);
+        hA[Math.round(a / k * (bins - 1))]++; hB[Math.round(b / k * (bins - 1))]++;
+        if (b > a) hi++; else if (b === a) eq++;
+      }
+      var se = 100 * Math.sqrt(p * (1 - p) / k);
+      stat.innerHTML = 'Standard error of one score of A: <b>± ' + se.toFixed(1) + ' points</b>. In ' + R + ' pairs of evaluations, B scored higher in <b>' + (100 * hi / R).toFixed(0) + '%</b>, the same in <b>' + (100 * eq / R).toFixed(0) + '%</b>, lower in <b>' + (100 * (R - hi - eq) / R).toFixed(0) + '%</b>.';
+      cv.redraw();
+    }
+    box.insertBefore(M.row(n), cv.c.parentNode); box.insertBefore(M.row(pa, gain), cv.c.parentNode);
+    box.appendChild(M.el('p', { class: 'caption', text: 'How often each score came up in ' + R + ' simulated evaluations. Grey: system A. Green: system B. The two heaps overlap until there are enough tasks to pull them apart.' }));
+    box.appendChild(stat);
+    sim();
+  })();
+});
+</script>
+</body>
+</html>

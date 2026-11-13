@@ -6,6 +6,8 @@ export_web.py — pack the trained model for the website.
 Writes docs/assets/weights.js (float16 weights, base64) and docs/assets/data.js
 (training log, embedding map, text excerpts, reference numbers used by the
 browser tests). Run after code/train.py and code/ch12_lora.py.
+If runs/evals.json exists (written by code/ch14_eval.py --save), it is copied
+to docs/assets/evals.js for chapter 14.
 """
 import base64, json, os, sys
 import numpy as np
@@ -79,6 +81,14 @@ data = {'log': log, 'notes': notes, 'pca': pca, 'pca_explained': explained,
         'parity': {'prompt': prompt, 'logits': [round(float(v), 4) for v in logits]}}
 with open(os.path.join(ROOT, 'docs', 'assets', 'data.js'), 'w') as f:
     f.write('window.MICRO_DATA = ' + json.dumps(data) + ';\n')
+# ---- evaluation results with their traces (chapter 14) --------------------------------
+evals_path = os.path.join(ROOT, 'runs', 'evals.json')
+if os.path.exists(evals_path):
+    with open(evals_path) as f:
+        evals = json.load(f)
+    with open(os.path.join(ROOT, 'docs', 'assets', 'evals.js'), 'w') as f:
+        f.write('window.MICRO_EVALS = ' + json.dumps(evals) + ';\n')
+
 print(f'weights.js {os.path.getsize(os.path.join(ROOT, "docs/assets/weights.js")) / 1024:.0f} KB, '
       f'data.js {os.path.getsize(os.path.join(ROOT, "docs/assets/data.js")) / 1024:.0f} KB, '
       f'held-out loss {held_loss:.4f}, PCA explains {100 * explained:.0f}%')

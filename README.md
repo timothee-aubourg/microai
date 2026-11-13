@@ -2,7 +2,7 @@
 
 **Build and understand a local language model from first principles.**
 
-An interactive course in twelve chapters. Each chapter starts from a question,
+An interactive course in fourteen chapters. Each chapter starts from a question,
 gives you an experiment to play with in the browser, and ends with the few
 lines of code that implement the idea. One small GPT, trained from scratch with
 numpy, runs through the whole course: you watch it learn, look inside its
@@ -36,6 +36,8 @@ branch `main`, folder `/docs`, and save. The course appears at
 | 10 | A real model on your machine | What is in the file, and what does the runtime do? |
 | 11 | Memory, books and hands | How do you build a system from a frozen, forgetful text predictor? |
 | 12 | Teaching new habits | Can you change a model without retraining all of it? |
+| 13 | Staying inside the lines | Can you make a broken output format impossible instead of unlikely? |
+| 14 | Knowing whether it works | Where did the agent go wrong, and did your change make it better? |
 
 ## Run the code
 
@@ -51,6 +53,7 @@ python code/train.py                   # train the GPT (about 15 min on a laptop
 python code/ch08_sample.py --prompt "ROMEO:" --temperature 0.8
 python code/ch09_quantize.py           # round the weights, measure the damage
 python code/ch12_lora.py               # train a small adapter on the frozen model
+python code/ch13_constrain.py          # mask the scores so the output always fits a format
 ```
 
 The trained weights are included (`runs/micro.npz`, `runs/lora.npz`), so every
@@ -74,6 +77,14 @@ export MICROAI_BASE_URL=http://localhost:8765/v1
 python code/ch11_agent.py "What is 17 * 2340 / 100?"
 ```
 
+Chapter 14 records and grades that agent. Its two scripts take `--mock` to
+start the fake server themselves; without it they use your real server:
+
+```bash
+python code/ch14_trace.py --mock "What is (3 + 4) * 12?"   # every model call and tool call, as a trace
+python code/ch14_eval.py --mock                            # nine tasks, graded, with a standard error
+```
+
 ## What is in the repository
 
 ```
@@ -91,6 +102,9 @@ code/
   ch11_rag.py               retrieval-augmented generation
   ch11_agent.py             tool calling and the agent loop
   ch12_lora.py              LoRA fine-tuning of the frozen model
+  ch13_constrain.py         constrained decoding: a format as a mask on the scores
+  ch14_trace.py             spans and traces around the agent loop
+  ch14_eval.py              tasks, graders, pass rate and standard error
   mock_server.py            fake model server for testing without a model
 data/
   shakespeare.txt           training text (public domain, 1.1 MB)
@@ -99,6 +113,7 @@ docs/                       the course website (plain HTML, CSS and JavaScript)
   assets/micro.js           helpers and a full GPT forward pass in JavaScript
   assets/weights.js         the trained weights, float16
   assets/data.js            training log, embedding map, text excerpts
+  assets/evals.js           the recorded evaluation and its traces (ch 14)
 runs/                       trained weights and the training log
 tools/
   export_web.py             pack weights and logs for the website
@@ -114,14 +129,15 @@ always show what actually runs. After editing code or retraining:
 ```bash
 python code/train.py          # optional: retrain (edit sizes at the top of gpt.py / train.py)
 python code/ch12_lora.py      # optional: retrain the adapter
+python code/ch14_eval.py --mock --save   # optional: re-record the evaluation shown in chapter 14
 python tools/export_web.py    # weights and logs -> docs/assets
 python tools/build_site.py    # code snippets -> docs/*.html
 node tools/test_parity.js     # browser model == Python model?
 ```
 
 To train on your own text, replace `data/shakespeare.txt` with any plain-text
-file of a few hundred kilobytes or more and run the five commands above. A few
-sentences in chapters 4, 5, 7 and 9 describe what this particular model learned
+file of a few hundred kilobytes or more and run the commands above. A few
+sentences in chapters 4, 5, 7, 9 and 13 describe what this particular model learned
 and quote its measured numbers; after retraining, check them against yours.
 
 ## How this was checked
@@ -130,11 +146,13 @@ and quote its measured numbers; after retraining, check them against yours.
   on a small GPT; they agree to about 1e-9.
 - `ch08_sample.py` asserts that the KV-cache path gives the same outputs as
   recomputing everything.
+- `ch13_constrain.py` asserts that every masked sample fits its format, and
+  checks that each format fits the context window and the model's vocabulary.
 - `tools/test_parity.js` confirms that the JavaScript model in the browser
   reproduces the Python model's outputs and held-out loss.
 - Every page was loaded in a headless browser at phone and desktop widths with
   no script errors, and each experiment was exercised.
-- The chat, retrieval and agent scripts were run end to end against
+- The chat, retrieval, agent, tracing and evaluation scripts were run end to end against
   `mock_server.py`. They follow the OpenAI-compatible API that Ollama
   documents, but **they have not been run against a real Ollama, llama.cpp or
   LM Studio server**. If one behaves differently, the fix belongs in
@@ -143,8 +161,9 @@ and quote its measured numbers; after retraining, check them against yours.
 ## Scope
 
 This course covers the path from next-token prediction to a working local
-system. It deliberately leaves out reinforcement-learning fine-tuning (policy
-gradients, PPO, GRPO), multimodal models and evaluation methodology; chapter 12
+system, and how to check that system on your own tasks. It deliberately leaves
+out reinforcement-learning fine-tuning (policy gradients, PPO, GRPO),
+multimodal models and the benchmarking of models themselves; chapter 12
 sketches where those begin.
 
 ## References
