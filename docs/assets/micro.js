@@ -446,6 +446,161 @@
     }
     pre.innerHTML = out + esc(src.slice(last));
   }
+  /* ---------- code cells: fold a listing, or read it as an outline ----------
+     Every listing copied from code/ gets a header and two views. The outline is drawn from the listing
+     itself, so it cannot disagree with it: one box per function with its docstring, one step per
+     commented line, and loops and tests with what they govern indented under them. */
+  function trailing(text) {                      // split "code  # comment", ignoring a # inside a string
+    let q = '';
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (q) { if (c === '\\') i++; else if (c === q) q = ''; }
+      else if (c === '"' || c === "'") q = c;
+      else if (c === '#') return [text.slice(0, i).trim(), text.slice(i + 1).trim()];
+    }
+    return [text.trim(), ''];
+  }
+  M.outline = function (src) {
+    const root = [], stack = [{ indent: -1, kids: root, node: null }];
+    let doc = false, skipped = 0;
+    src.split('\n').forEach((raw) => {
+      if (!raw.trim()) return;
+      const indent = raw.match(/^ */)[0].length, line = raw.trim();
+      if (doc) { if (line.indexOf('"""') >= 0) doc = false; return; }
+      while (stack.length > 1 && indent <= stack[stack.length - 1].indent) stack.pop();
+      const parent = stack[stack.length - 1];
+      if (line.slice(0, 3) === '"""') {            // a docstring describes the function it opens
+        const rest = line.slice(3), end = rest.indexOf('"""');
+        if (parent.node && parent.node.kind === 'fn' && !parent.node.note) parent.node.note = (end >= 0 ? rest.slice(0, end) : rest).trim();
+        if (end < 0) doc = true;
+        return;
+      }
+      const parts = trailing(line), code = parts[0], note = parts[1];
+      let node = null, opens = false;
+      const fn = code.match(/^(?:def|class)\s+(.+?):?$/);
+      if (/^(def|class)\s/.test(code) && fn) { node = { kind: 'fn', code: fn[1].replace(/:$/, ''), note: note }; opens = true; }
+      else if (/^(for|while|if|elif|else|with|try|except|finally)\b/.test(code) && /:$/.test(code)) { node = { kind: code.split(/[\s:]/)[0], code: code.replace(/:$/, ''), note: note }; opens = true; }
+      else if (/^return\b/.test(code)) node = { kind: 'return', code: code, note: note };
+      else if (!code && note && !/^\[\/?snippet/.test(note)) node = { kind: 'say', code: '', note: note };
+      else if (note) node = { kind: 'step', code: code, note: note };
+      else { skipped++; return; }
+      node.kids = [];
+      parent.kids.push(node);
+      if (opens) stack.push({ indent: indent, kids: node.kids, node: node });
+    });
+    return { nodes: root, skipped: skipped };
+  };
+  const WORD = { for: 'repeat', while: 'as long as', if: 'if', elif: 'or if', else: 'otherwise', with: 'using', try: 'try', except: 'if that fails', finally: 'in any case', return: 'gives back' };
+  function drawOutline(nodes) {
+    const list = M.el('ol', { class: 'o-steps' });
+    nodes.forEach((n) => {
+      const li = M.el('li', { class: 'o-' + (n.kind === 'fn' ? 'fn' : n.kind === 'step' || n.kind === 'say' ? 'step' : 'ctl') });
+      const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+      if (n.kind === 'fn') { li.appendChild(M.el('code', { class: 'o-name', text: n.code })); if (n.note) li.appendChild(M.el('span', { class: 'o-note', text: n.note })); }
+      else if (n.kind === 'step' || n.kind === 'say') { li.appendChild(M.el('span', { class: 'o-note', text: cap(n.note) })); if (n.code) li.appendChild(M.el('code', { text: n.code })); }
+      else {
+        li.appendChild(M.el('span', { class: 'o-word', text: WORD[n.kind] }));
+        li.appendChild(M.el('code', { text: n.code.replace(/^(for|while|if|elif|else|with|try|except|finally|return)\s*/, '') || '…' }));
+        if (n.note) li.appendChild(M.el('span', { class: 'o-note', text: n.note }));
+      }
+      if (n.kids.length) li.appendChild(drawOutline(n.kids));
+      list.appendChild(li);
+    });
+    return list;
+  }
+  function pref(key, value) {
+    try { if (value === undefined) return localStorage.getItem(key); localStorage.setItem(key, value); } catch (e) { /* private mode: the choice lasts for this page only */ }
+    return null;
+  }
+  function codeCells() {
+    const saved = pref('microai.code'), narrow = window.matchMedia && window.matchMedia('(max-width: 640px)').matches;
+    document.querySelectorAll('pre.code[data-src]').forEach((pre) => {
+      const src = pre.textContent, o = M.outline(src), has = o.nodes.length > 0, lines = src.replace(/\s+$/, '').split('\n').length;
+      const where = pre.getAttribute('data-src').split('#');
+      const cell = M.el('div', { class: 'cell' }), body = M.el('div', { class: 'cell-o' });
+      if (has) {
+        body.appendChild(drawOutline(o.nodes));
+        body.appendChild(M.el('p', { class: 'o-foot', text: 'Drawn from the code itself: its functions, its comments, its loops and tests.' + (o.skipped ? ' ' + o.skipped + ' plain line' + (o.skipped > 1 ? 's are' : ' is') + ' left out.' : '') }));
+      }
+      const bO = M.button('Outline', () => set(cell.getAttribute('data-view') === 'outline' ? 'closed' : 'outline', true)),
+            bC = M.button('Code', () => set(cell.getAttribute('data-view') === 'code' ? 'closed' : 'code', true));
+      function set(view, keep) {
+        if (view === 'outline' && !has) view = 'code';
+        cell.setAttribute('data-view', view);
+        bO.setAttribute('aria-pressed', view === 'outline'); bC.setAttribute('aria-pressed', view === 'code');
+        if (keep) pref('microai.code', view);
+      }
+      const head = M.el('div', { class: 'cell-h' }, M.el('span', { class: 'cell-name' }, M.el('b', { text: where[0] }), where[1] ? ' · ' + where[1] : ''),
+        M.el('span', { class: 'cell-n', text: lines + ' lines' }), M.el('span', { class: 'cell-v' }, has ? bO : null, bC));
+      pre.parentNode.insertBefore(cell, pre);
+      cell.appendChild(head); cell.appendChild(body); cell.appendChild(pre);
+      set(saved || (narrow ? 'outline' : 'code'));
+    });
+  }
+
+  /* ---------- figures: on a phone, open one to fill the screen ----------
+     A wide diagram is turned on its side so that its length runs along the long edge of the phone. */
+  function figures() {
+    let dlg = null;
+    function open(art) {
+      if (!dlg) {
+        dlg = M.el('dialog', { class: 'viewer', 'aria-label': 'Figure, enlarged' }, M.el('div', { class: 'viewer-art fig' }), M.button('Close', () => dlg.close(), 'viewer-x'));
+        dlg.addEventListener('click', (e) => { if (e.target === dlg || e.target.classList.contains('viewer-art')) dlg.close(); });
+        document.body.appendChild(dlg);
+      }
+      const box = dlg.firstChild, copy = art.cloneNode(true), vb = (art.getAttribute('viewBox') || '').split(/\s+/).map(Number);
+      const ratio = vb.length === 4 && vb[3] ? vb[2] / vb[3] : (art.clientWidth || 4) / (art.clientHeight || 3);
+      const W = window.innerWidth, H = window.innerHeight, turn = H > W && ratio > 1.2, pad = 20;
+      const width = turn ? Math.min(H - 76, (W - pad) * ratio) : Math.min(W - pad, (H - 76) * ratio);
+      copy.removeAttribute('aria-labelledby');
+      copy.setAttribute('style', 'width:' + width.toFixed(0) + 'px;min-width:0;height:auto;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)' + (turn ? ' rotate(90deg)' : ''));
+      box.textContent = ''; box.appendChild(copy);
+      if (dlg.showModal) dlg.showModal(); else dlg.setAttribute('open', '');
+    }
+    document.querySelectorAll('figure.fig').forEach((f) => {
+      const art = f.querySelector('svg, img');
+      if (art) f.appendChild(M.button('Enlarge', () => open(art), 'fig-zoom'));
+    });
+  }
+
+  /* ---------- on a phone: install it, and keep it for when there is no network ----------
+     The site stays plain files. A manifest lets a phone add it to the home screen, and a small worker
+     keeps a copy of every page it has served. The network is always asked first, so a reader who is
+     online never sees an old page. */
+  function installable() {
+    const head = document.head, dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    head.appendChild(M.el('link', { rel: 'manifest', href: 'manifest.webmanifest' }));
+    head.appendChild(M.el('link', { rel: 'apple-touch-icon', href: 'assets/icon-192.png' }));
+    head.appendChild(M.el('meta', { name: 'theme-color', content: dark ? '#15151B' : '#F4ECDA' }));
+    const online = /^https?:$/.test(location.protocol) && 'serviceWorker' in navigator;
+    if (online) navigator.serviceWorker.register('sw.js').catch(() => { /* the site works without it */ });
+    const slot = M.$('#offline');
+    if (!slot) return;
+    if (!online || !window.caches) { slot.textContent = 'Opened from a folder, the course already works without a network.'; return; }
+    const say = M.el('span', { text: ' ' });
+    slot.appendChild(M.button('Keep the whole course on this device', () => {
+      const pages = ['index.html', 'glossary.html'].concat(M.chapters.map((c) => c[0]));
+      let done = 0, bytes = 0;
+      say.textContent = ' Saving…';
+      caches.open('microai-v1').then((cache) => {
+        const keep = (u) => fetch(u, { cache: 'reload' }).then((r) => {
+          if (!r.ok) return '';
+          const copy = r.clone();
+          return r.blob().then((b) => { bytes += b.size; done++; return cache.put(u, copy).then(() => b.text()); });
+        }).catch(() => '');
+        const found = (text, re, base) => { const out = []; let m; while ((m = re.exec(text))) out.push(base + m[1]); return out; };
+        return Promise.all(pages.map(keep)).then((texts) => {          // the pages name the files they need
+          const files = new Set(['manifest.webmanifest', 'assets/icon-192.png', 'assets/icon-512.png']);
+          texts.forEach((t) => found(t, /(?:src|href)="(assets\/[^"]+)"/g, '').forEach((u) => files.add(u)));
+          return Promise.all(Array.from(files).map(keep)).then(() => keep('assets/style.css'));
+        }).then((css) => Promise.all(found(css, /url\(["']?(fonts\/[^"')]+)["']?\)/g, 'assets/').map(keep)));
+      }).then(() => {
+        say.textContent = ' Saved ' + done + ' files, ' + (bytes / 1e6).toFixed(1) + ' MB. Every chapter now opens without a network.';
+      });
+    }));
+    slot.appendChild(say);
+  }
+
   function chrome() {
     const ch = +document.body.getAttribute('data-ch') || 0;
     const trail = M.el('nav', { class: 'trail', 'aria-label': 'Chapters' });
@@ -479,7 +634,10 @@
     const tally = M.$('#guess-score');                 // the contents page shows the running score
     if (tally) { const t = scoreLine(guesses()); if (t) tally.textContent = t + ' Each chapter opens with one.'; }
     decorate();
+    codeCells();                                       // reads the plain text of each listing, so it runs before the colouring
     document.querySelectorAll('pre.code').forEach((p) => { if (p.getAttribute('data-lang') !== 'text') highlight(p); });
+    figures();
+    installable();
     termTips();
   }
 

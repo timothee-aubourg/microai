@@ -25,6 +25,11 @@ you know what each component of a full-size one is doing.
 Open `docs/index.html` in a browser. It needs no server and no internet
 connection.
 
+On a phone, open the site and use the browser's "Add to Home Screen": it
+installs like an app. "Keep the whole course on this device", on the contents
+page, saves every chapter (about 3 MB) for reading without a network. Code
+listings fold and have an outline view, and figures open to fill the screen.
+
 To publish it as a website with GitHub Pages: push this repository, then go to
 **Settings → Pages → Build and deployment**, choose **Deploy from a branch**,
 branch `main`, folder `/docs`, and save. The course appears at

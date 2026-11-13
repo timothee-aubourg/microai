@@ -384,3 +384,41 @@ h2 .ic { width: 1.25em; height: 1.25em; vertical-align: -0.24em; margin-right: 0
 .part .ic { width: 2.2em; height: 2.2em; vertical-align: -0.7em; margin-right: 0.5em; }
 .guess .opts button .ic { width: 1.5em; height: 1.5em; vertical-align: -0.38em; margin-right: 0.4em; }
 .def .kind .ic { width: 2em; height: 2em; vertical-align: -0.62em; }
+
+/* ---------- code cells: a listing that folds, with an outline drawn from it ---------- */
+.cell { max-width: 868px; margin: 0 auto 6px; border: 1px solid var(--line); border-radius: var(--cut); background: var(--code-bg); overflow: hidden; }
+.cell-h { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 8px 14px; font-family: var(--sans); font-size: 13px; color: var(--muted); }
+.cell-name { font-family: var(--mono); font-size: 12.5px; color: var(--ink); overflow-wrap: anywhere; }
+.cell-n { margin-right: auto; }
+.cell-v { display: flex; gap: 14px; }
+.cell-v button { min-height: 44px; padding: 0 2px; font-size: 14px; }
+.cell-v button[aria-pressed="true"] { color: var(--fwd); border-bottom-color: var(--fwd); font-weight: 700; }
+.cell pre.code { margin: 0; border: 0; border-top: 1px solid var(--line); border-radius: 0; max-width: none; }
+.cell-o { border-top: 1px solid var(--line); padding: 10px 14px 12px; background: var(--panel); }
+.cell[data-view="outline"] pre.code, .cell[data-view="closed"] pre.code, .cell[data-view="code"] .cell-o, .cell[data-view="closed"] .cell-o { display: none; }
+.o-steps { list-style: none; margin: 0; padding: 0; font-family: var(--sans); font-size: 15px; line-height: 1.4; }
+.o-steps .o-steps { margin: 6px 0 2px 6px; padding-left: 12px; border-left: 2px solid var(--line); }
+.o-steps li { margin: 0 0 8px; }
+.o-steps code { display: block; font-family: var(--mono); font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.o-fn { border: 1px solid var(--line); border-radius: var(--cut-s); padding: 8px 10px 4px; background: var(--paper); }
+.o-fn > .o-name { display: block; font-size: 13.5px; font-weight: 700; color: var(--fwd); }
+.o-fn > .o-note { display: block; color: var(--ink); margin: 2px 0 6px; }
+.o-fn + .o-fn::before, .o-step + .o-fn::before { content: ''; display: block; width: 2px; height: 10px; background: var(--line); margin: -19px 0 9px 14px; }
+.o-fn + .o-fn, .o-step + .o-fn { margin-top: 18px; }
+.o-ctl > .o-word { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--prob); margin-right: 6px; }
+.o-ctl > code { display: inline; font-size: 12.5px; color: var(--ink); }
+.o-ctl > .o-note { display: block; color: var(--muted); font-size: 13.5px; }
+.o-foot { font-family: var(--sans); font-size: 12px; color: var(--muted); margin: 6px 0 0; }
+
+/* ---------- figures: open one to fill the screen ---------- */
+.fig-zoom { display: none; }
+dialog.viewer { border: 0; padding: 0; margin: 0; width: 100vw; height: 100vh; max-width: none; max-height: none; background: var(--paper); color: var(--ink); }
+dialog.viewer::backdrop { background: var(--paper); }
+.viewer-art { position: absolute; inset: 0; overflow: hidden; }
+.viewer-art svg { font-family: var(--sans); }
+.viewer-x { position: absolute; right: 12px; bottom: 12px; min-height: 44px; background: var(--panel); padding: 0 12px; border: 1px solid var(--border); border-radius: var(--cut-s); text-decoration: none; }
+@media (max-width: 640px) {
+  .fig-zoom { display: inline-block; min-height: 44px; margin-top: 2px; font-size: 14px; position: sticky; left: 0; }
+}
+#offline { font-family: var(--sans); font-size: 14px; color: var(--muted); }
+@media print { .cell[data-view] pre.code { display: block; } .cell-o, .cell-v, .fig-zoom { display: none; } }
