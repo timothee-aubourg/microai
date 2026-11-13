@@ -25,7 +25,7 @@
     <tr><td class="mono">bash</td><td>Runs a shell command in the project folder and returns its output.</td></tr>
   </table></div>
   <p>The first three cover files. The fourth covers everything else a computer can do: run the tests, search, install a package, use git. A model that can write shell commands can use any program that already exists.</p>
-  <p>This short list is a real design. Pi, an open-source harness by Mario Zechner, gives the model exactly these four tools by default, with a system prompt of under a thousand tokens. Claude Code makes the other choice and builds in more: next to Bash, Read, Edit and Write it has tools to find files and search their content, to fetch web pages, to keep a to-do list and to start a helper agent, among others. Few general tools keep the request small and leave the model to combine them. Many special tools cost more room in every request and are easier to control one by one.</p>
+  <p>This short list is a real design. Pi, an open-source harness, gives the model exactly these four tools by default, with a system prompt of under a thousand tokens. Claude Code makes the other choice and builds in more: next to Bash, Read, Edit and Write it has tools to find files and search their content, to fetch web pages, to keep a to-do list and to start a helper agent, among others. Few general tools keep the request small and leave the model to combine them. Many special tools cost more room in every request and are easier to control one by one.</p>
   <p>Note how <code>edit</code> works. The model has no cursor. It can only quote. So it names the place to change by quoting the text that is there now, and the harness refuses if that text is missing or occurs twice.</p>
 
   <h2>What the model actually receives</h2>
