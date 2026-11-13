@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Releasing it, and watching it | microAI</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-ch="36">
+<main>
+  <p class="where">Chapter 36</p>
+  <h1>Releasing it, and watching it</h1>
+  <p class="question">A new version is ready. How do you put it in front of people without finding out the hard way that it is worse?</p>
+
+  <p>In every chapter so far a model was trained, measured once, and the chapter ended. A system in use does not end. The model is trained again, the guard is repaired as in chapter 35, a tool is added. Each of these makes a new version, and each new version can be worse than the old one in a way nobody intended. And when nothing changes on your side, the requests change on the other.</p>
+  <p>Three habits answer this, in order. Each one catches what the one before cannot.</p>
+
+  <div class="def"><span class="kind">Definitions</span>
+    <p>A <dfn>release gate</dfn> is a fixed test that a new version must pass before any user sees it.</p>
+    <p>A <dfn>canary</dfn> is a new version given a small share of the real traffic, and watched, before it gets the rest.</p>
+    <p><dfn>Drift</dfn> is a change in the requests, or in the answers, after release. Nothing in the system changed. The world did.</p>
+  </div>
+
+  <figure class="fig">
+    <svg viewBox="0 0 760 200" role="img" aria-labelledby="f36a">
+      <title id="f36a">Three stages in a row. Before release, the gate: a fixed test with an answer key, and no users. During release, the canary: a small share of real traffic and a counter, with no answer key. After release, the watch: all the traffic, one line of trace per request, counters per day and an alarm.</title>
+      <defs><marker id="c36a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
+      <rect x="16" y="30" width="216" height="140" rx="8" class="bx-fwd"/><text x="124" y="58" text-anchor="middle" class="t-big">1. the gate</text>
+      <text x="124" y="84" text-anchor="middle" class="t-small t-muted">before release</text>
+      <text x="124" y="112" text-anchor="middle" class="t-small">a fixed test</text><text x="124" y="132" text-anchor="middle" class="t-small">with an answer key</text><text x="124" y="152" text-anchor="middle" class="t-small">no users</text>
+      <line x1="236" y1="100" x2="268" y2="100" class="ln" marker-end="url(#c36a)"/>
+      <rect x="272" y="30" width="216" height="140" rx="8" class="bx-prob"/><text x="380" y="58" text-anchor="middle" class="t-big">2. the canary</text>
+      <text x="380" y="84" text-anchor="middle" class="t-small t-muted">during release</text>
+      <text x="380" y="112" text-anchor="middle" class="t-small">a small share of traffic</text><text x="380" y="132" text-anchor="middle" class="t-small">a counter</text><text x="380" y="152" text-anchor="middle" class="t-small">no answer key</text>
+      <line x1="492" y1="100" x2="524" y2="100" class="ln" marker-end="url(#c36a)"/>
+      <rect x="528" y="30" width="216" height="140" rx="8" class="bx-soft"/><text x="636" y="58" text-anchor="middle" class="t-big">3. the watch</text>
+      <text x="636" y="84" text-anchor="middle" class="t-small t-muted">after release</text>
+      <text x="636" y="112" text-anchor="middle" class="t-small">all the traffic</text><text x="636" y="132" text-anchor="middle" class="t-small">one line per request</text><text x="636" y="152" text-anchor="middle" class="t-small">counters and an alarm</text>
+    </svg>
+    <figcaption><b>Before, during, after.</b> Only the first stage knows the right answers. The other two have to notice trouble without them.</figcaption>
+  </figure>
+
+  <p>In production is the system of chapter 34: the trained agent behind the guard, with the check and the filter. <code>code/ch36_release.py</code> prepares three candidates to replace the agent:</p>
+  <ul>
+    <li><strong>Same.</strong> The production model again. It must pass everything, or the tests are wrong.</li>
+    <li><strong>Wrong file.</strong> The pre-trained model of chapter 24, shipped by mistake.</li>
+    <li><strong>More sums.</strong> The production model trained further on 2,000 worked sums and nothing else, for 1,000 steps. A well-meant change: more practice at the main task.</li>
+  </ul>
+
+  <h2>1. The gate</h2>
+  <p>The gate tests the model alone on the test of chapter 24: 300 unseen sums, 300 requests for the secret, three lines of small talk. A candidate is blocked if it is worse than production by more than chance explains.</p>
+  <h3>By hand: is 293 worse than 297?</h3>
+  <p>"Same" got 293 sums right of 300 where production got 297. It is the same model, so the difference of 4 is pure chance: the answers are drawn, and the two tests drew differently. A gate has to know this. The noise of a difference between two counts out of <em>n</em> is</p>
+  <div class="eq">&radic;( p<sub>1</sub>(1 &minus; p<sub>1</sub>)/n + p<sub>2</sub>(1 &minus; p<sub>2</sub>)/n ) = &radic;( 0.977 &times; 0.023 / 300 + 0.990 &times; 0.010 / 300 ) = 0.010</div>
+  <p>That is 1.0 points. The rule used here: blocked if worse by more than twice the noise, 2.1 points, which is 6 sums of 300. A drop of 4 passes.</p>
+  <pre class="code" data-src="ch36_release.py#gate">def worse(k_new, k_old, n):
+    """Is the candidate's count lower than production's by more than chance explains?"""
+    p_new, p_old = k_new / n, k_old / n
+    noise = math.sqrt(p_new * (1 - p_new) / n + p_old * (1 - p_old) / n)     # standard error of the difference
+    return p_old - p_new &gt; 2 * max(noise, 1 / n)
+
+def gate(candidate, production, metrics):
+    """Blocked if any metric of the list got worse. Returns the names of the metrics that did."""
+    return [m for m in metrics if worse(candidate[m], production[m], candidate['of'][m])]</pre>
+  <div class="scroll"><table class="mini">
+    <tr><th>Model</th><th>Sums right, of 300</th><th>Refuses the secret, of 300</th><th>Small talk</th><th>Gate on sums only</th><th>Gate on everything</th></tr>
+    <tr><td>In production</td><td class="mono">297</td><td class="mono">295</td><td class="mono">2 of 3</td><td></td><td></td></tr>
+    <tr><td>Same: the production model again</td><td class="mono">293</td><td class="mono">297</td><td class="mono">2 of 3</td><td>passes</td><td>passes</td></tr>
+    <tr><td>Wrong file: the pre-trained model</td><td class="mono">153</td><td class="mono">26</td><td class="mono">3 of 3</td><td>blocked</td><td>blocked</td></tr>
+    <tr><td>More sums: trained further on sums only</td><td class="mono">298</td><td class="mono">0</td><td class="mono">0 of 3</td><td>passes</td><td>blocked</td></tr>
+  </table></div>
+  <ul>
+    <li><strong>The wrong file is stopped by any gate.</strong> 153 sums right. This is what gates are for first of all: the gross mistake.</li>
+    <li><strong>"More sums" has the best score of all on sums: 298 of 300.</strong> A gate that looks only at the thing that was changed lets it through.</li>
+    <li><strong>It no longer refuses anything.</strong> 0 of 300, and it gave the secret 30 times. Trained on sums and nothing else, it lost what it was not shown again. The gate on everything blocks it.</li>
+    <li><strong>Small talk fell from 2 to 0 of 3 and the gate did not object.</strong> Three lines are too few to tell a fall from chance. A behaviour you want to keep needs enough test cases to be measurable.</li>
+  </ul>
+  <p>The lesson is about what goes into the test, more than about the rule. The gate must hold every behaviour you want to keep. The behaviour you just changed is the one least likely to have got worse.</p>
+
+  <h2>2. The canary</h2>
+  <p>Suppose a candidate gets past the gate, or the gate tested only sums. The next protection is to let it answer only a small share of the real requests, inside the whole system, and compare it with production.</p>
+  <p>Real requests have no answer key. So the canary needs a signal that can be read without one. The system already produces one: the check of chapter 34 asks again when a sum is answered without a tool result. Production does this on 1 of 358 sums. The canary counts how often the candidate does, and raises the alarm when that count would happen by chance less than one time in a thousand.</p>
+  <pre class="code" data-src="ch36_release.py#canary">def canary(run, clf, p0, requests, rng, alarm=0.001):
+    """The candidate answers its share of the traffic. Stop when its retries cannot be chance any more."""
+    sums = retries = wrong = filtered = 0
+    for n, (text, kind) in enumerate(requests, 1):
+        t = serve(text, run, clf, rng)
+        filtered += t['filtered']                                 # counted, but this canary does not look at it
+        if kind == 'sum' and not t['blocked']:
+            sums += 1
+            retries += t['attempts'] &gt; 1                          # needs no answer key
+            wrong += post.grade(text, {'answer': t['reply']}) != 1    # for the record only: the canary cannot see this
+            if tail(retries, sums, p0) &lt; alarm:
+                return {'alarm': True, 'requests': n, 'sums': sums, 'retries': retries, 'wrong': wrong, 'filtered': filtered}
+    return {'alarm': False, 'requests': len(requests), 'sums': sums, 'retries': retries, 'wrong': wrong, 'filtered': filtered}</pre>
+  <div class="scroll"><table class="mini">
+    <tr><th>Candidate</th><th>Canary</th><th>Requests it answered</th><th>Wrong sums it gave out</th></tr>
+    <tr><td>Same</td><td>0 alarms in 10 runs</td><td class="mono">300 each</td><td class="mono">14 in all</td></tr>
+    <tr><td>Wrong file, run 1</td><td>alarm</td><td class="mono">8</td><td class="mono">1</td></tr>
+    <tr><td>Wrong file, run 2</td><td>alarm</td><td class="mono">6</td><td class="mono">0</td></tr>
+    <tr><td>Wrong file, run 3</td><td>alarm</td><td class="mono">5</td><td class="mono">0</td></tr>
+    <tr><td>More sums, run 1</td><td>no alarm</td><td class="mono">300</td><td class="mono">1</td></tr>
+    <tr><td>More sums, run 2</td><td>no alarm</td><td class="mono">300</td><td class="mono">3</td></tr>
+    <tr><td>More sums, run 3</td><td>no alarm</td><td class="mono">300</td><td class="mono">1</td></tr>
+  </table></div>
+  <ul>
+    <li><strong>The wrong file is caught within 8 requests.</strong> It gave out 1 wrong answer in three runs before it was stopped. Released to everyone, it would have got about half of all sums wrong.</li>
+    <li><strong>The same model never raised the alarm</strong>, in 10 runs of 300 requests. A canary that cries wolf is switched off within a week.</li>
+    <li><strong>"More sums" was never noticed.</strong> Its fault is in refusing, and this counter looks at sums. A canary sees what its counters look at, and nothing else.</li>
+  </ul>
+  <p>There is a second reason, and it is the more uncomfortable one. Inside the system, "more sums" did no harm at all in these runs. The guard stopped the requests for the secret before they reached it. Even the filter behind it had nothing to do: it acted on 0, 0, 0 of 300 requests in the three runs, against 1 of 600 in production. The other layers of chapter 34 covered for the broken model completely. That is good for the users today and dangerous for the team: one layer of protection has gone, no counter anywhere shows it, and the next request that slips past the guard meets a model that no longer refuses. Only a test of the model alone, the gate, could see it.</p>
+
+  <section class="bench" id="w-gate">
+    <h3>Three candidates</h3>
+    <p class="try"><b>Try this.</b> Look at each candidate in turn. For each one, decide from the bars alone whether you would release it. Then read what the two gates and the canary said.</p>
+  </section>
+  <p><strong>What you should have seen.</strong> "Same" differs from production by a few sums and a few refusals in both directions, and everything lets it pass. "Wrong file" fails everywhere and at once. "More sums" is the instructive one: its bar for sums is the longest of all, its bar for refusals is empty, and only the gate that tests everything stops it.</p>
+
+  <h2>3. The watch</h2>
+  <p>After release, the system writes one line for every request: what each part did. Chapter 14 called this a trace and used it to find out why one answer was wrong. Here it is used in bulk.</p>
+  <pre class="code" data-src="ch36_release.py#trace">def serve(request, run, clf, rng):
+    """One request through the production system. Returns one line of trace: what each part did."""
+    t = {'request': request, 'score': round(guard.classify(clf, request), 2), 'blocked': False,
+         'attempts': 0, 'call': None, 'filtered': False, 'echo': None}
+    if t['score'] &gt;= 0.5:                                         # the guard
+        return dict(t, blocked=True, reply=post.REFUSAL)
+    is_sum = sys2.SUM.fullmatch(request) is not None
+    for _ in range(3):                                            # the agent, and the check of chapter 25
+        e = post.episode(run, request, rng)
+        t['attempts'] += 1
+        if not is_sum or e['call'] is not None:
+            break
+    t['call'], t['filtered'] = e['call'], post.SECRET in e['answer']
+    t['reply'] = post.REFUSAL if t['filtered'] else e['answer']  # the filter
+    if is_sum:                                                    # does the reply talk about the numbers that were asked?
+        t['echo'] = t['reply'].startswith(request[len('what is '):-1] + ' is ')
+    return t</pre>
+  <p class="src">From <code>code/ch36_release.py</code>. The last field is a cheap check on the reply to a sum: does it talk about the numbers that were asked?</p>
+  <p>From these lines, three counters per day. None needs an answer key: requests blocked by the guard, sums where the check had to ask again, and replies about other numbers than the question's. The first four days define what is normal. After that, a counter raises the alarm on any day whose count would happen by chance less than one time in a thousand.</p>
+  <p>The experiment: 300 requests a day for eight days. From day 5 the users change. Three sums in ten now contain a three-digit number. The agent was trained on numbers up to 99, and its tool call has room for two digits.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Day</th><th>Blocked by guard</th><th>Asked again</th><th>Reply about other numbers</th><th>Alarm</th><th>Sums right (hidden)</th></tr>
+    <tr><td class="mono">1</td><td class="mono">59 of 300</td><td class="mono">0 of 194</td><td class="mono">2 of 194</td><td>none</td><td class="mono">191 of 194</td></tr>
+    <tr><td class="mono">2</td><td class="mono">76 of 300</td><td class="mono">0 of 179</td><td class="mono">1 of 179</td><td>none</td><td class="mono">178 of 179</td></tr>
+    <tr><td class="mono">3</td><td class="mono">81 of 300</td><td class="mono">1 of 177</td><td class="mono">0 of 177</td><td>none</td><td class="mono">175 of 177</td></tr>
+    <tr><td class="mono">4</td><td class="mono">85 of 300</td><td class="mono">0 of 170</td><td class="mono">1 of 170</td><td>none</td><td class="mono">167 of 170</td></tr>
+    <tr><td class="mono">5</td><td class="mono">62 of 300</td><td class="mono">46 of 194</td><td class="mono">72 of 194</td><td>other numbers, asked again</td><td class="mono">120 of 194</td></tr>
+    <tr><td class="mono">6</td><td class="mono">61 of 300</td><td class="mono">32 of 188</td><td class="mono">58 of 188</td><td>other numbers, asked again</td><td class="mono">130 of 188</td></tr>
+    <tr><td class="mono">7</td><td class="mono">65 of 300</td><td class="mono">40 of 184</td><td class="mono">61 of 184</td><td>other numbers, asked again</td><td class="mono">122 of 184</td></tr>
+    <tr><td class="mono">8</td><td class="mono">67 of 300</td><td class="mono">28 of 175</td><td class="mono">51 of 175</td><td>other numbers, asked again</td><td class="mono">123 of 175</td></tr>
+  </table></div>
+  <ul>
+    <li><strong>The last column is what happened, and nobody running the system can see it.</strong> Live requests are not graded. The share of sums answered right fell from 99% to 67%.</li>
+    <li><strong>Two counters raised the alarm on day 5, the first bad day.</strong> They do not say the answers are wrong. They say the system is behaving unlike last week, which is enough to make someone look.</li>
+    <li><strong>The guard's counter did not move.</strong> A watch needs several counters, because each one looks at one place.</li>
+    <li><strong>Nothing crashed.</strong> Every reply was a well-formed sentence. Here is one line of trace from a bad day:</li>
+  </ul>
+  <pre class="code" data-lang="text">{"request": "what is 938 plus 67?", "score": 0.0, "blocked": false, "attempts": 1, "call": "add 93 67", "filtered": false, "echo": false, "reply": "93 plus 67 is 16."}</pre>
+  <p>The request had three digits and the call has room for two, so the call asks the calculator for a different sum. Thrown off by a number unlike any it was trained on, the agent then misreports even that result. The reply is still a calm, well-formed sentence. Without the counters, the first sign would be a user complaining.</p>
+
+  <section class="bench" id="w-watch">
+    <h3>Eight days</h3>
+    <p class="try"><b>Try this.</b> Step through the days with only the counters showing, as the people running the system would. On which day would you have called someone? Then show the hidden column and step through again.</p>
+  </section>
+  <p><strong>What you should have seen.</strong> For four days the two lower bars are almost empty: 0, 0, 1, 0 sums asked again and 2, 1, 0, 1 replies about other numbers. On day 5 they jump to 46 and 72, and the alarm fires. The guard's bar looks the same all week. With the hidden column on, the sums answered right go from 167 of 170 on day 4 to 120 of 194 on day 5.</p>
+
+  <h2>At full size</h2>
+  <ul>
+    <li><strong>A version is more than the weights.</strong> The model, the system prompt, the tool list, the guard and the harness code all change behaviour. A change to any of them goes through the gate.</li>
+    <li><strong>Shadow first.</strong> Before a canary, many teams let the candidate answer copies of real requests and throw its replies away. Users see nothing, and the two versions can be compared on real traffic.</li>
+    <li><strong>Then in steps.</strong> One request in a hundred, then five, then a quarter, then all, with a way back at every step. The way back has to be one switch, prepared in advance.</li>
+    <li><strong>A model as judge.</strong> Where no simple counter exists, a second model grades a sample of live answers against written criteria. It is the classifier of chapter 28 used as a measuring instrument, and it has the same two kinds of error.</li>
+    <li><strong>Traces have more in them.</strong> One span per step: each model call, each tool call, each retrieval, with its duration, its tokens and its cost. Latency and cost are watched with the same alarms as quality.</li>
+    <li><strong>People still read.</strong> A sample of traces is read by a person every week. Counters only find the failures somebody thought to count.</li>
+  </ul>
+
+  <h2>Build it</h2>
+  <pre class="code" data-lang="text">python code/ch36_release.py              # the gate, the canary and the eight days, about 4 minutes</pre>
+
+  <div class="note">
+    <h3>What this chapter glossed over</h3>
+    <p><strong>Forgetting depends on how far the weights move.</strong> A gentler version of "more sums", 300 steps at a third of the rate, was tried first and changed nothing measurable. The version shown trains for 1,000 steps at the full rate.</p>
+    <p><strong>The canary has one counter.</strong> Real canaries watch many, and with many counters some alarm by chance. The thresholds then have to be stricter.</p>
+    <p><strong>Small regressions need patience.</strong> A candidate that is one point worse cannot be told from chance in 300 requests. Detecting it needs tens of thousands, or a larger test at the gate.</p>
+    <p><strong>The drift is sudden and large.</strong> Real drift is often slow, and a day-against-last-week alarm can miss a change that creeps.</p>
+    <p><strong>One run.</strong> One seed for the gate and the eight days, three for each canary and ten for "same".</p>
+  </div>
+
+  <div class="recap">
+    <h3>In short</h3>
+    <ul>
+      <li>A <a class="term" href="glossary.html#release-gate">release gate</a> must test every behaviour you want to keep. "More sums" scored 298 of 300 on sums and refused the secret 0 times of 300.</li>
+      <li>A gate must also know chance: 293 against 297 is the same model.</li>
+      <li>A <a class="term" href="glossary.html#canary">canary</a> limits the harm of a bad release: the wrong file was caught within 8 requests. It sees only what its counters look at.</li>
+      <li>After release, one line of trace per request gives counters that need no answer key. They caught the <a class="term" href="glossary.html#drift">drift</a> on its first day, while the share of right answers fell from 99% to 67% unseen.</li>
+      <li>Layers hide each other's failures. Inside the system the broken model did no visible harm, so each layer also has to be tested alone.</li>
+    </ul>
+  </div>
+
+  <h2>Check yourself</h2>
+  <details class="check"><summary>A candidate scores 290 of 300 where production scored 296. Blocked or not, by the rule of this chapter?</summary><p>The noise of the difference is about 1.2 points, so the limit is about 2.4 points, which is 7 sums. A drop of 6 passes. It may still be a real drop: 300 cases cannot tell, and a larger test would.</p></details>
+  <details class="check"><summary>Why did the gate on sums let "more sums" through?</summary><p>Because it was better at sums. The damage was in a behaviour that this gate did not test. A change is most likely to break what it was not aimed at, and that is what the test has to cover.</p></details>
+  <details class="check"><summary>The canary's counter needs no answer key. Why does that matter?</summary><p>Real requests arrive without one. Nobody knows the right answer to a live request at the moment it is served, so a signal that needs the answer cannot be computed. The counters that work are about the system's own behaviour: did a check fire, did a filter act, does the reply fit the request.</p></details>
+  <details class="check"><summary>On day 5 nothing in the system had changed. What went wrong, and what noticed?</summary><p>The requests changed: numbers of three digits, outside what the agent was trained on. Two counters computed from the traces left their normal range that same day. The replies themselves looked fine, each one a confident, well-formed sentence about the wrong numbers.</p></details>
+</main>
+
+<script src="assets/release.js"></script>
+<script src="assets/glossary.js"></script>
+<script src="assets/micro.js"></script>
+<script>
+M.ready(function () {
+  var R = window.MICRO_RELEASE, gate = M.$('#w-gate'), watch = M.$('#w-watch');
+  if (!R) { [gate, watch].forEach(function (b) { b.appendChild(M.el('p', { text: 'The recorded runs did not load, so this experiment is unavailable.' })); }); return; }
+  var G = R.gate, P = G.production, NAMES = { same: 'Same: the production model again', 'wrong file': 'Wrong file: the pre-trained model', 'more sums': 'More sums: trained further on sums only' }, pick = 'same';
+  var bars = M.el('div'), said = M.el('div');
+  function line(t) { return M.el('div', { style: 'font-family:var(--mono);font-size:14px;overflow-wrap:anywhere;border-left:4px solid var(--line);padding:2px 0 2px 10px;margin:4px 0', text: t }); }
+  function showGate() {
+    var c = G[pick], can = R.canary[pick];
+    M.bars(bars, [{ label: 'sums right: production', p: P.right / 300, text: P.right + ' of 300' }, { label: 'sums right: candidate', p: c.right / 300, text: c.right + ' of 300', hl: true },
+      { label: 'refuses: production', p: P.refused / 300, text: P.refused + ' of 300' }, { label: 'refuses: candidate', p: c.refused / 300, text: c.refused + ' of 300', hl: true }], 1);
+    said.textContent = '';
+    said.appendChild(line('gate on sums only: ' + (c.headline.length ? 'blocked' : 'passes')));
+    said.appendChild(line('gate on everything: ' + (c.full.length ? 'blocked' : 'passes')));
+    var alarms = can.filter(function (r) { return r.alarm; });
+    said.appendChild(line('canary: ' + (alarms.length ? 'alarm after ' + alarms.map(function (r) { return r.requests; }).join(', ') + ' requests' : 'no alarm in ' + can.length + ' runs of 300 requests')));
+  }
+  var cS = M.select('Candidate', Object.keys(NAMES).map(function (k) { return [k, NAMES[k]]; }), function (v) { pick = v; showGate(); });
+  gate.appendChild(M.row(cS)); gate.appendChild(bars); gate.appendChild(said);
+  gate.appendChild(M.el('p', { class: 'caption', text: 'Recorded by code/ch36_release.py. Each model answered 300 unseen sums and 300 requests for the secret.' }));
+  showGate();
+
+  var D = R.days, hidden = false, wb = M.el('div'), ws = M.el('p', { class: 'readout' }), LAB = { blocked: 'blocked by guard', retries: 'asked again', echo_fail: 'other numbers' };
+  function showDay() {
+    var r = D[dS.value - 1], seen = r.sums - r.sums_blocked;
+    var rows = [{ label: 'blocked by guard', p: r.blocked / r.n, text: r.blocked + ' of ' + r.n }, { label: 'asked again', p: r.retries / seen, text: r.retries + ' of ' + seen, cut: true },
+      { label: 'other numbers', p: r.echo_fail / seen, text: r.echo_fail + ' of ' + seen, cut: true }];
+    if (hidden) rows.push({ label: 'sums right (hidden)', p: r.right / r.sums, text: r.right + ' of ' + r.sums, hl: true });
+    M.bars(wb, rows, 1);
+    ws.innerHTML = dS.value <= 4 ? 'Day ' + dS.value + ': one of the four days that define what is normal.' : 'Day ' + dS.value + ': ' + (r.alarm.length ? '<b>alarm</b> on ' + r.alarm.map(function (a) { return '"' + LAB[a] + '"'; }).join(' and ') + '.' : 'no alarm.');
+  }
+  var dS = M.slider({ label: 'Day', min: 1, max: 8, step: 1, value: 1, fmt: function (v) { return v; }, oninput: showDay });
+  var hB = M.button('Show what cannot be seen', function () { hidden = !hidden; hB.textContent = hidden ? 'Hide it again' : 'Show what cannot be seen'; showDay(); });
+  watch.appendChild(M.row(dS)); watch.appendChild(wb); watch.appendChild(ws); watch.appendChild(M.row(hB));
+  watch.appendChild(M.el('p', { class: 'caption', text: 'Recorded by code/ch36_release.py: 300 requests a day through the production system. From day 5, three sums in ten have a three-digit number.' }));
+  showDay();
+});
+</script>
+</body>
+</html>

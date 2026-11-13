@@ -1,0 +1,1 @@
+{"rows": [{"noise": 0.0, "calls": 300, "right": 300}, {"noise": 0.05, "calls": 255, "right": 255}, {"noise": 0.1, "calls": 200, "right": 200}, {"noise": 0.2, "calls": 117, "right": 117}, {"noise": 0.3, "calls": 53, "right": 53}], "blind": {"calls": 5, "right": 5}, "weights": 107584}

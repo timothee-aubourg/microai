@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pictures as tokens | microAI</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-ch="31">
+<main>
+  <p class="where">Chapter 31</p>
+  <h1>Pictures as tokens</h1>
+  <p class="question">A language model reads tokens. A picture is not made of tokens. How does it get in?</p>
+
+  <p>The assistants in use today accept photographs, screenshots and scanned pages along with text. It is tempting to imagine a second machine for seeing, bolted on. There is very little of one. Inside, it is the transformer of chapters 4 to 6, unchanged. What changes is the first step, where the input is turned into vectors.</p>
+  <p>Chapter 4 turned a token into a vector by looking it up in a table: token number 17, row 17. A piece of a picture has no number to look up. But the model never needed the number. It needed the vector. So the picture is cut into small pieces, and each piece is turned into a vector of the same size as a token's, by arithmetic on its pixels.</p>
+
+  <div class="def"><span class="kind">Definitions</span>
+    <p>A <dfn>patch</dfn> is a small rectangle cut from a picture, treated as one unit of input.</p>
+    <p>A <dfn>multimodal</dfn> model accepts more than one kind of input, such as text and pictures, in the same sequence.</p>
+  </div>
+
+  <h3>By hand: pixels to a vector</h3>
+  <p>Take a patch of three pixels, on, off, on, written 1, 0, 1, and a matrix with one row per pixel and two columns.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Pixel</th><th>Value</th><th>Its row of the matrix</th></tr>
+    <tr><td class="mono">1</td><td class="mono">1</td><td class="mono">0.2, &minus;0.1</td></tr>
+    <tr><td class="mono">2</td><td class="mono">0</td><td class="mono">0.5, 0.3</td></tr>
+    <tr><td class="mono">3</td><td class="mono">1</td><td class="mono">&minus;0.4, 0.6</td></tr>
+  </table></div>
+  <div class="eq">vector = 1 &times; (0.2, &minus;0.1) + 0 &times; (0.5, 0.3) + 1 &times; (&minus;0.4, 0.6) = (&minus;0.2, 0.5)</div>
+  <p>Each pixel that is on adds its row. The result is a vector of two numbers, and a different pattern of pixels gives a different vector. In the model the patch has 15 pixels and the vector 64 numbers, so the matrix has 15 &times; 64 = 960 weights. They are trained with everything else. The table of chapter 4 is this same operation for an input with exactly one pixel on: the row is picked out whole.</p>
+
+  <figure class="fig">
+    <svg viewBox="0 0 760 230" role="img" aria-labelledby="f31a">
+      <title id="f31a">A question in which the first number is a picture of two digits. Each word of text is looked up in the embedding table. Each digit's 15 pixels are multiplied by a matrix. Both give vectors of 64 numbers, and all of them enter the same model.</title>
+      <defs><marker id="c31a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
+      <text x="16" y="24" class="t-small t-muted">the question</text>
+      <g class="t-mono"><rect x="16" y="34" width="110" height="40" rx="5" class="bx"/><text x="71" y="59" text-anchor="middle">what is</text>
+      <rect x="134" y="34" width="34" height="40" rx="5" class="bx-prob"/><rect x="172" y="34" width="34" height="40" rx="5" class="bx-prob"/>
+      <rect x="214" y="34" width="120" height="40" rx="5" class="bx"/><text x="274" y="59" text-anchor="middle">plus 12?</text></g>
+      <g style="fill:var(--ink)"><rect x="141" y="40" width="6" height="5"/><rect x="147" y="40" width="6" height="5"/><rect x="153" y="40" width="6" height="5"/><rect x="153" y="45" width="6" height="5"/><rect x="141" y="50" width="6" height="5"/><rect x="147" y="50" width="6" height="5"/><rect x="153" y="50" width="6" height="5"/><rect x="141" y="55" width="6" height="5"/><rect x="141" y="60" width="6" height="5"/><rect x="147" y="60" width="6" height="5"/><rect x="153" y="60" width="6" height="5"/>
+      <rect x="179" y="40" width="6" height="5"/><rect x="185" y="40" width="6" height="5"/><rect x="191" y="40" width="6" height="5"/><rect x="191" y="45" width="6" height="5"/><rect x="179" y="50" width="6" height="5"/><rect x="185" y="50" width="6" height="5"/><rect x="191" y="50" width="6" height="5"/><rect x="191" y="55" width="6" height="5"/><rect x="179" y="60" width="6" height="5"/><rect x="185" y="60" width="6" height="5"/><rect x="191" y="60" width="6" height="5"/></g>
+      <g class="ln"><line x1="71" y1="76" x2="71" y2="108" marker-end="url(#c31a)"/><line x1="274" y1="76" x2="274" y2="108" marker-end="url(#c31a)"/></g>
+      <g class="ln-fwd"><line x1="151" y1="76" x2="151" y2="108" marker-end="url(#c31a)"/><line x1="189" y1="76" x2="189" y2="108" marker-end="url(#c31a)"/></g>
+      <rect x="16" y="112" width="110" height="34" rx="5" class="bx-soft"/><text x="71" y="134" text-anchor="middle" class="t-small">look up a row</text>
+      <rect x="134" y="112" width="72" height="34" rx="5" class="bx-fwd"/><text x="170" y="134" text-anchor="middle" class="t-small">15 × 64</text>
+      <rect x="214" y="112" width="120" height="34" rx="5" class="bx-soft"/><text x="274" y="134" text-anchor="middle" class="t-small">look up a row</text>
+      <g class="ln"><line x1="71" y1="148" x2="71" y2="176" marker-end="url(#c31a)"/><line x1="170" y1="148" x2="170" y2="176" marker-end="url(#c31a)"/><line x1="274" y1="148" x2="274" y2="176" marker-end="url(#c31a)"/></g>
+      <rect x="16" y="180" width="318" height="36" rx="6" class="bx-fwd"/><text x="175" y="203" text-anchor="middle">vectors of 64 numbers, one per position</text>
+      <line x1="338" y1="198" x2="420" y2="198" class="ln" marker-end="url(#c31a)"/>
+      <rect x="424" y="150" width="200" height="66" rx="8" class="bx-fwd"/><text x="524" y="180" text-anchor="middle" class="t-big">the same model</text><text x="524" y="200" text-anchor="middle" class="t-small t-muted">chapters 5 and 6, unchanged</text>
+      <line x1="628" y1="183" x2="664" y2="183" class="ln" marker-end="url(#c31a)"/>
+      <text x="706" y="178" text-anchor="middle" class="t-mono t-small">C add</text><text x="706" y="196" text-anchor="middle" class="t-mono t-small">23 12</text>
+      <text x="440" y="60" class="t-small">text: one vector per character</text><text x="440" y="80" class="t-small">picture: one vector per digit patch</text><text x="440" y="100" class="t-small">after that, no difference</text>
+    </svg>
+    <figcaption><b>Two ways in, one model.</b> A character is looked up. A patch is multiplied by a matrix. Both arrive as vectors of the same size.</figcaption>
+  </figure>
+
+  <h2>The agent learns to read</h2>
+  <p><code>code/ch31_images.py</code> takes the agent of chapter 19 and changes what it can be asked. The first number of the sum arrives as a picture: each digit is a patch of 5 by 3 pixels. To answer, the agent has to read the digits and write them as text in its tool call, <code>C add 23 12</code>. Nothing tells it which pattern of pixels is which digit. It learns that from 20,000 conversations, as it learns everything else.</p>
+  <pre class="code" data-src="ch31_images.py#patches">def picture(number, rng, noise):
+    """A number as pixels: one row of 15 pixels per digit. `noise` is the chance that a pixel is flipped."""
+    out = np.stack([GLYPHS[d] for d in str(number)])
+    flip = rng.random(out.shape) &lt; noise
+    return np.where(flip, 1 - out, out)
+
+def encode(text, pictures):
+    """Text to token ids, and for each position its 15 pixels (zeros where there is no picture)."""
+    ids = np.array([STOI[c] for c in text])
+    pixels = np.zeros((len(text), 15))
+    pixels[ids == STOI['#']] = np.concatenate(pictures) if pictures else 0
+    return ids, pixels</pre>
+  <pre class="code" data-src="ch31_images.py#forward">def forward(self, idx, targets=None, pixels=None):
+    B, T = idx.shape
+    p = self.p
+    x = p['wte'][idx] + p['wpe'][np.arange(T)]
+    if pixels is not None:
+        x = x + Tensor(pixels) @ p['patch.w']              # the only new line: pixels become part of the input
+    for i in range(self.n_layer):
+        x = x + self.attention(self.layernorm(x, p[f'h{i}.ln1.g'], p[f'h{i}.ln1.b']), i)
+        x = x + (self.layernorm(x, p[f'h{i}.ln2.g'], p[f'h{i}.ln2.b']) @ p[f'h{i}.mlp.w1']).gelu() @ p[f'h{i}.mlp.w2']
+    logits = self.layernorm(x, p['ln_f.g'], p['ln_f.b']) @ p['wte'].transpose(1, 0)
+    if targets is None:
+        return logits, None
+    return logits, cross_entropy(logits.reshape(B * T, self.vocab_size), targets.reshape(B * T))</pre>
+  <p class="src">From <code>code/ch31_images.py</code>. One line is new in the forward pass of chapter 6: the pixels, times a matrix, are added to the input.</p>
+  <p>The model has 107,584 weights, of which 960 are the new matrix. It is tested on 300 sums with number pairs it never saw, the first number given as a picture. During training one pixel in twenty was flipped at random, so it has seen imperfect pictures.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Pixels flipped in the picture</th><th>Read the number and called the tool right, of 300</th><th>Whole answer right, of 300</th></tr>
+    <tr><td class="mono">0%</td><td class="mono">300</td><td class="mono">300</td></tr>
+    <tr><td class="mono">5%</td><td class="mono">255</td><td class="mono">255</td></tr>
+    <tr><td class="mono">10%</td><td class="mono">200</td><td class="mono">200</td></tr>
+    <tr><td class="mono">20%</td><td class="mono">117</td><td class="mono">117</td></tr>
+    <tr><td class="mono">30%</td><td class="mono">53</td><td class="mono">53</td></tr>
+    <tr><td>picture hidden from the model</td><td class="mono">5</td><td class="mono">5</td></tr>
+  </table></div>
+  <ul>
+    <li><strong>Clean pictures are read perfectly.</strong> 300 of 300, on numbers it was never shown in a sum.</li>
+    <li><strong>It is using the picture.</strong> With the pixels hidden it gets 5 of 300: it can only guess the number.</li>
+    <li><strong>Damage to the picture costs accuracy steadily.</strong> With one pixel in twenty flipped, as in training, 255 are right. With one in five flipped, 117. A digit is only 15 pixels, and a 3 with two pixels changed can be an 8.</li>
+  </ul>
+
+  <section class="bench" id="w-eyes">
+    <h3>Draw the number</h3>
+    <p class="try"><b>Try this.</b> The two grids show 23, and the agent's answer is under them. Tap pixels to draw other digits. Then go back to 23 and damage one digit, a pixel at a time, until the agent misreads it.</p>
+  </section>
+
+  <p><strong>What you should have seen.</strong> The agent writes the number you drew into its tool call, as text, and the calculator does the rest. Any one pixel of the 2 can be switched and the agent still reads 23. The 3 is less safe: of its fifteen pixels, one turns it into a 9 when switched, and that is what a 9 looks like; two others make the agent read 22. Switch two pixels of the 3 to close its left side and it is an 8: the agent calls <code>add 28 12</code> and reports 40. The tool call is well formed and the arithmetic is exact. The number was misread at the start, and nothing after that can tell.</p>
+
+  <h2>At full size</h2>
+  <ul>
+    <li><strong>Patches are larger and there are many.</strong> A photograph is cut into a grid of squares, commonly 14 or 16 pixels on a side, in colour. One image becomes hundreds or thousands of vectors.</li>
+    <li><strong>They take room in the context.</strong> Every patch is a position, with its place in the window (chapter 16) and its share of the KV cache (chapter 22). A page of screenshots can cost more context than a long conversation.</li>
+    <li><strong>A network usually prepares the patches.</strong> Most models pass the patches through a separate network trained on images before handing its outputs to the language model. The hand-over is still a matrix that produces vectors of the right size.</li>
+    <li><strong>Sound goes in the same way.</strong> A recording is cut into short slices, and each slice becomes a vector.</li>
+    <li><strong>The same failure.</strong> A misread number in a screenshot leads to a confident, well-formed, wrong action. For an agent that acts on what it sees (chapter 17), reading is one more thing to check.</li>
+  </ul>
+
+  <h2>Build it</h2>
+  <pre class="code" data-lang="text">python code/ch31_images.py --train     # train the agent that reads, about 6 minutes
+python code/ch31_images.py             # the table of this chapter</pre>
+
+  <div class="note">
+    <h3>What this chapter glossed over</h3>
+    <p><strong>The digits are perfectly placed.</strong> Each patch holds exactly one digit, centred, at one size. Real pictures are cut on a fixed grid that ignores what is in them, and a model has to cope with a digit split across patches.</p>
+    <p><strong>Fifteen pixels, ten shapes.</strong> This is reading in its smallest form. Recognising objects in photographs takes a far larger network and far more data, and the principle of the input is the same.</p>
+    <p><strong>Trained from nothing, all at once.</strong> The model learned to read and to use the tool together. Full-size models usually start from a language model and an image model that were each trained separately.</p>
+    <p><strong>Pictures go in only.</strong> Producing a picture is a different mechanism, not covered in this course.</p>
+    <p><strong>One run.</strong> One training, one seed, 300 questions per row.</p>
+  </div>
+
+  <div class="recap">
+    <h3>In short</h3>
+    <ul>
+      <li>A picture enters a language model as vectors the size of token embeddings: one per <a class="term" href="glossary.html#patch">patch</a>, made by multiplying the patch's pixels by a trained matrix.</li>
+      <li>After that first step the model is unchanged. Our agent gained 960 weights and one line in its forward pass.</li>
+      <li>It read 300 of 300 unseen numbers from clean pictures, 5 with the picture hidden, and 117 with one pixel in five flipped.</li>
+      <li>A misread input produces a well-formed, confident, wrong action. Patches also take room in the context, like any other position.</li>
+    </ul>
+  </div>
+
+  <h2>Check yourself</h2>
+  <details class="check"><summary>Why can a patch not simply be looked up in the embedding table, as a token is?</summary><p>The table has one row per token, and there are only a few dozen tokens. A patch of 15 pixels can take 32,768 different patterns, and a photograph's patch far more. So the vector is computed from the pixels instead of being stored for each pattern.</p></details>
+  <details class="check"><summary>The agent called the calculator correctly and gave a wrong answer. What happened?</summary><p>It misread a digit. Everything after the reading was right: a well-formed call, an exact result, a correct sentence about the wrong number. Nothing downstream can notice, because the mistake is in the input.</p></details>
+  <details class="check"><summary>With the picture hidden the agent scored 5 of 300. Why is this row in the table at all?</summary><p>It shows the other rows mean something. If the agent could score well without the picture, the test would not be measuring reading. This row says that everything above it comes from the pixels.</p></details>
+  <details class="check"><summary>A screenshot is cut into 1,000 patches. What does that cost, in the terms of earlier chapters?</summary><p>A thousand positions of context: a thousand keys and values in every layer's cache, and that much less room for text before the window fills. Images are among the most expensive things to put in a context.</p></details>
+</main>
+
+<script src="assets/eyes.js"></script>
+<script src="assets/glossary.js"></script>
+<script src="assets/micro.js"></script>
+<script>
+M.ready(function () {
+  var box = M.$('#w-eyes'), E = window.MICRO_EYES;
+  if (!E) { box.appendChild(M.el('p', { text: 'The trained model did not load, so this experiment is unavailable.' })); return; }
+  var m = M.loadWeights(E), d = m.cfg.d_model, W = m.w['patch.w'];
+  var GLYPH = { '2': '111001111100111', '3': '111001111001111' }, grids = ['2', '3'].map(function (g) { return GLYPH[g].split('').map(Number); }), word = 'plus', second = 12;
+  var TOOLS = { add: function (a, b) { return a + b; }, sub: function (a, b) { return a - b; }, mul: function (a, b) { return a * b; } }, WORDS = { plus: 'add', minus: 'sub', times: 'mul' };
+  var D = '0123456789', CALL = [{ words: ['add', 'sub', 'mul'] }, [' ', 1, 1], [D, 1, 2], [' ', 1, 1], [D, 1, 2], ['\n', 1, 1]], ROLE = [{ words: ['C ', 'A '] }];
+  function moves(fmt, st) {        // the format machine of chapter 13
+    var i = st[0], s = st[1], out = {}, mayEnd;
+    while (i < fmt.length) {
+      var part = fmt[i];
+      if (part.words) {
+        part.words.forEach(function (x) { if (x.indexOf(s) === 0 && x.length > s.length && !(x[s.length] in out)) out[x[s.length]] = [i, s + x[s.length]]; });
+        mayEnd = part.words.indexOf(s) >= 0;
+      } else {
+        if (s.length < part[2]) for (var k = 0; k < part[0].length; k++) if (!(part[0][k] in out)) out[part[0][k]] = [i, s + part[0][k]];
+        mayEnd = s.length >= part[1];
+      }
+      if (!mayEnd) break;
+      i++; s = '';
+    }
+    return out;
+  }
+  /* 15 pixels times the matrix: a vector the size of a token's */
+  function patch(pixels) { var v = new Float32Array(d); for (var i = 0; i < 15; i++) if (pixels[i]) for (var j = 0; j < d; j++) v[j] += pixels[i] * W[i * d + j]; return v; }
+  function writeLine(wr, used, fmt, limit) {
+    var line = '', st = [0, ''];
+    while (line.slice(-1) !== '\n' && line.length < limit && used.n < m.cfg.block - 1) {
+      var z = wr.logits(), legal = null, best = -1;
+      if (fmt) { legal = moves(fmt, st); if (!Object.keys(legal).length) break; }
+      for (var i = 0; i < z.length; i++) if ((!legal || m.chars[i] in legal) && (best < 0 || z[i] > z[best])) best = i;
+      var ch = m.chars[best];
+      if (fmt) st = legal[ch];
+      line += ch; wr.add(best); used.n++;
+    }
+    return line;
+  }
+  function ask(pictures, w, b) {
+    var wr = M.writer(m, '\nU what is '), used = { n: 11 }, i;
+    pictures.forEach(function (px) { wr.add(m.stoi['#'], patch(px)); used.n++; });       // the picture goes in here
+    var rest = ' ' + w + ' ' + b + '?\n';
+    for (i = 0; i < rest.length; i++) { wr.add(m.stoi[rest[i]]); used.n++; }
+    var call = null, result = null;
+    if (writeLine(wr, used, ROLE, 2) === 'C ') {
+      call = writeLine(wr, used, CALL, 14).trim();
+      var p = call.split(' '); result = TOOLS[p[0]](+p[1], +p[2]);
+      var fed = 'R ' + result + '\nA ';
+      for (i = 0; i < fed.length; i++) { wr.add(m.stoi[fed[i]]); used.n++; }
+    }
+    return { call: call, result: result, answer: writeLine(wr, used, null, 60).trim() };
+  }
+  M.eyesAsk = function (digits, w, b) { var G = { '0': '111101101101111', '1': '010110010010111', '2': '111001111100111', '3': '111001111001111', '4': '101101111001001', '5': '111100111001111', '6': '111100111101111', '7': '111001010010010', '8': '111101111101111', '9': '111101111001111' }; return ask(String(digits).split('').map(function (c) { return G[c].split('').map(Number); }), w, b); };
+  var pads = M.el('div', { style: 'display:flex;gap:18px;margin:8px 0' }), out = M.el('div', { style: 'font-family:var(--mono);font-size:15px;white-space:pre-wrap;overflow-wrap:anywhere;border-left:4px solid var(--line);padding-left:10px;margin:8px 0' }), stat = M.el('p', { class: 'readout' });
+  function draw() {
+    pads.textContent = '';
+    grids.forEach(function (g, gi) {
+      var pad = M.el('div', { style: 'display:grid;grid-template-columns:repeat(3,44px);gap:3px', role: 'group', 'aria-label': 'Digit ' + (gi + 1) + ', 5 rows of 3 pixels' });
+      g.forEach(function (v, i) {
+        pad.appendChild(M.el('button', { type: 'button', 'aria-label': 'row ' + (Math.floor(i / 3) + 1) + ', column ' + (i % 3 + 1) + ', ' + (v ? 'on' : 'off'), 'aria-pressed': v ? 'true' : 'false',
+          style: 'width:44px;height:44px;min-height:44px;padding:0;border:1px solid var(--border);border-radius:4px;text-decoration:none;background:' + (v ? 'var(--ink)' : 'var(--panel)'), onclick: function () { g[i] = 1 - g[i]; draw(); go(); } }));
+      });
+      pads.appendChild(pad);
+    });
+  }
+  function go() {
+    var r = ask(grids, word, second);
+    out.textContent = 'U what is [picture] ' + word + ' ' + second + '?\n' + (r.call ? 'C ' + r.call + '\nR ' + r.result + '\n' : '') + 'A ' + r.answer;
+    stat.innerHTML = r.call ? 'The agent read the picture as <b>' + r.call.split(' ')[1] + '</b>.' : 'The agent answered without calling the calculator.';
+  }
+  var wS = M.select('Operation', [['plus', 'plus'], ['minus', 'minus'], ['times', 'times']], function (v) { word = v; go(); });
+  var bS = M.slider({ label: 'Second number, given as text', min: 0, max: 99, step: 1, value: 12, fmt: function (v) { return v; }, oninput: function () { second = bS.value; go(); } });
+  box.appendChild(pads); box.appendChild(M.row(wS)); box.appendChild(M.row(bS)); box.appendChild(out); box.appendChild(stat);
+  box.appendChild(M.el('p', { class: 'caption', text: 'Each grid is one digit of the first number: 5 rows of 3 pixels, tap to switch a pixel. The agent has ' + m.cfg.params.toLocaleString('en-US') + ' weights and answers with the likeliest character each time.' }));
+  draw(); go();
+});
+</script>
+</body>
+</html>

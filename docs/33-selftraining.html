@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Learning from its own answers | microAI</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-ch="33">
+<main>
+  <p class="where">Chapter 33</p>
+  <h1>Learning from its own answers</h1>
+  <p class="question">Can a model get better with nobody writing examples for it and nobody scoring it?</p>
+
+  <p>Chapter 24 improved the model in two ways, and both needed someone outside it: a person to write 300 good conversations, or a grader that knew the right result of every sum. Chapter 25 improved its answers with its weights fixed, and found something on the way. A simple check, "did this answer rest on a tool result?", could tell good answers from bad without knowing the right answer.</p>
+  <p>Put those two together and a loop appears. Let the model answer many questions. Keep the answers that pass the check. Train the model on what was kept, with the ordinary loss of chapter 7. Then do it again with the improved model. Nobody wrote an example. The model's own answers are the training text, and the only outside help is the check.</p>
+
+  <div class="def"><span class="kind">Definition</span>
+    <p><dfn>Self-training</dfn> is training a model on answers it produced itself, after selecting which of them to keep.</p>
+  </div>
+
+  <h3>By hand: one round</h3>
+  <p>The model is the pre-trained one of chapter 24, which uses the calculator about half the time. It is asked 600 new sums.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Step</th><th>What happens</th><th>Count</th></tr>
+    <tr><td>1. Answer</td><td>the model answers 600 sums, each character drawn from its probabilities</td><td class="mono">600 answers</td></tr>
+    <tr><td>2. Select</td><td>keep those that rest on a tool result</td><td class="mono">299 kept</td></tr>
+    <tr><td>3. Train</td><td>200 ordinary training steps on the 299</td><td class="mono"></td></tr>
+    <tr><td>4. Test</td><td>300 sums it has never seen</td><td class="mono">296 use the calculator, was 149</td></tr>
+  </table></div>
+  <p>The model has now been trained on text in which every answer uses the calculator. It was all written by the model itself: its own experience, with the bad half thrown away. The loss of chapter 7 does the rest: it makes the model more like its training text.</p>
+
+  <figure class="fig">
+    <svg viewBox="0 0 760 220" role="img" aria-labelledby="f33a">
+      <title id="f33a">A loop of four steps. The model answers questions. A check keeps some answers and throws the others away. The model is trained on the kept answers. The improved model answers the next round of questions.</title>
+      <defs><marker id="c33a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
+      <rect x="40" y="40" width="170" height="56" rx="8" class="bx-fwd"/><text x="125" y="66" text-anchor="middle" class="t-big">the model</text><text x="125" y="84" text-anchor="middle" class="t-small t-muted">answers 600 questions</text>
+      <line x1="214" y1="68" x2="296" y2="68" class="ln-fwd" marker-end="url(#c33a)"/>
+      <rect x="300" y="40" width="170" height="56" rx="8" class="bx-prob"/><text x="385" y="66" text-anchor="middle" class="t-big">a check</text><text x="385" y="84" text-anchor="middle" class="t-small t-muted">keep or throw away</text>
+      <line x1="474" y1="68" x2="556" y2="68" class="ln" marker-end="url(#c33a)"/>
+      <rect x="560" y="40" width="170" height="56" rx="8" class="bx"/><text x="645" y="66" text-anchor="middle" class="t-big">kept answers</text><text x="645" y="84" text-anchor="middle" class="t-small t-muted">become training text</text>
+      <path d="M645 100 L645 160 L125 160 L125 102" class="ln-grad" marker-end="url(#c33a)"/>
+      <text x="385" y="150" text-anchor="middle" class="t-small t-grad">train on them, with the ordinary loss</text>
+      <text x="385" y="190" text-anchor="middle" class="t-small">the check is the only thing that comes from outside the model</text>
+      <text x="385" y="120" text-anchor="middle" class="t-small t-muted">thrown away</text><line x1="385" y1="98" x2="385" y2="108" class="ln-dash"/>
+    </svg>
+    <figcaption><b>The loop.</b> The model supplies the answers and the training. The check supplies the direction.</figcaption>
+  </figure>
+
+  <h2>Three loops, one difference</h2>
+  <p><code>code/ch33_selftrain.py</code> runs the loop for four rounds, three times, from the same starting model. The only thing that differs is step 2.</p>
+  <pre class="code" data-src="ch33_selftrain.py#keep">KEEP = {
+    'check': lambda e: e['call'] is not None,            # did the number come from the calculator?
+    'all':   lambda e: True,                             # no judgement at all
+    'short': lambda e: len(e['text']) &lt; 50,              # "quick answers are good answers"
+}</pre>
+  <p class="src">From <code>code/ch33_selftrain.py</code>. Three ways to select: a sound check, no selection, and a check that looks at the wrong thing.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Uses the calculator, of 300 unseen sums</th><th>Start</th><th>Round 1</th><th>Round 2</th><th>Round 3</th><th>Round 4</th></tr>
+    <tr><td>keep answers that rest on a tool result</td><td class="mono">149</td><td class="mono">296</td><td class="mono">300</td><td class="mono">300</td><td class="mono">300</td></tr>
+    <tr><td>keep every answer</td><td class="mono">149</td><td class="mono">145</td><td class="mono">142</td><td class="mono">151</td><td class="mono">144</td></tr>
+    <tr><td>keep the shortest answers</td><td class="mono">149</td><td class="mono">0</td><td class="mono">0</td><td class="mono">0</td><td class="mono">0</td></tr>
+  </table></div>
+  <div class="scroll"><table class="mini">
+    <tr><th>Gets the sum right, of 300</th><th>Start</th><th>Round 1</th><th>Round 2</th><th>Round 3</th><th>Round 4</th></tr>
+    <tr><td>keep answers that rest on a tool result</td><td class="mono">152</td><td class="mono">286</td><td class="mono">290</td><td class="mono">291</td><td class="mono">293</td></tr>
+    <tr><td>keep every answer</td><td class="mono">152</td><td class="mono">150</td><td class="mono">146</td><td class="mono">154</td><td class="mono">145</td></tr>
+    <tr><td>keep the shortest answers</td><td class="mono">152</td><td class="mono">4</td><td class="mono">4</td><td class="mono">6</td><td class="mono">12</td></tr>
+  </table></div>
+
+  <section class="bench" id="w-loop">
+    <h3>Three loops, round by round</h3>
+    <p class="try"><b>Try this.</b> Step through the rounds for each way of selecting. In which loop does the model change most between the start and round 1? In which does it not change at all?</p>
+  </section>
+
+  <p><strong>What you should have seen.</strong> With the sound check, one round takes the model from 149 uses of the calculator to 296, and the second finishes the job. With no selection nothing happens: four rounds of training leave it where it started, at about 145. With the wrong check the model changes just as fast as with the right one, in the opposite direction: after one round it never uses the calculator again, and it gets 4 sums right of 300.</p>
+
+  <h2>What the three loops say</h2>
+  <ul>
+    <li><strong>A model can improve on its own answers.</strong> No examples were written and no right answers were known. In two rounds the model reached what chapter 24's reinforcement reached with a grader that knew every result.</li>
+    <li><strong>Without selection there is nothing to learn.</strong> Training a model on everything it says teaches it to say what it already says. The loop needs a difference between what is kept and what is produced, and the check is that difference.</li>
+    <li><strong>The loop goes where the check points.</strong> "Short answers are good" sounds harmless. Short answers are the ones that skip the calculator, so the loop removed the calculator. The model did exactly what it was selected for, quickly, and nothing inside the loop could notice that it was a mistake.</li>
+    <li><strong>The check has blind spots, and they stay.</strong> Look at the first loop again: 300 uses of the calculator and 293 right. In seven answers the model called the calculator and then copied the result wrongly into its sentence. The check looks at the call, not at the sentence, so those answers were kept and trained on, and that fault was never corrected.</li>
+  </ul>
+  <p>So the answer to the question at the top is yes, with one condition that carries all the weight. A system can raise itself, by a check that comes from outside it, as far as that check can see.</p>
+
+  <h2>At full size</h2>
+  <ul>
+    <li><strong>Code that passes its tests.</strong> A model writes many solutions, the tests are run, and the solutions that pass become training text. The tests are the check, and a program is one of the few kinds of answer that can be checked without a person.</li>
+    <li><strong>Games.</strong> A system plays against itself and trains on the moves of the games it won. The rules of the game are the check. This is how the strongest programs for Go and chess are trained.</li>
+    <li><strong>Thinking, kept when it led to the right answer.</strong> The reasoning models of chapter 21 are trained on their own worked answers to problems with checkable results (chapter 24).</li>
+    <li><strong>Generated text with no check.</strong> When models are trained on what models wrote, unselected, round after round, published experiments show them getting worse: rare things drop out first. It is the second loop above, at scale.</li>
+    <li><strong>Improving the harness instead of the weights.</strong> An agent can also keep notes for its next run: what worked, which command failed, a tested piece of code to reuse. The weights do not change (chapter 25). The same condition applies: a note is worth keeping only if something checked it.</li>
+  </ul>
+  <p>Whether such loops can carry a system far beyond its starting point, improving the very checks they depend on, is argued over and not settled. What this chapter can say is narrower. Each loop here stopped where its check stopped.</p>
+
+  <h2>Build it</h2>
+  <pre class="code" data-src="ch33_selftrain.py#loop">def improve(keep, rounds=4, asked=600, seed=0):
+    """Answer, select, train on the selection, repeat. Returns what the model does after each round."""
+    model, rng = post.load('pre'), np.random.default_rng(seed)
+    run = post.live(model)
+    history = [dict(round=0, kept=None, **post.behaviour(run, 300), chat=post.chat(run))]
+    for r in range(1, rounds + 1):
+        episodes = [post.episode(run, q, rng) for q in questions(rng, asked)]        # 1. its own answers
+        kept = [e for e in episodes if keep(e)]                                       # 2. the selection
+        if kept:
+            post.fit(model, post.rows([e['text'][1:] + '\n' for e in kept]), 200, 3e-4, seed=r, label=f'round {r}')   # 3. ordinary training
+        history.append(dict(round=r, kept=len(kept), **post.behaviour(run, 300), chat=post.chat(run)))               # 4. the test
+    return history</pre>
+  <p class="src">The whole loop. It reuses the answering and the training of chapter 24.</p>
+  <pre class="code" data-lang="text">python code/ch24_posttrain.py --train    # if not done: the starting model
+python code/ch33_selftrain.py            # three loops of four rounds, about 8 minutes</pre>
+
+  <div class="note">
+    <h3>What this chapter glossed over</h3>
+    <p><strong>The good behaviour was already there.</strong> The starting model used the calculator half the time, so half its answers passed the check. A loop can only keep what the model sometimes does. Starting from a model that never used the calculator, the first loop would have had nothing to keep.</p>
+    <p><strong>The check was nearly perfect for this task.</strong> For most real tasks no such cheap, reliable check exists, and that, more than the loop, is the hard part.</p>
+    <p><strong>Four rounds, one seed.</strong> Each loop was run once. The second loop's counts wander between 142 and 151, which is the size of the noise in these measurements.</p>
+    <p><strong>New questions each round.</strong> The 600 questions of each round were invented by the script. A system that also has to find its own questions is a harder problem.</p>
+  </div>
+
+  <div class="recap">
+    <h3>In short</h3>
+    <ul>
+      <li><a class="term" href="glossary.html#self-training">Self-training</a> is a loop: the model answers, a check selects, the model trains on what was kept.</li>
+      <li>With a sound check the pre-trained model went from 149 uses of the calculator in 300 to 300 in two rounds, with no examples and no right answers given.</li>
+      <li>With no selection it did not move. With a check that favoured short answers it dropped the calculator entirely after one round and got 4 sums right.</li>
+      <li>The loop improves what the check can see and nothing else: seven wrongly copied results passed the check and stayed.</li>
+    </ul>
+  </div>
+
+  <h2>Check yourself</h2>
+  <details class="check"><summary>The second loop trained the model four times on 600 of its own answers and nothing changed. Why not?</summary><p>The training text had the same mix of behaviours as the model: about half with the calculator, half without. Training makes a model more like its training text, and it was already like it.</p></details>
+  <details class="check"><summary>In the third loop, nothing told the model to stop using the calculator. How did it happen?</summary><p>The check kept short answers. An answer that calls the calculator is longer than a guess, so almost all the kept answers were guesses. Trained on guesses, the model guessed.</p></details>
+  <details class="check"><summary>The first loop ended with 300 uses of the calculator and 293 right answers. Could more rounds fix the last seven?</summary><p>No. Those answers used the calculator and then stated the result wrongly. The check accepts any answer that used the calculator, so it keeps them, and the loop keeps training on them. Fixing them needs a check that also reads the final sentence.</p></details>
+  <details class="check"><summary>You want a model to improve its own essays this way. What is missing?</summary><p>A check. For sums, "rests on a tool result" separates good from bad cheaply. For an essay, nothing comparable can be computed, and a weak stand-in, such as length or the model's own opinion of its essay, would steer the loop the way "short answers" did.</p></details>
+</main>
+
+<script src="assets/selftrain.js"></script>
+<script src="assets/glossary.js"></script>
+<script src="assets/micro.js"></script>
+<script>
+M.ready(function () {
+  var box = M.$('#w-loop'), S = window.MICRO_SELF;
+  if (!S) { box.appendChild(M.el('p', { text: 'The recorded loops did not load, so this experiment is unavailable.' })); return; }
+  var NAMES = { check: 'Keep answers that rest on a tool result', all: 'Keep every answer', short: 'Keep the shortest answers' }, loop = 'check';
+  var sel = M.select('Selection', Object.keys(NAMES).map(function (k) { return [k, NAMES[k]]; }), function (v) { loop = v; show(); });
+  var sl = M.slider({ label: 'Round', min: 0, max: 4, step: 1, value: 0, fmt: function (v) { return v === 0 ? 'start' : v; }, oninput: show });
+  var bars = M.el('div'), stat = M.el('p', { class: 'readout' });
+  function show() {
+    var h = S[loop][sl.value];
+    M.bars(bars, [{ label: 'uses the calculator', p: h.tool / h.n, text: h.tool + ' of ' + h.n, hl: true }, { label: 'sum right', p: h.right / h.n, text: h.right + ' of ' + h.n, hl: true }], 1);
+    stat.textContent = sl.value === 0 ? 'The starting model: pre-trained only, as in chapter 24.' : 'In round ' + sl.value + ', ' + h.kept + ' of its 600 answers were kept and trained on. Small talk right: ' + h.chat + ' of 3.';
+  }
+  box.appendChild(M.row(sel)); box.appendChild(M.row(sl)); box.appendChild(bars); box.appendChild(stat);
+  box.appendChild(M.el('p', { class: 'caption', text: 'Recorded by code/ch33_selftrain.py. After each round the model was tested on the same 300 sums, none of which appear in any round.' }));
+  show();
+});
+</script>
+</body>
+</html>

@@ -94,7 +94,7 @@ if os.path.exists(evals_path):
         f.write('window.MICRO_EVALS = ' + json.dumps(evals) + ';\n')
 
 # ---- recorded sessions for chapters 15 and 17 ------------------------------------------
-for name, var in [('harness', 'MICRO_HARNESS'), ('guard', 'MICRO_GUARD'), ('moe', 'MICRO_MOE')]:
+for name, var in [('harness', 'MICRO_HARNESS'), ('guard', 'MICRO_GUARD'), ('moe', 'MICRO_MOE'), ('selftrain', 'MICRO_SELF'), ('release', 'MICRO_RELEASE')]:
     src = os.path.join(ROOT, 'runs', name + '.json')
     if os.path.exists(src):
         with open(src) as f:
@@ -158,6 +158,30 @@ draft = os.path.join(ROOT, 'runs', 'draft.npz')
 if os.path.exists(draft):
     with open(os.path.join(ROOT, 'docs', 'assets', 'draft.js'), 'w') as f:
         f.write('window.MICRO_DRAFT = ' + json.dumps(pack(draft)) + ';\n')
+
+# ---- chapter 31: the agent that reads its first number from a picture ----
+eyes = os.path.join(ROOT, 'runs', 'eyes.npz')
+if os.path.exists(eyes):
+    with open(os.path.join(ROOT, 'docs', 'assets', 'eyes.js'), 'w') as f:
+        f.write('window.MICRO_EYES = ' + json.dumps(pack(eyes)) + ';\n')
+
+# ---- chapter 35: the guard after three repairs, and what the attackers achieved ----
+hard = os.path.join(ROOT, 'runs', 'classifier_hard.npz')
+red = os.path.join(ROOT, 'runs', 'redteam.json')
+if os.path.exists(hard) and os.path.exists(red):
+    sys.path.insert(0, os.path.join(ROOT, 'code'))
+    import ch35_redteam
+    with open(os.path.join(ROOT, 'docs', 'assets', 'redteam.js'), 'w') as f:
+        f.write('window.MICRO_RED = ' + json.dumps({'hard': pack(hard), 'words': ch35_redteam.WORDS, 'starts': ch35_redteam.STARTS,
+                                                    'facts': json.load(open(red))}) + ';\n')
+
+# ---- chapters 37 and 38: the agent that reads its tools from a list, and the catalogue of chapter 38 ----
+tools = os.path.join(ROOT, 'runs', 'tools.npz')
+if os.path.exists(tools):
+    sys.path.insert(0, os.path.join(ROOT, 'code'))
+    import ch38_skills
+    with open(os.path.join(ROOT, 'docs', 'assets', 'tools.js'), 'w') as f:
+        f.write('window.MICRO_TOOLS = ' + json.dumps({'model': pack(tools), 'catalogue': ch38_skills.CATALOGUE, 'room': ch38_skills.ROOM}) + ';\n')
 
 # ---- the packed model of chapter 23: the file itself, byte for byte ----
 tiny = os.path.join(ROOT, 'runs', 'tiny.bin')

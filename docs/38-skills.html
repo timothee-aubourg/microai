@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Loaded when needed | microAI</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-ch="38">
+<main>
+  <p class="where">Chapter 38</p>
+  <h1>Loaded when needed</h1>
+  <p class="question">Every tool description takes room in the context, on every request, used or not. What happens when there are hundreds?</p>
+
+  <p>Chapter 37 ended on a cost. The agent can use any tool that is on its list, and the list is read again for every request. Chapter 16 showed that the context is the scarcest thing an agent has. So the list competes with the conversation for the same room.</p>
+  <p>Our agent makes the problem easy to see, because everything about it is small. Its window is 112 characters. A question, its call, the result and the answer need up to 70 of them. What is left holds four entries of the list. This chapter gives it a catalogue of six.</p>
+
+  <div class="def"><span class="kind">Definitions</span>
+    <p><dfn>Progressive disclosure</dfn> is giving the model a short note that something exists, and the full text only when a task needs it.</p>
+    <p>A <dfn>skill</dfn> is a folder of instructions for one kind of task, with a one-line description. The description is always in the context. The instructions are loaded when the task comes up.</p>
+  </div>
+
+  <h3>By hand: the cost of a list</h3>
+  <p>The whole catalogue, as a list:</p>
+  <pre class="code" data-lang="text">T plus=at minus=hx times=sv mod=wu max=mr min=cl</pre>
+  <p>An entry takes about 8 characters, so six take 48 with the <code>T</code> in front. The rest of a conversation takes up to 70 more, and the window is 112. So the list is held to four entries, which is also the most the agent ever saw in training:</p>
+  <pre class="code" data-lang="text">T plus=at minus=hx times=sv mod=wu</pre>
+  <p>The tools for <code>max, min</code> are gone. Nothing warns the agent or the user. And the cost is paid on every request, including the ones that need no tool at all. Now scale it:</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Tools in the catalogue</th><th>Characters to list them all</th><th>Characters to list the one that is needed</th></tr>
+    <tr><td class="mono">6</td><td class="mono">47</td><td class="mono">8</td></tr>
+    <tr><td class="mono">60</td><td class="mono">468</td><td class="mono">8</td></tr>
+    <tr><td class="mono">600</td><td class="mono">4,680</td><td class="mono">8</td></tr>
+  </table></div>
+  <p>The left column grows with the catalogue. The right one does not. The rest of the chapter is about getting to the right column.</p>
+
+  <figure class="fig">
+    <svg viewBox="0 0 760 260" role="img" aria-labelledby="f38a">
+      <title id="f38a">Three ways to handle a catalogue of six tools when the context has room for four. Everything: the list is cut after four entries and two tools are lost. Harness picks: the harness reads the question and lists only the matching tool. Agent asks: the agent starts with an empty list, says which tool it lacks, the harness loads that one entry, and the agent is asked again.</title>
+      <defs><marker id="c38a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
+      <text x="16" y="44" class="t-small t-muted">everything</text>
+      <g><rect x="150" y="24" width="60" height="32" rx="5" class="bx-fwd"/><rect x="214" y="24" width="60" height="32" rx="5" class="bx-fwd"/><rect x="278" y="24" width="60" height="32" rx="5" class="bx-fwd"/><rect x="342" y="24" width="60" height="32" rx="5" class="bx-fwd"/><rect x="406" y="24" width="60" height="32" rx="5" class="bx-grad"/><rect x="470" y="24" width="60" height="32" rx="5" class="bx-grad"/></g>
+      <line x1="404" y1="14" x2="404" y2="66" class="ln-dash"/><text x="412" y="80" class="t-small t-grad">cut here: two tools lost</text>
+      <rect x="560" y="24" width="184" height="32" rx="5" class="bx"/><text x="652" y="45" text-anchor="middle" class="t-small">the conversation</text>
+      <text x="16" y="134" class="t-small t-muted">harness picks</text>
+      <rect x="150" y="114" width="60" height="32" rx="5" class="bx-fwd"/>
+      <rect x="230" y="114" width="184" height="32" rx="5" class="bx"/><text x="322" y="135" text-anchor="middle" class="t-small">the conversation</text>
+      <text x="430" y="135" class="t-small">the harness read the question first</text>
+      <text x="16" y="204" class="t-small t-muted">agent asks</text>
+      <rect x="150" y="184" width="184" height="32" rx="5" class="bx"/><text x="242" y="205" text-anchor="middle" class="t-small">"i have no tool for plus."</text>
+      <line x1="338" y1="200" x2="372" y2="200" class="ln" marker-end="url(#c38a)"/>
+      <rect x="376" y="184" width="60" height="32" rx="5" class="bx-fwd"/>
+      <rect x="456" y="184" width="184" height="32" rx="5" class="bx"/><text x="548" y="205" text-anchor="middle" class="t-small">the conversation</text>
+      <text x="150" y="240" class="t-small t-muted">first pass: nothing listed</text><text x="376" y="240" class="t-small t-muted">second pass: the one entry it named</text>
+    </svg>
+    <figcaption><b>Three ways to spend the same window.</b> Blue boxes are entries of the tool list. The first way loses tools. The other two list one.</figcaption>
+  </figure>
+
+  <h2>Three ways, measured</h2>
+  <p><code>code/ch38_skills.py</code> asks the agent of chapter 37 the same 300 questions, spread over all six operations, in three ways.</p>
+  <ul>
+    <li><strong>Everything.</strong> The catalogue goes into the context, and what does not fit is cut off.</li>
+    <li><strong>Harness picks.</strong> Before the model sees anything, the harness reads the question and lists only the tools whose description it finds there. This is the retrieval of chapter 11, applied to tools.</li>
+    <li><strong>Agent asks.</strong> The first pass has an empty list. The agent of chapter 37 then says which tool it lacks: <code>i have no tool for plus.</code> The harness takes that as a request, loads that one entry, and asks again.</li>
+  </ul>
+  <pre class="code" data-src="ch38_skills.py#ways">def everything(model, question):
+    tools = CATALOGUE[:ROOM]                              # the rest does not fit, and is silently gone
+    _, reply, read = t37.answer(model, tools, local, question)
+    return reply, read, 1
+
+def harness_picks(model, question):
+    tools = [(op, name) for op, name in CATALOGUE if op in question.rstrip('?').split()]   # description found in the question
+    _, reply, read = t37.answer(model, tools, local, question)
+    return reply, read, 1
+
+def agent_asks(model, question):
+    _, reply, cost = t37.answer(model, [], local, question)    # first pass: no tools listed at all
+    passes = 1
+    if reply.startswith('i have no tool for '):           # the agent names what it lacks...
+        wanted = reply[len('i have no tool for '):].rstrip('.')
+        tools = [(op, name) for op, name in CATALOGUE if op == wanted]
+        if tools:                                         # ...the harness loads exactly that, and asks again
+            _, reply, read = t37.answer(model, tools, local, question)
+            cost, passes = cost + read, 2
+    return reply, cost, passes</pre>
+  <div class="scroll"><table class="mini">
+    <tr><th>Way</th><th>Right, of 300</th><th>Said it had no tool</th><th>Characters read per question</th><th>Passes per question</th></tr>
+    <tr><td>Everything</td><td class="mono">210</td><td class="mono">90</td><td class="mono">95</td><td class="mono">1</td></tr>
+    <tr><td>Harness picks</td><td class="mono">300</td><td class="mono">0</td><td class="mono">74</td><td class="mono">1</td></tr>
+    <tr><td>Agent asks</td><td class="mono">300</td><td class="mono">0</td><td class="mono">125</td><td class="mono">2</td></tr>
+  </table></div>
+  <ul>
+    <li><strong>Everything: 210 right, and the most to read in one pass.</strong> The 90 questions on max and min were answered <code>i have no tool</code>: 0 of 52 and 0 of 38 right. Both tools were in the catalogue, past the cut. And each question cost 95 characters, most of them a list it did not need.</li>
+    <li><strong>Harness picks: 300 right with 74 characters.</strong> One entry in the list instead of four. It is the cheapest way, and it works here because the question contains the very word of the description.</li>
+    <li><strong>Agent asks: 300 right, in two passes and 125 characters.</strong> More than either of the others. But the harness never had to understand the question. The agent said what it lacked.</li>
+  </ul>
+  <h3>The price of loading late</h3>
+  <p>Loading on demand costs a pass. With six tools that pass costs more than it saves. Each entry in the list costs about 8 characters on every question, and the extra pass about 52. The two meet at about 8 tools. With 60 tools, listing everything would cost about 532 characters per question if it fitted at all, and asking would still cost 125.</p>
+  <p>So the rule is not "always load late". Load late when the catalogue is large compared with the work, and list a handful of tools that are used all the time.</p>
+
+  <section class="bench" id="w-skills">
+    <h3>Six tools, room for four</h3>
+    <p class="try"><b>Try this.</b> Ask a plus question each way and compare what the agent had to read. Then ask a max question each way. Then run thirty questions each way.</p>
+  </section>
+  <p><strong>What you should have seen.</strong> A plus question is answered right in all three ways. The agent read 99 characters with everything listed, 74 when the harness picked, and 126 in two passes when it asked. A max question shows the difference. With everything listed the agent says <code>i have no tool for max.</code>, because max is past the cut. The other two ways answer <code>23 max 45 is 45.</code> Thirty questions gave 20 or 21 right with everything listed, and 30 of 30 in each of the other two ways.</p>
+
+  <h2>At full size</h2>
+  <ul>
+    <li><strong>This is how skills work.</strong> A skill is a folder with a file of instructions. Under the <a href="https://agentskills.io/client-implementation/adding-skills-support">open format</a> that several agents now share, loading has three levels. The name and a one-line description of every installed skill are always in the context, at a cost of about 100 tokens each. The body of instructions, which the format recommends keeping under 5,000 tokens, is read only when the model decides the task calls for it. Scripts and reference files inside the folder are read or run only if the body points to them.</li>
+    <li><strong>The arithmetic is the table above.</strong> Twenty skills loaded whole could cost 100,000 tokens on every request. Their twenty descriptions cost about 2,000, plus one body when one is used.</li>
+    <li><strong>The model does the choosing.</strong> It reads the descriptions and decides which body to load. So the description decides whether a skill is ever used: it has to say what the skill does and when to use it.</li>
+    <li><strong>The same idea for tools.</strong> With many servers connected, a harness can keep the tool descriptions out of the context and give the model one tool that searches them. Descriptions are loaded when the search finds them.</li>
+    <li><strong>And for memory and documents.</strong> A table of contents in the context and the chapters on disk; the notes of chapter 16; the retrieval of chapter 11. Each keeps a pointer in the window and the bulk outside it.</li>
+  </ul>
+
+  <h2>Build it</h2>
+  <pre class="code" data-lang="text">python code/ch38_skills.py               # the three ways, about 2 minutes; needs chapter 37's trained agent</pre>
+
+  <div class="note">
+    <h3>What this chapter glossed over</h3>
+    <p><strong>Our agent starts with nothing.</strong> In "agent asks" the first context has no list at all, and the agent names what it lacks. A real agent starts with one line per skill and chooses among them. That first level is not free, and ours is.</p>
+    <p><strong>The harness looks up an exact word.</strong> Both the picking and the loading match one word. Matching a real request to a real description is a search problem, with the misses of chapter 11.</p>
+    <p><strong>A body here is one entry.</strong> What is loaded is nine characters. A real body is pages of instructions, which is why loading it late saves so much.</p>
+    <p><strong>A cut list fails silently.</strong> Real harnesses refuse to start, or warn, when descriptions do not fit. The silent cut is shown because it is the failure to design against.</p>
+    <p><strong>One run.</strong> 300 questions per way, answers chosen without chance.</p>
+  </div>
+
+  <div class="recap">
+    <h3>In short</h3>
+    <ul>
+      <li>A list that does not fit is cut, and nothing says so. With six tools and room for four: 210 of 300 right, and 90 answers of "no tool" for tools that existed.</li>
+      <li>Listing only the tool a question needs gave 300 of 300 with 74 characters to read, against 95. Letting the agent say what it lacks also gave 300, in two passes.</li>
+      <li><a class="term" href="glossary.html#progressive-disclosure">Progressive disclosure</a> keeps a short note in the context and loads the full text when a task needs it. The cost of a catalogue then stops growing with its size.</li>
+      <li>A <a class="term" href="glossary.html#skill">skill</a> works this way at full size: about 100 tokens of description always, the instructions when used, the files inside it when those are needed.</li>
+      <li>Loading late is paid for with an extra pass. It is worth it when the catalogue is large compared with the work.</li>
+    </ul>
+  </div>
+
+  <h2>Check yourself</h2>
+  <details class="check"><summary>With the whole catalogue listed, the agent said "i have no tool for max". The tool exists. What went wrong?</summary><p>The list was cut to fit the window, and the entry for max was past the cut. The agent answered truthfully about the list it was shown. The fault is in what the harness put in the context.</p></details>
+  <details class="check"><summary>"Agent asks" reads more characters per question than "harness picks". When is it still the better way?</summary><p>When the harness cannot tell from the request which tool is needed. The model understands the request better than a word match does, so letting it say what it needs finds tools that the harness would miss. The price is the extra pass.</p></details>
+  <details class="check"><summary>A team installs 50 skills, each with 3,000 tokens of instructions. What is in the context before the first request?</summary><p>Fifty descriptions, about 5,000 tokens. Loaded whole it would be 150,000. The instructions of a skill enter the context only when a task calls for it.</p></details>
+  <details class="check"><summary>Why does the wording of a skill's one-line description matter so much?</summary><p>It is the only part the model sees when it decides whether to load the skill. If the description does not say when to use it, the instructions behind it are never read, however good they are.</p></details>
+</main>
+
+<script src="assets/tools.js"></script>
+<script src="assets/glossary.js"></script>
+<script src="assets/micro.js"></script>
+<script>
+M.ready(function () {
+  var box = M.$('#w-skills'), T = window.MICRO_TOOLS;
+  if (!T) { box.appendChild(M.el('p', { text: 'The trained model did not load, so this experiment is unavailable.' })); return; }
+  var m = M.loadWeights(T.model), CAT = T.catalogue.map(function (e) { return { op: e[0], name: e[1] }; }), way = 'everything', op = 'plus', presses = 0;
+  var OPS = { plus: function (a, b) { return a + b; }, minus: function (a, b) { return a - b; }, times: function (a, b) { return a * b; }, mod: function (a, b) { return a % b; }, max: Math.max, min: Math.min };
+  var D = '0123456789', ROLE = [{ words: ['C ', 'A '] }];
+  function moves(fmt, st) {        // the format machine of chapter 13
+    var i = st[0], s = st[1], out = {}, mayEnd;
+    while (i < fmt.length) {
+      var part = fmt[i];
+      if (part.words) {
+        part.words.forEach(function (x) { if (x.indexOf(s) === 0 && x.length > s.length && !(x[s.length] in out)) out[x[s.length]] = [i, s + x[s.length]]; });
+        mayEnd = part.words.indexOf(s) >= 0;
+      } else {
+        if (s.length < part[2]) for (var k = 0; k < part[0].length; k++) if (!(part[0][k] in out)) out[part[0][k]] = [i, s + part[0][k]];
+        mayEnd = s.length >= part[1];
+      }
+      if (!mayEnd) break;
+      i++; s = '';
+    }
+    return out;
+  }
+  function writeLine(wr, used, fmt, limit) {
+    var line = '', st = [0, ''];
+    while (line.slice(-1) !== '\n' && line.length < limit && used.n < m.cfg.block - 1) {
+      var z = wr.logits(), legal = null, best = -1;
+      if (fmt) { legal = moves(fmt, st); if (!Object.keys(legal).length) break; }
+      for (var i = 0; i < z.length; i++) if ((!legal || m.chars[i] in legal) && (best < 0 || z[i] > z[best])) best = i;
+      var ch = m.chars[best];
+      if (fmt) st = legal[ch];
+      line += ch; wr.add(best); used.n++;
+    }
+    return line;
+  }
+  function pass(tools, q) {        // one pass of the agent of chapter 37: returns what it read and what it said
+    var head = ('T ' + tools.map(function (e) { return e.op + '=' + e.name; }).join(' ')).replace(/ +$/, '') + '\n';
+    var prompt = '\n' + head + 'U ' + q + '\n', wr = M.writer(m, prompt), used = { n: prompt.length }, text = head + 'U ' + q + '\n';
+    if (writeLine(wr, used, ROLE, 2) === 'C ') {
+      var entries = tools.map(function (e) { return e.op + '=' + e.name; });
+      var line = writeLine(wr, used, [{ words: entries }, [' ', 1, 1], [D, 1, 2], [' ', 1, 1], [D, 1, 2], ['\n', 1, 1]], 20).trim(), p = line.split(' '), tool = tools[entries.indexOf(p[0])];
+      if (!tool || p.length !== 3) return { text: text + 'C ' + line, reply: '', read: used.n };
+      var fed = 'R ' + OPS[tool.op](+p[1], +p[2]) + '\nA ';
+      for (var i = 0; i < fed.length; i++) { wr.add(m.stoi[fed[i]]); used.n++; }
+      text += 'C ' + line + '\n' + fed.slice(0, -2);
+    }
+    var reply = writeLine(wr, used, null, 40).trim();
+    return { text: text + 'A ' + reply, reply: reply, read: used.n };
+  }
+  var WAYS = {
+    everything: function (q) { var r = pass(CAT.slice(0, T.room), q); return { passes: [r], reply: r.reply, read: r.read }; },
+    picks: function (q) { var words = q.replace('?', '').split(' '), r = pass(CAT.filter(function (e) { return words.indexOf(e.op) >= 0; }), q); return { passes: [r], reply: r.reply, read: r.read }; },
+    asks: function (q) {
+      var r = pass([], q), out = { passes: [r], reply: r.reply, read: r.read }, lead = 'i have no tool for ';
+      if (r.reply.indexOf(lead) === 0) {
+        var wanted = r.reply.slice(lead.length).replace('.', ''), tools = CAT.filter(function (e) { return e.op === wanted; });
+        if (tools.length) { var r2 = pass(tools, q); out.passes.push(r2); out.reply = r2.reply; out.read += r2.read; }
+      }
+      return out;
+    }
+  };
+  function question(a, o, b) { return 'what is ' + a + ' ' + o + ' ' + (o === 'mod' && b === 0 ? 1 : b) + '?'; }
+  function right(a, o, b, reply) { b = o === 'mod' && b === 0 ? 1 : b; return reply === a + ' ' + o + ' ' + b + ' is ' + OPS[o](a, b) + '.'; }
+  M.skillsRun = function (w, seed, n) {
+    var rnd = M.rng(seed), ok = 0, read = 0;
+    for (var i = 0; i < n; i++) { var a = Math.floor(rnd() * 100), b = Math.floor(rnd() * 100), o = CAT[Math.floor(rnd() * CAT.length)].op, r = WAYS[w](question(a, o, b)); ok += right(a, o, b, r.reply); read += r.read; }
+    return { right: ok, read: Math.round(read / n) };
+  };
+  M.skillsAsk = function (w, a, o, b) { var r = WAYS[w](question(a, o, b)); return { reply: r.reply, read: r.read, passes: r.passes.length }; };
+  var out = M.el('div'), stat = M.el('p', { class: 'readout' }), bars = M.el('div'), runStat = M.el('p', { class: 'readout', text: 'Nothing run yet.' });
+  function go() {
+    var r = WAYS[way](question(aS.value, op, bS.value));
+    out.textContent = '';
+    r.passes.forEach(function (p, i) {
+      out.appendChild(M.el('div', { class: 'caption', style: 'margin:8px 0 2px', text: (r.passes.length > 1 ? 'Pass ' + (i + 1) + ': ' : '') + p.read + ' characters read' }));
+      out.appendChild(M.el('div', { style: 'font-family:var(--mono);font-size:15px;white-space:pre-wrap;overflow-wrap:anywhere;border-left:4px solid var(--line);padding-left:10px', text: p.text }));
+    });
+    stat.innerHTML = 'In all the agent read <b>' + r.read + '</b> characters in ' + r.passes.length + (r.passes.length > 1 ? ' passes.' : ' pass.');
+  }
+  var wS = M.select('Way', [['everything', 'Everything: list the catalogue, cut to fit'], ['picks', 'Harness picks: list what the question names'], ['asks', 'Agent asks: start empty, load what it lacks']], function (v) { way = v; go(); });
+  var oS = M.select('Question', CAT.map(function (e) { return [e.op, 'what is a ' + e.op + ' b?']; }), function (v) { op = v; go(); });
+  var aS = M.slider({ label: 'a', min: 0, max: 99, step: 1, value: 23, fmt: function (v) { return v; }, oninput: function () { go(); } });
+  var bS = M.slider({ label: 'b', min: 0, max: 99, step: 1, value: 45, fmt: function (v) { return v; }, oninput: function () { go(); } });
+  function many() {
+    var r = M.skillsRun(way, 53 * (presses++) + 5, 30);
+    M.bars(bars, [{ label: 'right', p: r.right / 30, text: r.right + ' of 30', hl: true }, { label: 'wrong', p: (30 - r.right) / 30, text: (30 - r.right) + ' of 30', cut: true }], 1);
+    runStat.textContent = 'Thirty questions over the six operations: ' + r.read + ' characters read per question.';
+  }
+  box.appendChild(M.row(wS)); box.appendChild(M.row(oS)); box.appendChild(M.row(aS)); box.appendChild(M.row(bS)); box.appendChild(out); box.appendChild(stat);
+  box.appendChild(M.row(M.button('Run thirty questions this way', many, 'go'))); box.appendChild(bars); box.appendChild(runStat);
+  box.appendChild(M.el('p', { class: 'caption', text: 'The agent of chapter 37, running in your browser. The catalogue has six tools and the list has room for ' + T.room + '. "Characters read" counts everything in the context by the end of each pass.' }));
+  go();
+});
+</script>
+</body>
+</html>
