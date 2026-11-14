@@ -12,53 +12,132 @@
   <h1>Letting tokens look at each other</h1>
   <p class="question">After chapter 4, each token's vector knows about that token and nothing else. The next character depends on everything before it. How does information travel from where it is to where it is needed?</p>
 
-  <p>The count table of chapter 1 had a fixed answer: look at the last few characters, always the same ones. That is rigid. To continue <code>KING RICHARD:</code> the model needs the newline that follows a speaker's name. To finish a word it needs the letters since the last space. What is relevant changes from position to position.</p>
-  <p>So let each position <em>choose</em> what to read, based on content. This is <strong>attention</strong>, and it is built from the dot product of the previous chapter.</p>
+  <p>The count table of chapter 1 had a fixed answer: look at the last few characters, always the same ones. That is rigid. To continue <code>KING RICHARD:</code> the model needs the line break that follows a speaker's name. To finish a word it needs the letters since the last space. What is relevant changes from position to position.</p>
+  <p>So let each position <em>choose</em> what to read, based on content.</p>
+
+  <div class="def"><span class="kind">Definition</span>
+    <p><dfn>Attention</dfn> is the step in which every token collects information from the tokens before it, taking more from the ones that matter to it and less from the others.</p>
+  </div>
+  <p>It is built from the dot product of chapter 4, plus two new tools. Take the tools first.</p>
+
+  <h2>Tool one: a matrix turns a vector into another vector</h2>
+  <div class="def"><span class="kind">Definition</span>
+    <p>A <dfn>matrix</dfn> is a table of numbers. Multiplying a vector by a matrix gives a new vector: each entry of the new vector is the dot product of the old vector with one column of the table.</p>
+  </div>
+  <h3>By hand</h3>
+  <p>Take the vector (2, 1) and a matrix whose two columns are (1, 0) and (0.5, −1).</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Entry of the new vector</th><th>Dot product of (2, 1) with</th><th>Result</th></tr>
+    <tr><td>first</td><td class="mono">column 1: (1, 0)</td><td class="mono">2 × 1 + 1 × 0 = 2</td></tr>
+    <tr><td>second</td><td class="mono">column 2: (0.5, −1)</td><td class="mono">2 × 0.5 + 1 × −1 = 0</td></tr>
+  </table></div>
+  <p>The vector (2, 1) has become (2, 0). A matrix is a way to compute a new vector from an old one, and what it computes depends on the numbers in the table. In a model those numbers are parameters, so training decides what each matrix does. Most of the 345,504 parameters of our model sit in matrices.</p>
+
+  <h2>Tool two: the softmax turns scores into shares</h2>
+  <p>The second tool takes a list of scores, any numbers at all, and turns it into shares: positive numbers that add up to 1, larger for larger scores.</p>
+  <div class="def"><span class="kind">Definition</span>
+    <p>The <dfn>softmax</dfn> of a list of scores: raise e ≈ 2.718 to the power of each score, then divide each result by their total.</p>
+  </div>
+  <div class="eq">share<sub><i>i</i></sub> = <span class="frac"><span>e<sup>score<sub><i>i</i></sub></sup></span><span>e<sup>score<sub>1</sub></sup> + e<sup>score<sub>2</sub></sup> + …</span></span></div>
+  <h3>By hand</h3>
+  <p>Three scores: 2, 0 and 1.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Score</th><th>e to that power</th><th>Divided by the total, 11.11</th></tr>
+    <tr><td class="mono">2</td><td class="mono">7.39</td><td class="mono">0.67</td></tr>
+    <tr><td class="mono">0</td><td class="mono">1.00</td><td class="mono">0.09</td></tr>
+    <tr><td class="mono">1</td><td class="mono">2.72</td><td class="mono">0.24</td></tr>
+  </table></div>
+  <p>The shares add up to 1, and the highest score has the largest share. Each part of the recipe answers a need:</p>
+  <ul>
+    <li><strong>Positive, and adding up to 1.</strong> A power of e is never negative, and dividing by the total makes the sum 1. So the shares can be used as the weights of an average, or as probabilities.</li>
+    <li><strong>Smooth.</strong> A small change in a score gives a small change in the shares. Gradient descent needs that: it follows slopes, and a rule like "give everything to the largest" has none.</li>
+    <li><strong>Only differences count.</strong> Add 10 to every score and the shares do not change. A gap of 1 between two scores always means that one share is e ≈ 2.7 times the other, as with 0.24 and 0.09 above.</li>
+  </ul>
+  <p>The softmax is used in two places. Inside attention, as you are about to see. And at the very end of the model, where it turns the 65 scores of chapter 4 into the 65 probabilities that chapter 1 asked for.</p>
 
   <h2>Ask, advertise, hand over</h2>
-  <p>From its vector, every token produces three new vectors, each by multiplying with its own learned matrix:</p>
-  <ul>
-    <li>a <strong>query</strong>: what I am looking for;</li>
-    <li>a <strong>key</strong>: what I can offer;</li>
-    <li>a <strong>value</strong>: what I will hand over if chosen.</li>
-  </ul>
-  <p>A token compares its query with the key of every token before it, using the dot product. A high score means "this is what I was looking for". The scores are turned into weights that are positive and add up to 1. The token then receives the weighted average of the values. That average is added to its own vector, and the token now knows something about its context.</p>
+  <p>Now attention itself. From its vector, every token produces three new vectors, each by multiplying with its own learned matrix:</p>
+  <div class="def"><span class="kind">Definitions</span>
+    <p>A token's <dfn>query</dfn> says what it is looking for.</p>
+    <p>Its <dfn>key</dfn> says what it can offer.</p>
+    <p>Its <dfn>value</dfn> is what it hands over if it is chosen.</p>
+  </div>
+  <p>A token compares its query with the key of every token before it, using the dot product. A high score means "this is what I was looking for". The softmax turns the scores into shares. The token then receives the average of the values, each weighted by its share. That average is added to the token's own vector, and the token now knows something about its context.</p>
+
+  <h3>By hand: one token reads three others</h3>
+  <p>A token has the query (1, 0). Three tokens stand before it:</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Earlier token</th><th>Key</th><th>Score: query · key</th><th>Share (softmax)</th><th>Value</th></tr>
+    <tr><td>first</td><td class="mono">(2, 0)</td><td class="mono">1 × 2 + 0 × 0 = 2</td><td class="mono">0.67</td><td class="mono">(1, 0)</td></tr>
+    <tr><td>second</td><td class="mono">(0, 1)</td><td class="mono">1 × 0 + 0 × 1 = 0</td><td class="mono">0.09</td><td class="mono">(0, 1)</td></tr>
+    <tr><td>third</td><td class="mono">(1, 1)</td><td class="mono">1 × 1 + 0 × 1 = 1</td><td class="mono">0.24</td><td class="mono">(1, 1)</td></tr>
+  </table></div>
+  <p>The scores are 2, 0 and 1, the same three as in the softmax example, so the shares are 0.67, 0.09 and 0.24. What the token receives is the weighted average of the values:</p>
+  <div class="eq">0.67 × (1, 0) + 0.09 × (0, 1) + 0.24 × (1, 1) = (0.91, 0.33)</div>
+  <p>Two thirds of what it received came from the first token, whose key pointed the same way as its query. Nothing was looked up by position. The first token was chosen for what it contained.</p>
+
+  <figure class="fig">
+    <svg viewBox="0 0 760 250" role="img" aria-labelledby="f5a">
+      <title id="f5a">One token with a query reads three earlier tokens. Each earlier token has a key and a value. The query is compared with each key, giving scores 2, 0 and 1. The softmax turns them into shares of 0.67, 0.09 and 0.24. The values, weighted by these shares, are added up into one vector that the reading token receives.</title>
+      <defs><marker id="c5a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
+      <g class="t-small">
+      <rect x="16" y="20" width="150" height="62" rx="6" class="bx"/><text x="91" y="42" text-anchor="middle">first token</text><text x="91" y="64" text-anchor="middle" class="t-mono">key (2, 0)</text>
+      <rect x="16" y="94" width="150" height="62" rx="6" class="bx"/><text x="91" y="116" text-anchor="middle">second token</text><text x="91" y="138" text-anchor="middle" class="t-mono">key (0, 1)</text>
+      <rect x="16" y="168" width="150" height="62" rx="6" class="bx"/><text x="91" y="190" text-anchor="middle">third token</text><text x="91" y="212" text-anchor="middle" class="t-mono">key (1, 1)</text>
+      <text x="262" y="44" text-anchor="middle" class="t-mono">score 2</text><text x="262" y="118" text-anchor="middle" class="t-mono">score 0</text><text x="262" y="212" text-anchor="middle" class="t-mono">score 1</text>
+      <rect x="330" y="60" width="110" height="130" rx="8" class="bx-soft"/><text x="385" y="130" text-anchor="middle" class="t-big">softmax</text>
+      <text x="505" y="44" text-anchor="middle" class="t-mono t-fwd">0.67</text><text x="505" y="118" text-anchor="middle" class="t-mono t-fwd">0.09</text><text x="505" y="192" text-anchor="middle" class="t-mono t-fwd">0.24</text>
+      <rect x="574" y="76" width="170" height="98" rx="8" class="bx-fwd"/><text x="659" y="104" text-anchor="middle">the reading token</text><text x="659" y="126" text-anchor="middle" class="t-mono">query (1, 0)</text><text x="659" y="152" text-anchor="middle" class="t-mono">receives (0.91, 0.33)</text>
+      </g>
+      <g class="ln"><line x1="168" y1="51" x2="326" y2="90" marker-end="url(#c5a)"/><line x1="168" y1="125" x2="326" y2="125" marker-end="url(#c5a)"/><line x1="168" y1="199" x2="326" y2="160" marker-end="url(#c5a)"/></g>
+      <line x1="442" y1="90" x2="570" y2="110" class="ln-fwd" style="stroke-width:5" marker-end="url(#c5a)"/>
+      <line x1="442" y1="125" x2="570" y2="125" class="ln-fwd" style="stroke-width:1" marker-end="url(#c5a)"/>
+      <line x1="442" y1="160" x2="570" y2="140" class="ln-fwd" style="stroke-width:2.5" marker-end="url(#c5a)"/>
+    </svg>
+    <figcaption><b>One token reads three.</b> Scores come from comparing the query with each key. The softmax turns them into shares, and the shares decide how much of each value arrives.</figcaption>
+  </figure>
 
   <section class="bench" id="w-toy">
     <h3>Attention with five tokens, in two dimensions</h3>
-    <p class="try"><b>Try this.</b> The dark arrow is one token's query. The coloured dots are the keys of five other tokens, and each token's value is simply its colour. Swing the query toward a key and watch the output take that colour. Then pull sharpness to 0 and to 5.</p>
+    <p class="try"><b>Try this.</b> The dark arrow is one token's query. The coloured dots are the keys of five other tokens, and each token's value is simply its colour. Read the bars as they stand. Swing the query toward another key and watch the output take that colour. Then pull sharpness to 0, and to 5.</p>
   </section>
 
-  <p>At sharpness 0 the output is the plain average of all five colours: the token reads everything and learns little. At high sharpness it copies a single value. Attention can sit anywhere between a soft blend and a precise lookup, and the model learns which it needs.</p>
-
-  <h2>Why a softmax?</h2>
-  <p>The step from scores to weights is the <strong>softmax</strong>: raise e to each score, then divide by the total.</p>
-  <div class="eq">weight<sub><i>i</i></sub> = <span class="frac"><span>e<sup>score<sub><i>i</i></sub></sup></span><span>e<sup>score<sub>1</sub></sup> + e<sup>score<sub>2</sub></sup> + …</span></span></div>
-  <p>Each part of that recipe answers a need. The weights must be positive and sum to 1, so that the output is an average and keeps the same scale whether there are 5 tokens or 5,000. They must change smoothly with the scores, or gradient descent has no slope to follow. And the exponential makes the result depend on <em>differences</em> between scores: add 10 to every score and nothing changes. A gap of 1 between two scores always means a ratio of e ≈ 2.7 between their weights.</p>
+  <p><strong>What you should have seen.</strong> At the start the query points near the key of <code>sun</code>: its score is 4.0 and its share 87.1%, with 6.7% for <code>rose</code> and 6.0% for <code>ash</code>, so the output is close to the colour of <code>sun</code>. At sharpness 0 every score is 0 and every share is 20.0%: the output is the plain average of all five colours, and the token reads everything and learns little. At sharpness 5 <code>sun</code> has 100.0%: the output is a copy of one value. Attention can sit anywhere between a soft blend and a precise lookup, and the model learns which it needs.</p>
 
   <h2>Why divide by a square root?</h2>
   <p>The attention formula in every implementation divides the scores by √<i>d</i>, where <i>d</i> is the number of dimensions of the queries and keys. It looks like a fussy detail. It is there because of a fact about dot products that you can check by experiment.</p>
-  <p>A dot product is a sum of <i>d</i> terms. If the entries of the vectors are roughly independent with a typical size of 1, each term is as likely to be positive as negative, and the sum wanders away from zero like a random walk: its typical size grows as √<i>d</i>. With 2 dimensions the scores are around ±1.4. With 1,024 they are around ±32. Feed scores that far apart to a softmax and one weight becomes 1 and the rest 0.</p>
+  <p>A dot product is a sum of <i>d</i> terms. Suppose the entries of the two vectors are unrelated numbers of a typical size of 1. Each term is then as likely to be positive as negative. Such a sum does not stay near zero, and it does not grow as fast as <i>d</i> either, because the terms partly cancel: its typical size grows as √<i>d</i>. With 2 dimensions the scores are around ±1.4. With 1,024 they are around ±32. Feed scores that far apart to a softmax and one share becomes 1 and the rest 0.</p>
 
   <section class="bench" id="w-sqrt">
     <h3>Random queries and keys, at different widths</h3>
-    <p class="try"><b>Try this.</b> Eight random keys, one random query. Raise the dimension and compare the two sets of bars. Without scaling, attention collapses onto one token as the vectors get wider. With scaling, it looks the same at every width.</p>
+    <p class="try"><b>Try this.</b> Eight random keys, one random query. Move the slider from 2 dimensions to 8, 64 and 1,024, and compare the two sets of bars and the line under them.</p>
   </section>
 
-  <p>A collapsed softmax is a problem for learning, not only for reading. Where a weight is pinned at 0 or 1 the slope is nearly flat, so the gradient has nothing to say, and at the start of training the model would be stuck with arbitrary hard choices. Dividing by √<i>d</i> brings the scores back to a typical size of 1 whatever the width, and leaves it to learning to sharpen them where sharpness helps.</p>
+  <p><strong>What you should have seen.</strong> The typical size of a score follows √<i>d</i>: 1.3 at 2 dimensions, 2.8 at 8, 7.7 at 64 and 31.3 at 1,024. Without the division, the largest of the eight shares grows from 41% to 64%, 88% and 97%: attention collapses onto one token as the vectors get wider. With the division it stays near 35% at every width.</p>
+  <p>A collapsed softmax is a problem for learning, and not only for reading. Where a share is pinned at 0 or 1 the slope is nearly flat, so the gradient has nothing to say, and at the start of training the model would be stuck with hard choices it made by accident. Dividing by √<i>d</i> brings the scores back to a typical size of 1 whatever the width, and leaves it to training to sharpen them where sharpness helps.</p>
 
   <h2>No looking ahead</h2>
-  <p>One rule is missing. During training the model sees a whole passage and must predict, at every position, the character that follows. If position 5 could attend to position 6, it would just read the answer. So before the softmax, the scores of all later positions are set to minus infinity, which gives them weight exactly 0. This <strong>causal mask</strong> is what lets one pass over 64 characters count as 64 honest predictions.</p>
+  <p>One rule is missing. During training the model sees a whole passage and must predict, at every position, the character that follows. If position 5 could read position 6, it would just read the answer.</p>
+  <div class="def"><span class="kind">Definition</span>
+    <p>The <dfn>causal mask</dfn> stops every position from reading the positions after it: before the softmax, their scores are replaced by minus infinity, which gives them a share of exactly 0.</p>
+  </div>
+  <p>By hand: take the three scores 2, 0 and 1 again, and suppose the third token comes <em>after</em> the reading token. Its score is replaced by minus infinity, and e to that power is 0. The softmax is then taken over 7.39, 1.00 and 0: the shares are 0.88, 0.12 and 0. The later token contributes nothing.</p>
+  <p>The mask is what lets one pass over a passage of 64 characters count as 64 honest predictions, each made from the characters before it and nothing else.</p>
 
   <h2>Several heads</h2>
-  <p>One attention pattern per position is limiting: a token may want its previous letter <em>and</em> the start of the line. So the 96 dimensions are split into 4 groups of 24, and each group runs its own attention with its own queries, keys and values. These are <strong>heads</strong>. Their outputs are glued back together and mixed by one more matrix.</p>
+  <p>One pattern of shares per position is limiting: a token may want its previous letter <em>and</em> the start of the line.</p>
+  <div class="def"><span class="kind">Definition</span>
+    <p>A <dfn>head</dfn> is one complete copy of the attention step, with its own queries, keys and values. Several heads run side by side on the same tokens, and each can look for something different.</p>
+  </div>
+  <p>In our model the 96 numbers of each vector are split into 4 groups of 24, and each group is one head. Their outputs are put back side by side into 96 numbers and mixed by one more matrix. The model also applies the whole attention step three times in a row, in three layers. Chapter 6 explains the layers; here you only need to know that the widget below lets you pick one.</p>
 
   <section class="bench" id="w-real">
     <h3>Attention inside the trained model</h3>
-    <p class="try"><b>Try this.</b> Tap a character. The shading shows how much that position reads from each earlier one, in the chosen layer and head. Positions after it are masked. Step through the heads of layer 1, then choose layer 2, head 2.</p>
+    <p class="try"><b>Try this.</b> The last character, the <code>r</code> of <code>our</code>, is selected. The shading shows how much it reads from each earlier position, in the chosen layer and head. Step through the four heads of layer 1. Then choose layer 2, head 2. Tap other characters as you go.</p>
   </section>
 
-  <p>Measured over 2,500 characters of held-out text, the heads of layer 1 all do a version of the same job: they read the last few characters. Head 2 is the sharpest, with about half its weight on the character immediately before. The network has rebuilt for itself the local context that the count table of chapter 1 was given by construction. Layer 2, head 2 does something a table cannot: it sends about half its attention to the most recent line break, however far back that is. In a play script that is worth knowing, because what comes next depends on whether a line has just begun.</p>
+  <p><strong>What you should have seen.</strong> In layer 1, head 2 reads the character just before: the <code>r</code> takes 67% from the <code>u</code> one place back and 17% from the <code>o</code> two back. The other heads of layer 1 also read the last few characters, in different proportions. Layer 2, head 2 does something else: the same <code>r</code> takes 50% from the line break 24 places back, the one after <code>KING RICHARD:</code>.</p>
+  <p>This holds beyond one example. Measured over 2,500 characters of held-out text, the heads of layer 1 all do a version of the same job: they read the last few characters. Head 2 is the sharpest, with about half its weight on the character immediately before. The model has rebuilt for itself the local context that the count table of chapter 1 was given by construction. Layer 2, head 2 does something a table cannot: it sends about half its attention to the most recent line break, however far back that is. In a play script that is worth knowing, because what comes next depends on whether a line has just begun.</p>
 
   <h2>Build it</h2>
   <pre class="code" data-src="gpt.py#attention">def attention(self, x, i, trace=None):
@@ -76,23 +155,36 @@
     mixed = weights @ v                                              # weighted average of values
     mixed = mixed.transpose(0, 2, 1, 3).reshape(B, T, d)             # glue the heads back
     return mixed @ self.p[f'h{i}.attn.wo']</pre>
-  <p class="src">From <code>code/gpt.py</code>. Queries, keys, values, scores, the scale, the mask, the softmax and the weighted average, for all positions and all heads at once.</p>
+  <p class="src">From <code>code/gpt.py</code>. Queries, keys, values, scores, the scale, the mask, the softmax and the weighted average, for all positions and all heads at once. <code>x</code> holds the vectors of every position, <code>@</code> is multiplication by a matrix, and <code>wq</code>, <code>wk</code>, <code>wv</code> are the three matrices that make queries, keys and values. <code>wo</code> is the matrix that mixes the heads at the end.</p>
 
   <div class="note">
     <h3>What this chapter glossed over</h3>
-    <p><strong>The √<i>d</i> argument has an assumption.</strong> It holds when the entries of queries and keys are roughly independent with similar spread. That is true at the start of training, and the normalisation of chapter 6 helps keep it approximately true later. It is a statement about typical size, not a guarantee.</p>
+    <p><strong>The √<i>d</i> argument has an assumption.</strong> It holds when the entries of queries and keys are roughly independent with similar spread. That is true at the start of training, and a step described in chapter 6 helps keep it approximately true later. It is a statement about typical size, not a guarantee.</p>
     <p><strong>An attention map is not an explanation.</strong> It shows where a head reads from. It does not show what was read or how it was used afterwards. Treat pretty patterns as hints.</p>
-    <p><strong>The cost is quadratic.</strong> Every position scores every earlier position, so doubling the context quadruples the work in this step. This is the main reason long contexts are expensive, and chapter 8 shows the trick that makes generation affordable anyway.</p>
+    <p><strong>The cost grows with the square of the length.</strong> Every position scores every earlier position, so doubling the context quadruples the work in this step. This is the main reason long contexts are expensive, and chapter 8 shows the trick that makes generation affordable anyway.</p>
+  </div>
+
+  <div class="recap">
+    <h3>In short</h3>
+    <ul>
+      <li><a class="term" href="glossary.html#attention">Attention</a> lets each token collect information from the tokens before it, chosen by content. Each token makes a query, a key and a value by multiplying its vector with three learned <a class="term" href="glossary.html#matrix">matrices</a>.</li>
+      <li>Query · key gives a score for every earlier token. The <a class="term" href="glossary.html#softmax">softmax</a> turns scores into shares that add up to 1. The token receives the values, averaged with those shares. By hand, scores of 2, 0 and 1 gave shares of 0.67, 0.09 and 0.24.</li>
+      <li>Scores are divided by √<i>d</i>, or wide vectors would make the softmax pick one token and ignore the rest: 97% on one token at 1,024 dimensions without it, about 35% with it.</li>
+      <li>The <a class="term" href="glossary.html#causal-mask">causal mask</a> gives later positions a share of 0, so every position predicts from what came before.</li>
+      <li>Several <a class="term" href="glossary.html#head">heads</a> run side by side. In our model one reads the previous character, and another finds the last line break.</li>
+    </ul>
   </div>
 
   <h2>Check yourself</h2>
-  <details class="check"><summary>In the first widget, what is the output when sharpness is 0?</summary><p>All scores become 0, the softmax gives every token weight 1/5, and the output is the plain average of the five values, whatever the query is.</p></details>
+  <details class="check"><summary>The scores are 3 and 1. Without a calculator: which share is larger, and by what factor?</summary><p>The first, by a factor of e × e ≈ 7.4. A gap of 1 between scores is a factor of e between shares, and the gap here is 2. The shares are 0.88 and 0.12.</p></details>
+  <details class="check"><summary>In the first widget, what is the output when sharpness is 0?</summary><p>All scores become 0, the softmax gives every token a share of 1/5, and the output is the plain average of the five values, whatever the query is.</p></details>
   <details class="check"><summary>Our heads use 24 dimensions. What are the scores multiplied by?</summary><p>1/√24 ≈ 0.204. You can see it in the code as <code>1.0 / np.sqrt(hd)</code>.</p></details>
   <details class="check"><summary>What would happen if you trained without the mask and then asked the model to generate?</summary><p>Training loss would drop to almost zero, because every position could copy its answer from the next one. At generation time there is no next one. The model would have learned to cheat and nothing else.</p></details>
 </main>
 
 <script src="assets/data.js"></script>
 <script src="assets/weights.js"></script>
+<script src="assets/glossary.js"></script>
 <script src="assets/micro.js"></script>
 <script>
 M.ready(function () {
