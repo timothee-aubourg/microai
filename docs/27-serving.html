@@ -61,6 +61,26 @@
   <div class="def"><span class="kind">Definition</span>
     <p><dfn>Continuous batching</dfn> rebuilds the batch at every pass. A request joins at the next pass after it arrives and leaves at the pass where it finishes, so nobody waits for anybody else's request to end.</p>
   </div>
+  <figure class="fig">
+    <svg viewBox="0 0 760 250" role="img" aria-labelledby="f27a">
+      <title id="f27a">Three requests along a line of time, served in two ways. With fixed batches, the first two run together and the third, which arrived a moment late, waits until both have finished before it starts. With continuous batching, the third joins at the next pass and all three run side by side.</title>
+      <g class="t-small">
+      <text x="16" y="24" class="t-big">fixed batches</text>
+      <text x="16" y="52">request 1</text><rect x="120" y="40" width="260" height="16" rx="3" class="bx-fwd"/>
+      <text x="16" y="76">request 2</text><rect x="120" y="64" width="160" height="16" rx="3" class="bx-fwd"/>
+      <text x="16" y="100">request 3</text><rect x="160" y="88" width="220" height="16" rx="3" class="bx-grad"/><rect x="380" y="88" width="200" height="16" rx="3" class="bx-fwd"/>
+      <text x="270" y="118" text-anchor="middle" class="t-grad">waits for the batch to end</text>
+      <text x="16" y="154" class="t-big">continuous batching</text>
+      <text x="16" y="182">request 1</text><rect x="120" y="170" width="260" height="16" rx="3" class="bx-fwd"/>
+      <text x="16" y="206">request 2</text><rect x="120" y="194" width="160" height="16" rx="3" class="bx-fwd"/>
+      <text x="16" y="230">request 3</text><rect x="160" y="218" width="200" height="16" rx="3" class="bx-fwd"/>
+      <text x="372" y="231" class="t-muted">joins at the next pass</text>
+      </g>
+      <line x1="160" y1="34" x2="160" y2="240" class="ln-dash"/><text x="166" y="30" class="t-small t-muted">request 3 arrives</text>
+      <line x1="120" y1="240" x2="740" y2="240" class="ln"/><text x="740" y="232" text-anchor="end" class="t-small t-muted">time</text>
+    </svg>
+    <figcaption><b>Nobody waits for somebody else's request to end.</b> Blue: being served. Raspberry: waiting.</figcaption>
+  </figure>
   <pre class="code" data-src="ch27_serve.py#queue">def serve(arrivals, step_seconds, together):
     """Requests arrive at the given times; each wants LENGTH tokens. Returns when each one finished.
     together = 1: one request at a time. together = 16: every pass advances up to 16 requests by one token."""
