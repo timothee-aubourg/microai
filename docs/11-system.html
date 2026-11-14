@@ -10,47 +10,110 @@
 <main>
   <p class="where">Chapter 11</p>
   <h1>Memory, books and hands</h1>
-  <p class="question">The model's weights are frozen, it has never seen your documents, it forgets everything between calls, and all it can do is produce text. How do you build something useful out of that?</p>
+  <p class="question">The model's weights are fixed, it has never seen your documents, it forgets everything between calls, and all it can do is write text. How do you build something useful out of that?</p>
 
-  <p>By accepting one constraint and exploiting it. At run time, the model knows exactly two things: what is baked into its weights, and what is written in its context window. You cannot change the weights from your program. So everything a system does to make a model smarter about <em>your</em> situation comes down to choosing what text to put in the window.</p>
-  <p>Conversation memory, document search and tool use sound like three features. They are one mechanism used three ways.</p>
+  <p>By accepting one limit and working inside it. While it runs, the model knows exactly two things: what training left in its weights, and what is written in its context window. Your program cannot change the weights. So everything a system does to make a model useful in <em>your</em> situation comes down to choosing what text to put in the window.</p>
+  <p>Remembering a conversation, searching documents and using tools sound like three features. They are one mechanism used three ways.</p>
+
+  <figure class="fig">
+    <svg viewBox="0 0 760 220" role="img" aria-labelledby="f11a">
+      <title id="f11a">The context window in the middle, as one box of text. Three things write into it: the conversation so far, passages found in your documents, and the results of tools. The model reads the window and writes text, which is either an answer or a request for a tool.</title>
+      <defs><marker id="c11a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
+      <g class="t-small">
+      <rect x="16" y="20" width="200" height="46" rx="6" class="bx"/><text x="116" y="48" text-anchor="middle">the conversation so far</text>
+      <rect x="16" y="86" width="200" height="46" rx="6" class="bx"/><text x="116" y="114" text-anchor="middle">passages from your documents</text>
+      <rect x="16" y="152" width="200" height="46" rx="6" class="bx"/><text x="116" y="180" text-anchor="middle">results of tools</text>
+      <rect x="300" y="40" width="180" height="140" rx="8" class="bx-soft"/><text x="390" y="100" text-anchor="middle" class="t-big">the context window</text><text x="390" y="124" text-anchor="middle" class="t-muted">text, and nothing else</text>
+      <rect x="564" y="70" width="180" height="80" rx="8" class="bx-fwd"/><text x="654" y="104" text-anchor="middle" class="t-big">the model</text><text x="654" y="128" text-anchor="middle">reads it, writes text</text>
+      </g>
+      <g class="ln"><line x1="218" y1="43" x2="296" y2="80" marker-end="url(#c11a)"/><line x1="218" y1="109" x2="296" y2="110" marker-end="url(#c11a)"/><line x1="218" y1="175" x2="296" y2="140" marker-end="url(#c11a)"/><line x1="482" y1="110" x2="560" y2="110" marker-end="url(#c11a)"/></g>
+    </svg>
+    <figcaption><b>One way in.</b> Memory, documents and tools all reach the model the same way: as text that your program writes into the window.</figcaption>
+  </figure>
 
   <h2>The window is a budget</h2>
-  <p>Chapter 10 showed that a chat works by resending the transcript on every turn. That transcript shares the window with everything else you want the model to know, and the window is finite. Chapter 9 showed that making it larger costs memory, and chapter 8 that reading it costs time.</p>
+  <p>Chapter 10 showed that a chat works by sending the whole conversation again on every turn. That conversation shares the window with everything else you want the model to know, and the window is finite. Chapter 9 showed that making it larger costs memory, and chapter 8 that reading it costs time.</p>
+  <h3>By hand: adding up a window</h3>
+  <p>A window of 8,192 tokens, twelve turns into a conversation:</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>What is in the window</th><th>Tokens</th></tr>
+    <tr><td>instructions and descriptions of tools</td><td class="mono">750</td></tr>
+    <tr><td>three passages from documents, 500 tokens each</td><td class="mono">1,500</td></tr>
+    <tr><td>the conversation so far: 12 turns of 150 tokens</td><td class="mono">1,800</td></tr>
+    <tr><td>room kept for the reply</td><td class="mono">600</td></tr>
+    <tr><td>total</td><td class="mono">4,650</td></tr>
+  </table></div>
+  <p>It fits, with 3,542 to spare. The conversation is the part that grows. At 40 turns it takes 6,000 tokens, the total is 8,850, and the window is over by 658.</p>
 
   <section class="bench" id="w-budget">
     <h3>What competes for the context window</h3>
-    <p class="try"><b>Try this.</b> Lengthen the conversation until the bar overflows. Then try to fix it three ways: a bigger window, fewer or smaller retrieved passages, or dropping old turns.</p>
+    <p class="try"><b>Try this.</b> Read the starting numbers: they are the by-hand table. Lengthen the conversation to 40 turns, then 60. Then try to fix it three ways: a larger window, fewer or smaller passages, or fewer turns.</p>
   </section>
 
-  <p>When the budget is exceeded something must go, and whatever goes, the model no longer knows. Every assistant that seems to "remember" is managing this budget behind the scenes: trimming old turns, replacing them with a summary, or storing them outside and fetching back only what looks relevant. That last idea is the next section.</p>
+  <p><strong>What you should have seen.</strong> At 12 turns: 4,650 of 8,192 tokens. At 30 turns it still fits, with 842 to spare. At 40 turns it is over by 658, and at 60 turns by 3,658. A window of 32,768 tokens holds the 60 turns with 20,918 to spare, at the cost in memory that chapter 9 worked out.</p>
+  <p>When the budget is exceeded something must go, and whatever goes, the model no longer knows. Every assistant that seems to "remember" is managing this budget out of sight: cutting old turns, replacing them with a summary, or storing them outside the window and fetching back only what looks relevant. Chapter 16 measures these choices. That last idea, fetching what is relevant, is the next section.</p>
 
   <h2>An open book: retrieval</h2>
-  <p>You have a folder of notes, far too large for the window. For any one question only a few passages matter. So find them first, and put only those in the prompt. This is <strong>retrieval-augmented generation</strong>, RAG, and it needs nothing beyond chapter 4.</p>
+  <p>You have a folder of notes, far too large for the window. For any one question only a few passages matter. So find them first, and put only those in the window.</p>
+  <div class="def"><span class="kind">Definitions</span>
+    <p><dfn>Retrieval-augmented generation</dfn>, RAG for short, is answering a question in two steps: search your documents for the passages that fit the question, then give the model those passages along with the question.</p>
+    <p>A <dfn>chunk</dfn> is one of the passages the documents are cut into, so that each can be found by itself.</p>
+  </div>
+  <p>The search needs nothing beyond chapter 4:</p>
   <ol>
-    <li>Cut the documents into passages, called chunks.</li>
-    <li>Turn each chunk into a vector, with a model trained so that texts with similar meaning get vectors pointing in similar directions. Do this once and keep the vectors.</li>
-    <li>Turn the question into a vector the same way, and take the chunks with the highest cosine similarity.</li>
-    <li>Write those chunks into the prompt above the question.</li>
+    <li>Cut the documents into chunks.</li>
+    <li>Turn each chunk into a vector, in such a way that texts about the same thing get vectors pointing the same way. Do this once and keep the vectors.</li>
+    <li>Turn the question into a vector the same way, and take the chunks whose vectors have the highest cosine with it.</li>
+    <li>Write those chunks into the window above the question.</li>
   </ol>
+  <h3>By hand: searching two notes</h3>
+  <p>The simplest way to turn a text into a vector is to count its words. Take two notes, <code>the cat sat</code> and <code>the dog ran</code>, and the question <code>cat sat</code>. Give every word its own entry, in the order the, cat, sat, dog, ran:</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Text</th><th>Vector of word counts</th><th>Cosine with the question</th></tr>
+    <tr><td class="mono">cat sat (the question)</td><td class="mono">(0, 1, 1, 0, 0)</td><td></td></tr>
+    <tr><td class="mono">the cat sat</td><td class="mono">(1, 1, 1, 0, 0)</td><td class="mono">2 / (1.41 × 1.73) = 0.82</td></tr>
+    <tr><td class="mono">the dog ran</td><td class="mono">(1, 0, 0, 1, 1)</td><td class="mono">0</td></tr>
+  </table></div>
+  <p>The first note wins, and it would go into the window. The second shares no word with the question, so its dot product is 0.</p>
 
   <section class="bench" id="w-rag">
     <h3>Search the notes of this course</h3>
-    <p class="try"><b>Try this.</b> Ask something the notes cover, in their words. Then ask <b>why is my laptop sluggish</b>. The notes do discuss speed, but this demo compares texts by shared words, and there are none. That failure is the reason real systems use learned embeddings.</p>
+    <p class="try"><b>Try this.</b> Twelve short notes summarise chapters 1 to 12. Read the scores for the question in the box. Then ask <b>how many bits per weight</b>. Then ask <b>why is my laptop sluggish</b>, and after that the same question with <b>slow</b> in place of sluggish.</p>
   </section>
 
-  <p>The demo above builds its vectors from word counts, weighting rare words more (a classic method called TF-IDF). It is transparent and has no model to download, and it is blind to meaning: <em>sluggish</em> and <em>slow</em> are unrelated to it. An embedding model fixes that. It is a transformer like the one you built, trained so that its output vector captures what a passage is about, and your local server can run one alongside the chat model. The script in this repository uses one if you name it, and falls back to word counts otherwise.</p>
+  <p><strong>What you should have seen.</strong> For the question about dividing attention scores, the note on attention scores 0.50 and the next one 0.14: a clear winner. For bits per weight, the note on quantization scores 0.54. For the sluggish laptop the best score is 0.16, barely above the others. And the scores are exactly the same with <code>slow</code>: the word that carries the meaning counts for nothing, because neither word appears in the notes. The small scores come from common words such as <code>is</code>.</p>
+  <p>That is the limit of counting words. This demo builds its vectors from word counts, giving rare words more weight, a classic method called TF-IDF. It is easy to follow and needs no model, and it is blind to meaning: <em>sluggish</em>, <em>slow</em> and <em>speed</em> are unrelated to it. The fix is the idea of chapter 4 applied to whole passages.</p>
+  <div class="def"><span class="kind">Definition</span>
+    <p>An <dfn>embedding model</dfn> is a model that turns a whole passage into one vector, trained so that passages with similar meaning get vectors pointing the same way.</p>
+  </div>
+  <p>It is a transformer like the one you built, and the server of chapter 10 can run one next to the chat model. The script in this repository uses one if you name it, and falls back to word counts otherwise.</p>
 
   <h2>Hands: tools</h2>
-  <p>A model can only emit text. It cannot look at a clock, multiply reliably, or read a file. But your program can, so the two make a deal.</p>
-  <p>You describe each available function to the model: its name, what it does, what arguments it takes. The model has been trained so that, when a function would help, it writes a specially formatted request instead of an answer. Your program notices the request, runs the function, and appends the result to the conversation as a new message. Then it calls the model again. With the result now in its window, the model can answer, or ask for another tool.</p>
+  <p>A model can only write text. It cannot look at a clock, multiply reliably, or read a file. But your program can, so the two make a deal.</p>
+  <div class="def"><span class="kind">Definitions</span>
+    <p>A <dfn>tool</dfn> is a function of your program that the model is allowed to ask for.</p>
+    <p>A <dfn>tool call</dfn> is the model's request: a piece of text in an agreed format that names a tool and gives its arguments. The model writes the request. Your program runs the tool.</p>
+    <p>An <dfn>agent</dfn> is a model inside a loop that runs the tools it asks for and gives it the results, until it answers in plain text.</p>
+  </div>
+  <p>You describe each tool to the model: its name, what it does, what arguments it takes. The model has been trained so that, when a tool would help, it writes a tool call instead of an answer. Your program notices the request, runs the function, and adds the result to the conversation as a new message. Then it calls the model again. With the result now in its window, the model can answer, or ask for another tool.</p>
+  <h3>By hand: one question, five messages</h3>
+  <div class="scroll"><table class="mini">
+    <tr><th>Message</th><th>Written by</th><th>Content</th></tr>
+    <tr><td class="mono">1 system</td><td>your program</td><td>Use the tools when they help. Tools: calculator, search_notes.</td></tr>
+    <tr><td class="mono">2 user</td><td>the person</td><td>What is 17% of 2,340?</td></tr>
+    <tr><td class="mono">3 assistant</td><td>the model</td><td class="mono">calculator("0.17 * 2340")</td></tr>
+    <tr><td class="mono">4 tool</td><td>your program</td><td class="mono">397.8</td></tr>
+    <tr><td class="mono">5 assistant</td><td>the model</td><td>17% of 2,340 is 397.8.</td></tr>
+  </table></div>
+  <p>The model was called twice: once with messages 1 and 2, once with messages 1 to 4.</p>
 
   <section class="bench" id="w-agent">
     <h3>One tool call, message by message</h3>
-    <p class="try"><b>Try this.</b> Press Next and read who wrote each message. This trace is scripted to show the flow; run <code>code/ch11_agent.py</code> to watch a real model do it.</p>
+    <p class="try"><b>Try this.</b> Press Next three times, and each time read who wrote the new message and what the line under the list says will happen next. This trace is scripted to show the flow; run <code>code/ch11_agent.py</code> to watch a real model do it.</p>
   </section>
 
-  <p>Notice what the model did at the third message: it wrote text. It did not calculate anything. The arithmetic happened in your program. And notice that the "state" of the whole process is just the growing list of messages. Put that exchange inside a loop that continues until the model answers in plain text, and you have what is called an <strong>agent</strong>.</p>
+  <p><strong>What you should have seen.</strong> The list starts with two messages. The third is the model's request, with the note "It is asking, not computing". The fourth is the result, 397.8, added by your program. The fifth is the model's answer, and the widget says the loop ends because the model replied in plain text, after two calls to the model.</p>
+  <p>Notice what the model did at the third message: it wrote text. It did not calculate anything. The arithmetic happened in your program. And notice that the whole state of the process is the growing list of messages. Nothing else is kept anywhere.</p>
 
   <h2>Build it</h2>
   <pre class="code" data-src="ch11_rag.py#retrieve">def normalize(v):
@@ -72,7 +135,7 @@ def build_prompt(question, hits):
     return ('Answer the question using only the notes below. '
             'Cite the note number. If the notes do not contain the answer, say so.\n\n'
             f'NOTES\n{context}\n\nQUESTION\n{question}')</pre>
-  <p class="src">From <code>code/ch11_rag.py</code>. An index is a matrix of vectors; search is one matrix-vector product.</p>
+  <p class="src">From <code>code/ch11_rag.py</code>. The index is a table with one vector per chunk. Each vector is scaled to length 1 first, so that a dot product with the question is already the cosine, and one multiplication scores every chunk.</p>
   <pre class="code" data-src="ch11_agent.py#tools"># What the model is told about the tools: a name, a description, a JSON schema.
 TOOLS = [
     {'type': 'function', 'function': {
@@ -106,31 +169,44 @@ TOOLS = [
                 print(f'  tool  {name}({args}) -&gt; {result[:80]!r}')
             messages.append({'role': 'tool', 'tool_call_id': call.get('id', ''), 'content': result})
     return 'Stopped: too many steps.'              # a loop needs a brake</pre>
-  <p class="src">The agent loop, complete.</p>
+  <p class="src">The agent loop, complete: the five messages of the by-hand table, for any number of tool calls. It stops when the model answers in plain text, or after six rounds.</p>
 
   <h2>What makes this hard in practice</h2>
   <ul>
-    <li><strong>Small models make more mistakes in the format.</strong> They may call a tool that does not exist or pass malformed arguments. The loop above sends the error back as the tool's result, which often lets the model correct itself.</li>
+    <li><strong>Small models make more mistakes in the format.</strong> They may call a tool that does not exist or write arguments that cannot be read. Chapter 13 removes that failure. The loop above sends the error back as the tool's result, which often lets the model correct itself.</li>
     <li><strong>Loops need brakes.</strong> A confused model can call tools forever. Always cap the number of steps.</li>
-    <li><strong>Tools run with your permissions.</strong> Text written by a model, possibly influenced by a web page or document it just read, ends up as arguments to your functions. Offer few tools, check their arguments, and never pass model output to <code>eval</code> or a shell.</li>
+    <li><strong>Tools run with your permissions.</strong> Text written by a model, possibly influenced by a web page or document it just read, ends up as arguments to your functions. Offer few tools, check their arguments, and never hand the model's text to anything that runs it as a command. Chapter 17 is about this.</li>
     <li><strong>Retrieval finds similar text, not true text.</strong> If the right passage is not retrieved, or a wrong one is, the model will usually answer confidently from what it was given.</li>
   </ul>
-  <p>One more caution, about judging such systems. An agent can score well on a published benchmark and fail on a task that looks almost the same to you. A benchmark is a fixed set of situations; a system tuned on it, or a model whose training data resembled it, can succeed through regularities that hold there and nowhere else. The dependable measure is a small set of tasks from your own work, with answers you have checked.</p>
+  <p>One more caution, about judging such systems. An agent can score well on a published test and fail on a task that looks almost the same to you. A published test is a fixed set of situations. A system adjusted until it passes them, or a model trained on text that resembled them, can succeed through patterns that hold there and nowhere else. The dependable measure is a small set of tasks from your own work, with answers you have checked. Chapter 14 builds one.</p>
 
   <div class="note">
     <h3>What this chapter glossed over</h3>
-    <p><strong>Chunking is a craft.</strong> Here each note is one chunk. Real documents must be cut, and where you cut changes what can be found. Too small and passages lose their context; too large and they dilute the vector and crowd the window.</p>
-    <p><strong>Tool calling is a convention, not a capability of the architecture.</strong> A model does it only if it was trained on that format. Check that the model you download lists tool support.</p>
+    <p><strong>Cutting into chunks is a craft.</strong> Here each note is one chunk. Real documents must be cut, and where you cut changes what can be found. Too small and passages lose their context; too large and one vector has to stand for too many things, and the passage crowds the window.</p>
+    <p><strong>Calling tools is a trained habit.</strong> Nothing in the transformer does it. A model writes tool calls only if it was trained on that format. Check that the model you download lists tool support.</p>
     <p><strong>How these scripts were tested.</strong> Retrieval runs fully offline and was tested as is. The agent loop was tested against the fake server in this repository, which picks tools by simple rules. A real model's behaviour will vary.</p>
   </div>
 
+  <div class="recap">
+    <h3>In short</h3>
+    <ul>
+      <li>While it runs, a model knows its weights and its context window. Everything a system adds reaches it as text in the window.</li>
+      <li>The window is a budget. By hand: 4,650 of 8,192 tokens at 12 turns, over by 658 at 40. What is cut, the model no longer knows.</li>
+      <li><a class="term" href="glossary.html#rag">Retrieval</a> finds the few <a class="term" href="glossary.html#chunk">chunks</a> that fit a question, by cosine between vectors, and writes them into the window. Counting words is blind to meaning; an <a class="term" href="glossary.html#embedding-model">embedding model</a> is not.</li>
+      <li>A <a class="term" href="glossary.html#tool-call">tool call</a> is text the model writes to ask for a function. Your program runs it and writes the result into the window.</li>
+      <li>An <a class="term" href="glossary.html#agent">agent</a> is that exchange in a loop, and its whole state is the list of messages.</li>
+    </ul>
+  </div>
+
   <h2>Check yourself</h2>
+  <details class="check"><summary>With word counts, what is the cosine between the question <code>dog</code> and the note <code>the dog ran</code>?</summary><p>The question is (0, 0, 0, 1, 0), of length 1. The note is (1, 0, 0, 1, 1), of length 1.73. Their dot product is 1, so the cosine is 1 / 1.73 = 0.58.</p></details>
   <details class="check"><summary>A user says "as I told you last week…". What would have to be true for a local assistant to know what they mean?</summary><p>The text of last week's conversation, or a summary of it, must be put into the current window. Either the program stored it and resends it, or it retrieves the relevant part. The model itself retained nothing.</p></details>
   <details class="check"><summary>In the tool-call trace, which messages did the model write?</summary><p>The third and the fifth: the request to use the calculator, and the final answer. The system and user messages came from you, and the tool result from your program.</p></details>
   <details class="check"><summary>Retrieval returned two passages, neither containing the answer. What will the model probably do, and how do you reduce the harm?</summary><p>It will often produce a plausible answer anyway. Instruct it to answer only from the passages and to say when they are insufficient, show the user which passages were used, and measure how often the right passage is retrieved.</p></details>
 </main>
 
 <script src="assets/data.js"></script>
+<script src="assets/glossary.js"></script>
 <script src="assets/micro.js"></script>
 <script>
 M.ready(function () {

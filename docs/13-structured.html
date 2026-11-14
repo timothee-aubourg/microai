@@ -14,28 +14,60 @@
 
   <p>In chapter 11 the model asked for a tool by writing text: a name and some arguments, in a fixed layout. Your program parsed that text. One missing bracket or one invented tool name, and there is nothing to run. The loop there sent the error back to the model and hoped for a better second try.</p>
   <p>You can raise the odds by asking. "Answer only in this format" in the prompt helps a great deal. But a program is a stricter reader than a person. A format that comes out right 99 times in 100 fails once every hundred calls, and an agent makes many calls per task.</p>
-  <p>The better fix sits in a place you already own. Chapter 8 showed that the model only produces scores, and that small functions reshape those scores before the dice are rolled. Temperature and top-k reshape them by <em>size</em>. One more function can reshape them by <em>legality</em>: it knows the format, it knows how far along the text is, and it gives every character that would break the format a score of minus infinity. After the softmax, minus infinity is a probability of exactly zero. This is <strong>constrained decoding</strong>, and the result is called <strong>structured output</strong>.</p>
+  <p>The better fix sits in a place you already own. Chapter 8 showed that the model only produces scores, and that small functions reshape those scores before the dice are rolled. Temperature and top-k reshape them by <em>size</em>. One more function can reshape them by <em>legality</em>: it knows the format, it knows how far along the text is, and it gives every character that would break the format a score of minus infinity. After the softmax, minus infinity is a probability of exactly zero, as with the causal mask of chapter 5.</p>
+  <div class="def"><span class="kind">Definitions</span>
+    <p>A <dfn>format</dfn> is a rule that says which texts are acceptable: "a name in capitals, a colon, a line break, one sentence".</p>
+    <p>A <dfn>mask</dfn> is the list of tokens that the format does not allow at the current step. Their scores are replaced by minus infinity.</p>
+    <p><dfn>Constrained decoding</dfn> is sampling with such a mask at every step. What comes out is called <dfn>structured output</dfn>: text that is certain to fit the format.</p>
+  </div>
+  <h3>By hand: one step under a mask</h3>
+  <p>Three characters are possible, with the scores 2, 1 and 0 of chapter 8. The model's own probabilities are 0.67, 0.24 and 0.09. Suppose the format does not allow the first one at this point.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Character</th><th>Score</th><th>Model alone</th><th>Score under the mask</th><th>Under the mask</th></tr>
+    <tr><td class="mono">a</td><td class="mono">2</td><td class="mono">0.67</td><td class="mono">minus infinity</td><td class="mono">0</td></tr>
+    <tr><td class="mono">B</td><td class="mono">1</td><td class="mono">0.24</td><td class="mono">1</td><td class="mono">0.73</td></tr>
+    <tr><td class="mono">C</td><td class="mono">0</td><td class="mono">0.09</td><td class="mono">0</td><td class="mono">0.27</td></tr>
+  </table></div>
+  <p>The model's favourite is gone, and the softmax shares everything between the two that remain. The mask removed 0.67 of the model's belief at this step: that number says how hard the mask had to push. Keep an eye on it. It comes back in the measurements.</p>
+
+  <figure class="fig">
+    <svg viewBox="0 0 760 200" role="img" aria-labelledby="f13a">
+      <title id="f13a">The sampling path of chapter 8 with one box added. The model gives scores. The format, which knows what has been written so far, gives the list of characters allowed next. The mask sets the scores of all other characters to minus infinity. Then the softmax and the draw follow as before.</title>
+      <defs><marker id="c13a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
+      <g class="t-small">
+      <rect x="16" y="100" width="130" height="70" rx="8" class="bx-fwd"/><text x="81" y="130" text-anchor="middle" class="t-big">the model</text><text x="81" y="152" text-anchor="middle">scores</text>
+      <rect x="216" y="100" width="130" height="70" rx="8" class="bx-grad"/><text x="281" y="130" text-anchor="middle" class="t-big">the mask</text><text x="281" y="152" text-anchor="middle">not allowed: −∞</text>
+      <rect x="416" y="100" width="130" height="70" rx="8" class="bx-soft"/><text x="481" y="130" text-anchor="middle" class="t-big">softmax</text><text x="481" y="152" text-anchor="middle">not allowed: 0</text>
+      <rect x="616" y="100" width="128" height="70" rx="8" class="bx-prob"/><text x="680" y="130" text-anchor="middle" class="t-big">draw</text><text x="680" y="152" text-anchor="middle">always fits</text>
+      <rect x="196" y="16" width="170" height="46" rx="8" class="bx"/><text x="281" y="36" text-anchor="middle">the format</text><text x="281" y="54" text-anchor="middle" class="t-muted">what may come next?</text>
+      </g>
+      <g class="ln"><line x1="148" y1="135" x2="212" y2="135" marker-end="url(#c13a)"/><line x1="348" y1="135" x2="412" y2="135" marker-end="url(#c13a)"/><line x1="548" y1="135" x2="612" y2="135" marker-end="url(#c13a)"/><line x1="281" y1="64" x2="281" y2="96" marker-end="url(#c13a)"/></g>
+    </svg>
+    <figcaption><b>One box more than chapter 8.</b> The model is not changed and does not know the format exists.</figcaption>
+  </figure>
 
   <section class="bench" id="w-mask">
     <h3>The same model, with and without the mask</h3>
-    <p class="try"><b>Try this.</b> Write a few times without the mask and see where the text leaves the format. Then write with the mask. Use "One character" to watch the mask at each step: greyed rows are characters the model wanted and the format refused.</p>
+    <p class="try"><b>Try this.</b> The format is: a speaker's name in capitals, a colon, a line break, one sentence. Write a few times without the mask and read where the text leaves the format. Then write a few times with the mask. Use "One character" to watch the mask at each step: greyed rows are characters the model wanted and the format refused.</p>
   </section>
 
+  <p><strong>What you should have seen.</strong> Without the mask most texts break, each in its own place. One wrote <code>QUEEN</code> and then a space, a second word of a name, with 97.6% of its belief. Another put a capital in the middle of the sentence. Another ran past the forty characters the sentence may have. With the mask every text is complete and in the format, and the line under it says how much belief was removed on average: 5.0% in one run, 3.3% in another. The mask rarely had to act, and when it did, the format held.</p>
+
   <h2>A format is a small machine</h2>
-  <p>The mask needs one thing: at every step, the list of characters that may come next. Here a format is a list of parts, read left to right. A part is either "between this many and that many characters from this set" or "exactly one word from this list". The first format in the experiment reads: two to twelve capitals, a colon, a line break, one capital, eight to forty lowercase letters, spaces, commas or apostrophes, one closing mark, a line break.</p>
-  <p>The machine's whole memory is two things: which part it is in, and what has been written of that part. From there it can answer the only question the sampler asks. If the current part can still grow, its characters are allowed. If it has reached its minimum, the first characters of the next part are allowed too. When the last part is complete nothing is allowed, and the loop stops. The model gets no vote on stopping.</p>
+  <p>The mask needs one thing: at every step, the list of characters that may come next. Something has to keep track of where the text is in the format. Here a format is a list of parts, read left to right. A part is either "between this many and that many characters from this set" or "exactly one word from this list". The first format in the experiment reads: two to twelve capitals, a colon, a line break, one capital, eight to forty lowercase letters, spaces, commas or apostrophes, one closing mark, a line break.</p>
+  <p>Call the thing that keeps track a machine. Its whole memory is two things: which part it is in, and what has been written of that part. From there it can answer the only question the sampling code asks. If the current part can still grow, its characters are allowed. If it has reached its minimum, the first characters of the next part are allowed too. When the last part is complete nothing is allowed, and the loop stops. The model gets no vote on stopping.</p>
   <p>The model itself never learns that a format exists. It sees the characters written so far, as always, and proposes what it likes. The mask deletes the proposals that do not fit.</p>
 
   <h2>What the mask costs</h2>
   <p>Measured with <code>code/ch13_constrain.py</code>, 200 samples per row, each starting from a blank line at temperature 0.8:</p>
   <div class="scroll"><table class="mini">
-    <tr><th>Format</th><th>Right shape, no mask</th><th>Right shape, mask</th><th>Belief removed per character</th></tr>
+    <tr><th>Format</th><th>Fits the format, no mask</th><th>Fits the format, mask</th><th>Belief removed per character</th></tr>
     <tr><td>Speaker, one sentence</td><td class="mono">10.0%</td><td class="mono">100%</td><td class="mono">4.7%</td></tr>
     <tr><td>Speaker from a list</td><td class="mono">2.5%</td><td class="mono">100%</td><td class="mono">8.4%</td></tr>
     <tr><td>A line in capitals</td><td class="mono">0.0%</td><td class="mono">100%</td><td class="mono">26.2%</td></tr>
   </table></div>
   <p>The middle columns are the point of the chapter. The mask column is 100% by construction, not by luck: the script asserts it.</p>
-  <p>The last column is the price. At each step the model spreads its belief over 65 characters, and the mask deletes the share that sits on illegal ones. For the first format that share averages under 5%. The model was going to write something close to this anyway, and the mask only catches the occasional slip. For the line in capitals it is 26%. The model almost never writes that way, so the mask overrules it again and again, and what comes out is legal and poor. Try it above.</p>
+  <p>The last column is the price, the number from the by-hand example averaged over every step. At each step the model spreads its belief over 65 characters, and the mask deletes the share that sits on characters the format does not allow. For the first format that share averages under 5%. The model was going to write something close to this anyway, and the mask only catches the occasional slip. For the line in capitals it is 26%. The model almost never writes that way, so the mask overrules it again and again, and what comes out is legal and poor. Try it above.</p>
   <p>So the mask does not replace the prompt. Describe the format to the model as well, so that it is already trying to produce it. Then the mask is a safety net that is rarely touched, not a hand forcing every character.</p>
 
   <h2>Allowed is not the same as likely</h2>
@@ -52,13 +84,19 @@
 
   <section class="bench" id="w-count">
     <h3>How often is the shape right?</h3>
-    <p class="try"><b>Try this.</b> Run it at temperature 0.8, then at 0.3 and at 1.5. One row moves with the temperature. The other cannot.</p>
+    <p class="try"><b>Try this.</b> Run it at temperature 0.8, then at 0.3 and at 1.5, and compare the two rows each time.</p>
   </section>
+
+  <p><strong>What you should have seen.</strong> Without the mask, 8 of 40 texts fit the format at 0.8, 5 of 40 at 0.3 and 6 of 40 at 1.5: the count changes from run to run and with the temperature, and stays low. With the mask it is 40 of 40 every time. Temperature divides the scores, and minus infinity divided by anything is still minus infinity.</p>
 
   <h2>On a real model</h2>
   <p>Three things change at full size, and the idea does not.</p>
-  <p><strong>Tokens, not characters.</strong> A real model draws tokens of several characters (chapter 2). A token is legal if its characters, taken one after another, are all legal moves. The runtime tests every token in the vocabulary against the machine at each step, with a good deal of precomputation to keep that fast.</p>
-  <p><strong>Richer formats.</strong> The format you will want most is JSON: the layout of tool calls and of most data passed between programs. JSON nests, an object inside an object, so its machine needs a stack to remember how deep it is. Such a machine is described by a <strong>grammar</strong>. Runtimes build the grammar for you from a JSON Schema, the same kind of description you gave for tool arguments in chapter 11.</p>
+  <p><strong>Tokens, not characters.</strong> A real model draws tokens of several characters (chapter 2). A token is allowed if its characters, taken one after another, are all allowed. The runtime of chapter 10 tests every token in the vocabulary against the machine at each step, and prepares a good deal in advance to keep that fast.</p>
+  <p><strong>Richer formats.</strong> The format you will want most is JSON: the layout of tool calls and of most data passed between programs. JSON nests, one set of braces inside another, so its machine has to remember how deep it is.</p>
+  <div class="def"><span class="kind">Definitions</span>
+    <p>A <dfn>grammar</dfn> is a description of a format that can nest, written as rules a program can follow.</p>
+    <p>A <dfn>JSON Schema</dfn> is a description of the JSON you expect: which fields, and what kind of value in each. It is the same kind of description you gave for the arguments of a tool in chapter 11. Runtimes build the grammar from it.</p>
+  </div>
   <p><strong>The stop.</strong> A real model ends its turn with a special token. The grammar allows that token only when the format is complete.</p>
   <p>The client of chapter 10 passes extra options straight to the server, so asking for structured output is one more argument:</p>
   <pre class="code">from llm import chat
@@ -69,7 +107,7 @@ schema = {'type': 'object',
 reply = chat([{'role': 'user', 'content': 'Where and when was the first modern Olympics? Reply in JSON.'}],
              response_format={'type': 'json_schema', 'json_schema': {'name': 'answer', 'schema': schema}})
 print(reply['content'])        # text that always parses, with exactly these two fields</pre>
-  <p class="src">The <code>response_format</code> field as documented for the OpenAI-compatible endpoints of Ollama and llama.cpp's <code>llama-server</code>.</p>
+  <p class="src">The <code>response_format</code> field as documented for Ollama and for llama.cpp's <code>llama-server</code>. The schema asks for two fields, a city as text and a year as a whole number.</p>
 
   <h2>Build it</h2>
   <pre class="code" data-src="ch13_constrain.py#moves">def moves(fmt, state):
@@ -130,11 +168,23 @@ print(reply['content'])        # text that always parses, with exactly these two
     <p><strong>Shape is not truth.</strong> The mask guarantees that a field holds a number. It cannot make it the right number. Check values in your own code, as you would with any input from outside.</p>
     <p><strong>A cut-off answer is still broken.</strong> If generation hits its length limit halfway through the format, you receive half of it. Leave room, and check why the model stopped.</p>
     <p><strong>Our format language is tiny.</strong> It has no nesting and no repetition of groups, and it requires that a part which may end shares no character with the part after it, so that one state is enough. Real grammars lift these limits with more bookkeeping and the same mask.</p>
-    <p><strong>Runtimes support a subset.</strong> JSON Schema is large, and each runtime handles part of it. Keywords it does not know may be ignored without an error. Keep schemas simple.</p>
+    <p><strong>Runtimes support part of it.</strong> JSON Schema is large, and each runtime handles some of it. A part it does not know may be ignored without an error. Keep schemas simple.</p>
     <p><strong>How this was tested.</strong> The masked sampler runs on the model of this course, in Python and in your browser, and the numbers above come from it. The <code>response_format</code> snippet follows the published documentation of Ollama and llama.cpp and has not been run against a real server.</p>
   </div>
 
+  <div class="recap">
+    <h3>In short</h3>
+    <ul>
+      <li><a class="term" href="glossary.html#constrained-decoding">Constrained decoding</a> adds one step to sampling: characters the format does not allow get a score of minus infinity, so a probability of exactly 0.</li>
+      <li>The format is followed by a small machine that knows where the text is and what may come next. The model is not changed.</li>
+      <li>Measured on our model: 10.0%, 2.5% and 0.0% of texts fit the three formats without the mask, and 100% with it, at any temperature.</li>
+      <li>The share of belief the mask removes is its price: 4.7% per character for a format the model nearly writes anyway, 26.2% for one it never writes.</li>
+      <li>The mask guarantees the form. It does not make the content right, and among the allowed outputs it does not pick the one the model thought best.</li>
+    </ul>
+  </div>
+
   <h2>Check yourself</h2>
+  <details class="check"><summary>Two characters are possible, with model probabilities 0.9 and 0.1. The format does not allow the first. What is drawn, and how much belief did the mask remove?</summary><p>The second, with probability 1: it is the only one left. The mask removed 0.9 of the model's belief. The text fits the format, and the model thought this character unlikely.</p></details>
   <details class="check"><summary>You raise the temperature to 2 with the mask on. Can the format break?</summary><p>No. Temperature divides the scores, and minus infinity divided by anything is still minus infinity. The illegal characters keep a probability of zero at any temperature. What changes is which legal character is drawn.</p></details>
   <details class="check"><summary>Why can this course's model not be constrained to write JSON?</summary><p>Its vocabulary is the 65 characters of the Shakespeare text, and those include no brace, bracket or double quote. A mask can only remove options. It cannot offer a token the model does not have.</p></details>
   <details class="check"><summary>On one task the mask removes 0.1% of the model's belief per step. On another it removes 60%. What does each number tell you?</summary><p>In the first, the model was already writing the format and the mask is insurance. In the second, the mask is overruling the model most of the time. The output will have the right shape and probably poor content. Fix the prompt, or pick a format closer to what the model writes naturally.</p></details>
@@ -142,6 +192,7 @@ print(reply['content'])        # text that always parses, with exactly these two
 </main>
 
 <script src="assets/weights.js"></script>
+<script src="assets/glossary.js"></script>
 <script src="assets/micro.js"></script>
 <script>
 M.ready(function () {

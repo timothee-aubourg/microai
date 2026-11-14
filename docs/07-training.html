@@ -10,49 +10,106 @@
 <main>
   <p class="where">Chapter 7</p>
   <h1>Watching it learn</h1>
-  <p class="question">The machine is built and its 345,504 numbers are random noise. What does learning actually look like, step by step?</p>
+  <p class="question">The model is built and its 345,504 parameters are random numbers. What does learning actually look like, step by step?</p>
 
-  <p>Training repeats four moves, thousands of times:</p>
+  <p>Chapter 6 built the model, and chapter 3 gave the method for tuning it. This chapter runs the method on the model and watches. Nothing new is needed to start. Training repeats four moves, thousands of times:</p>
   <ol>
     <li>Pick a few random passages from the text.</li>
-    <li>Run the model on them and measure the loss of chapter 1: how surprised was it by each next character?</li>
-    <li>Run backward (chapter 3) to get the slope of the loss for every parameter.</li>
+    <li>Run the model on them, the forward pass of chapter 6, and measure the loss of chapter 1: how surprised was it by each next character?</li>
+    <li>Run the backward pass of chapter 3 to get the slope of the loss for every parameter.</li>
     <li>Move every parameter a small step against its slope.</li>
   </ol>
+  <div class="def"><span class="kind">Definitions</span>
+    <p>One round of these four moves is a <dfn>training step</dfn>.</p>
+    <p>The passages used in one step are a <dfn>batch</dfn>.</p>
+  </div>
+
+  <figure class="fig">
+    <svg viewBox="0 0 760 200" role="img" aria-labelledby="f7a">
+      <title id="f7a">The four moves of a training step, in a loop: pick a batch of passages, run the model forward and measure the loss, run backward to get every slope, move every parameter a little against its slope, then start again with a new batch.</title>
+      <defs><marker id="c7a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
+      <g class="t-small">
+      <rect x="16" y="40" width="160" height="70" rx="8" class="bx"/><text x="96" y="68" text-anchor="middle" class="t-big">1. batch</text><text x="96" y="92" text-anchor="middle">32 random passages</text>
+      <rect x="206" y="40" width="160" height="70" rx="8" class="bx-fwd"/><text x="286" y="68" text-anchor="middle" class="t-big">2. forward</text><text x="286" y="92" text-anchor="middle">predict, get the loss</text>
+      <rect x="396" y="40" width="160" height="70" rx="8" class="bx-grad"/><text x="476" y="68" text-anchor="middle" class="t-big">3. backward</text><text x="476" y="92" text-anchor="middle">a slope per parameter</text>
+      <rect x="586" y="40" width="160" height="70" rx="8" class="bx-soft"/><text x="666" y="68" text-anchor="middle" class="t-big">4. step</text><text x="666" y="92" text-anchor="middle">move against the slopes</text>
+      <text x="380" y="176" text-anchor="middle" class="t-muted">again, with a new batch: 6,000 times</text>
+      </g>
+      <g class="ln"><line x1="178" y1="75" x2="202" y2="75" marker-end="url(#c7a)"/><line x1="368" y1="75" x2="392" y2="75" marker-end="url(#c7a)"/><line x1="558" y1="75" x2="582" y2="75" marker-end="url(#c7a)"/>
+      <path d="M666 112 L666 150 L96 150 L96 116" fill="none" marker-end="url(#c7a)"/></g>
+    </svg>
+    <figcaption><b>One training step.</b> Forward is blue and backward is raspberry, as in chapter 3.</figcaption>
+  </figure>
+
   <p>There is no other ingredient. Nobody tells the model about words, lines, or speakers. Whatever it ends up knowing, it found because knowing it lowered the surprise.</p>
 
   <h2>One passage, many questions</h2>
-  <p>A passage of 64 characters is not one training example. It is 64 of them. The model must predict character 2 from character 1, character 3 from characters 1 and 2, and so on. Thanks to the causal mask of chapter 5, a single pass through the model answers all of them at once without any position seeing its own answer.</p>
+  <p>Where do the questions and the right answers come from? From the text itself. Nobody has to label anything.</p>
+  <h3>By hand: the questions in five characters</h3>
+  <p>Take the passage <code>Befor</code>. The right answer to "what follows <code>B</code>?" is the next character of the passage, and so on along it:</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>The model may read</th><th>It must predict</th></tr>
+    <tr><td class="mono">B</td><td class="mono">e</td></tr>
+    <tr><td class="mono">Be</td><td class="mono">f</td></tr>
+    <tr><td class="mono">Bef</td><td class="mono">o</td></tr>
+    <tr><td class="mono">Befo</td><td class="mono">r</td></tr>
+  </table></div>
+  <p>The answers, <code>efor</code>, are the passage shifted by one character. So a passage of 64 characters is not one training example. It holds one question per position. Thanks to the causal mask of chapter 5, a single forward pass answers all of them at once, and no position can see its own answer.</p>
 
   <section class="bench" id="w-unroll">
     <h3>The questions hidden in one line of text</h3>
-    <p class="try"><b>Try this.</b> Drag the slider. Blue is what the model may look at. The outlined character is what it must predict.</p>
+    <p class="try"><b>Try this.</b> Drag the slider from one end to the other. Blue is what the model may look at. The outlined character is what it must predict.</p>
   </section>
 
-  <p>Our training run uses 32 passages per step, so every step is graded on 32 × 64 = 2,048 predictions. That group is called a <strong>batch</strong>.</p>
+  <p><strong>What you should have seen.</strong> The line has 29 characters and holds 28 questions. Question 6 is: given <code>Before</code>, predict the space. Every question uses the same text. Only the place where the model has to stop reading moves.</p>
+  <p>Our training run uses 32 passages of 64 characters per step, so every step is graded on 32 × 64 = 2,048 predictions. The loss of the step is the average surprise over all of them.</p>
 
   <h2>The run</h2>
-  <p>Here is the actual training run of the model used throughout this course: <span id="nsteps">6,000</span> steps, <span id="secs">a few minutes</span> on two ordinary CPU cores, using only the code in this repository. The thin line is the loss on each training batch. The dots are the loss on a held-out tenth of the text that the model never trains on.</p>
+  <p>Here is the actual training run of the model used throughout this course: <span id="nsteps">6,000</span> steps, <span id="secs">a few minutes</span> on two ordinary CPU cores, using only the code in this repository. The thin line is the loss on each training batch. The dots are the loss on a held-out tenth of the text that the model never trains on, as chapter 1 required.</p>
 
   <section class="bench" id="w-run">
     <h3>From noise to Shakespeare-ish</h3>
-    <p class="try"><b>Try this.</b> Drag across the chart, or use the arrows, to move through training. Below it is what the model wrote at that moment. The horizontal axis is logarithmic, because most of the drama happens early.</p>
+    <p class="try"><b>Try this.</b> Press Earlier until you reach step 0, then press Later again and again, reading the loss and the text the model wrote at that moment. The horizontal axis of the chart is stretched at the start, because most of the change happens early.</p>
   </section>
 
-  <p>At step 0 the output is noise: every character is as likely as any other. By step 30 the model is picking up the cheapest fact available, which characters are common, and its output drifts toward lowercase letters, spaces and line breaks. By step 100 the strings are word-shaped and <em>the</em> and <em>that</em> appear: it has learned which letters follow which. By step 300 lines start with capitals. By step 1,000 it writes speaker names in capitals followed by a colon, with short real words underneath. After that the changes are quieter: more real words, lines of verse-like length. Between steps 2,250 and 2,500 the held-out loss drops below the best count table of chapter 1.</p>
+  <p><strong>What you should have seen.</strong> The loss on the training batch goes 4.18 at step 0, 3.56 at step 30, 2.52 at step 100, 2.22 at step 300, 1.74 at step 1,000, 1.51 at step 3,000 and 1.38 at step 6,000. The text changes with it:</p>
+  <ul>
+    <li><strong>Step 0: noise.</strong> Every character is as likely as any other.</li>
+    <li><strong>Step 30: the cheapest fact.</strong> The model has found which characters are common, and its output drifts toward lowercase letters, spaces and line breaks.</li>
+    <li><strong>Step 100: word shapes.</strong> Strings of word length, with <em>the</em> and <em>that</em> among them. It has learned which letters follow which.</li>
+    <li><strong>Step 300:</strong> lines start with capitals.</li>
+    <li><strong>Step 1,000:</strong> a speaker's name in capitals, a colon, a new line, and short real words underneath.</li>
+    <li><strong>After that</strong> the changes are quieter: more real words, lines of the length of verse.</li>
+  </ul>
+  <p>Between steps 2,250 and 2,500 the held-out loss drops from 1.69 to 1.67, below the 1.68 of the best count table of chapter 1.</p>
 
   <h2>Reading the numbers</h2>
-  <p>The loss starts at 4.17. That is log 65: the freshly initialised model spreads its bets evenly over all characters. It ends near <span id="finalval">1.5</span> on text it has never seen. Since the loss is an average of −log <i>p</i>, a loss of <span class="fv2">1.5</span> means the model gives the correct next character a typical probability of e<sup>−<span class="fv2">1.5</span></sup> ≈ <span id="typp">22</span>%, up from 1.5% at the start.</p>
-  <p>Compare with chapter 1. The best count table reached 1.68 on unseen text and got <em>worse</em> when given more context. The network <span id="beats">does better</span>, and it does so while reading 64 characters of context, a length at which a table would be hopeless. It has the same data. The difference is that it shares what it learns between similar contexts.</p>
-  <p>The gap between the training line and the held-out dots tells you how much is memorisation. Here it stays small, because the model is tiny compared with a million characters of text: it has no room to memorise. Give a much larger model the same text and the dots would eventually turn upward while the line keeps falling. That turn is called overfitting, and the held-out loss exists to catch it.</p>
+  <p>The loss starts at 4.18, a hair above 4.17. That is log 65, the know-nothing score of chapter 1: the model starts with random numbers and spreads its bets evenly over all characters. It ends at <span id="finalval">1.5</span> on text it has never seen.</p>
+  <p>What does <span class="fv2">1.5</span> mean? The loss is an average of −log <i>p</i>. Undo the logarithm: e<sup>−<span class="fv2">1.5</span></sup> ≈ <span id="typp">22</span>%. So the model gives the correct next character a typical probability of about one in five, up from 1.5%, one in 65, at the start.</p>
+  <p>Compare with chapter 1. The best count table reached 1.68 on unseen text and got <em>worse</em> when given more context. This model <span id="beats">does better</span>, and it does so while reading 64 characters of context, a length at which a table would be hopeless. It has the same text. The difference is the one chapter 4 showed: it shares what it learns between similar contexts.</p>
+  <p>The gap between the training line and the held-out dots tells you how much is memorisation. Here it stays small, because the model is small compared with a million characters of text: it has no room to memorise. Give a much larger model the same text and the dots would eventually turn upward while the line keeps falling. That turn is the overfitting of chapter 1, and the held-out loss exists to catch it.</p>
 
   <h2>Three additions to plain gradient descent</h2>
-  <p>The loop in the code differs from chapter 3 in three small ways, each fixing a practical problem.</p>
-  <ul>
-    <li><strong>Adam.</strong> Plain descent uses one step size for every parameter. Adam keeps a running average of each parameter's recent slopes and of their typical size, and scales each parameter's step accordingly. Parameters with consistently small slopes still move. It is the default optimiser for language models.</li>
-    <li><strong>A learning-rate schedule.</strong> The step size ramps up over the first 100 steps, while the slopes are still erratic, then decays smoothly so the model can settle.</li>
-    <li><strong>Gradient clipping.</strong> If a batch produces an unusually large gradient, it is scaled down to a fixed maximum length. One bad batch cannot throw the model off a cliff, as in the diverging run of chapter 3.</li>
-  </ul>
+  <p>The loop in the code differs from chapter 3 in three small ways. Each fixes a practical problem.</p>
+
+  <h3>Adam: a step size for each parameter</h3>
+  <p>Plain descent uses one learning rate for all parameters. But slopes differ enormously from one parameter to another. Suppose one parameter has slopes around 10 and another around 0.001. With a learning rate of 0.01, the first moves by 0.1 per step and the second by 0.00001: ten thousand times less. A rate that suits one is useless for the other.</p>
+  <div class="def"><span class="kind">Definition</span>
+    <p><dfn>Adam</dfn> is a variant of gradient descent that gives every parameter its own step size. For each parameter it keeps a running average of its recent slopes, and of their typical size, and it divides the first by the second.</p>
+  </div>
+  <p>The division is the point. For the first parameter, an average slope of 10 divided by a typical size of 10 is 1. For the second, 0.001 divided by 0.001 is also 1. Both now move by about one learning rate per step, in the direction their slopes have pointed lately. A parameter whose slopes keep changing sign has an average near 0 and hardly moves, which is right: its slopes do not agree on a direction. Adam is the usual choice for training language models.</p>
+
+  <h3>A schedule: the learning rate changes during the run</h3>
+  <div class="def"><span class="kind">Definition</span>
+    <p>A <dfn>learning-rate schedule</dfn> is a rule that sets the learning rate at each step of training.</p>
+  </div>
+  <p>Ours rises from 0 over the first 100 steps, because at the start the weights are random and the slopes point all over the place. Then it falls smoothly to a tenth of its peak by the last step. Large steps are good for getting near the valley and bad for settling in it, as the zigzag of chapter 3 showed.</p>
+
+  <h3>Clipping: no wild steps</h3>
+  <div class="def"><span class="kind">Definition</span>
+    <p><dfn>Gradient clipping</dfn> shrinks the whole gradient when it is longer than a set limit, keeping its direction.</p>
+  </div>
+  <p>By hand, with a limit of 1: a batch gives the gradient (3, 4). Its length is the square root of 3² + 4², which is 5. That is over the limit, so every slope is divided by 5: the gradient becomes (0.6, 0.8), of length 1 and pointing the same way. One odd batch cannot throw the model out of the valley, as in the diverging run of chapter 3.</p>
 
   <h2>Build it</h2>
   <pre class="code" data-src="train.py#batch">def get_batch(source, batch_size):
@@ -61,7 +118,7 @@
     x = np.stack([source[s:s + T] for s in starts])
     y = np.stack([source[s + 1:s + T + 1] for s in starts])
     return x, y</pre>
-  <p class="src">From <code>code/train.py</code>. The target is the input shifted by one character.</p>
+  <p class="src">From <code>code/train.py</code>. <code>x</code> is what the model reads and <code>y</code> the right answers: the same passages shifted by one character, as in the by-hand table. <code>T</code> is 64.</p>
   <pre class="code" data-src="train.py#loop">for step in range(args.steps + 1):
     if step % 250 == 0 or step == args.steps:
         log['val'].append([step, val_loss()])
@@ -85,23 +142,36 @@
         v[i] = b2 * v[i] + (1 - b2) * g * g
         mhat, vhat = m[i] / (1 - b1 ** (step + 1)), v[i] / (1 - b2 ** (step + 1))
         p.data -= lr * mhat / (np.sqrt(vhat) + eps)</pre>
-  <p class="src">The training loop. Predict, measure, backward, step.</p>
-  <p>Training a frontier model is this loop. What changes is scale: thousands of times more parameters, a large fraction of the public internet instead of one book, and warehouses of GPUs instead of a laptop. The loop above would still be recognisable.</p>
+  <p class="src">The training loop: the four moves, then the three additions. <code>clip</code> is the clipping, <code>lr_at(step)</code> the schedule, and the lines with <code>m</code> and <code>v</code> are Adam's two running averages. The first lines of the loop measure the held-out loss every 250 steps and save a sample of writing.</p>
+  <p>Training the largest models is this loop. What changes is scale: millions of times more parameters, a large part of the public internet instead of one book, and buildings full of specialised processors instead of a laptop. Chapter 18 looks at that hardware. The loop above would still be recognisable.</p>
 
   <div class="note">
     <h3>What this chapter glossed over</h3>
-    <p><strong>The curve depends on luck.</strong> A different random initialisation or a different order of batches gives a slightly different curve and different samples. The overall shape is robust; the third decimal is not.</p>
+    <p><strong>The curve depends on luck.</strong> Different random starting weights or a different order of batches gives a slightly different curve and different samples. The overall shape is robust; the third decimal is not.</p>
     <p><strong>Lower loss is not the same as better writing.</strong> The loss rewards getting common things right. Spaces and the letter <em>e</em> count as much as plot. The model here learns spelling and layout long before anything like sense, and at this size it never reaches sense.</p>
-    <p><strong>Hyperparameters were chosen by hand.</strong> Width, depth, learning rate and batch size were picked by a few quick trials to fit a browser and a coffee break. They are reasonable, not optimal.</p>
+    <p><strong>The settings were chosen by hand.</strong> Width, depth, learning rate and batch size are numbers that training does not tune. They are called hyperparameters, and here they were picked by a few quick trials to fit a browser and a coffee break. They are reasonable, not optimal.</p>
+  </div>
+
+  <div class="recap">
+    <h3>In short</h3>
+    <ul>
+      <li>A <a class="term" href="glossary.html#training-step">training step</a> is four moves: pick a <a class="term" href="glossary.html#training-batch">batch</a>, run forward and measure the loss, run backward, move every parameter against its slope.</li>
+      <li>The text supplies its own answers: the target is the passage shifted by one character. One step of ours grades 2,048 predictions.</li>
+      <li>In 6,000 steps the loss on unseen text fell from 4.18 to 1.56, below the 1.68 of the best count table. The model learned common characters first, then word shapes, then layout.</li>
+      <li>A loss of 1.56 means a typical probability of 21% for the right character, against 1.5% at the start.</li>
+      <li>Real training adds three things to chapter 3: <a class="term" href="glossary.html#adam">Adam</a>, a <a class="term" href="glossary.html#learning-rate-schedule">learning-rate schedule</a> and <a class="term" href="glossary.html#gradient-clipping">gradient clipping</a>.</li>
+    </ul>
   </div>
 
   <h2>Check yourself</h2>
-  <details class="check"><summary>Why is the loss at step 0 almost exactly 4.17 rather than some random large number?</summary><p>The weights start very small, so the final scores are all close to zero and the softmax is nearly uniform over the 65 characters. Uniform guessing costs log 65 ≈ 4.17. If you ever see a much larger starting loss, the initialisation is wrong.</p></details>
+  <details class="check"><summary>A passage reads <code>the cat</code>. What are the model's inputs and targets?</summary><p>Seven characters give six questions. The inputs are <code>the ca</code> and the targets are <code>he cat</code>: the same text shifted by one. After <code>t</code> predict <code>h</code>, after <code>th</code> predict <code>e</code>, and so on.</p></details>
+  <details class="check"><summary>Why is the loss at step 0 almost exactly 4.17 rather than some random large number?</summary><p>The weights start very small, so the final scores are all close to zero and the softmax is nearly uniform over the 65 characters. Uniform guessing costs log 65 ≈ 4.17. If you ever see a much larger starting loss, the starting weights are wrong.</p></details>
   <details class="check"><summary>The training loss keeps falling but the held-out loss has started to rise. What is happening, and what do you do?</summary><p>The model is memorising its training text instead of learning patterns that carry over. Stop training at the lowest held-out loss, get more data, or use a smaller model.</p></details>
   <details class="check"><summary>Why random passages rather than reading the book from start to end?</summary><p>Consecutive passages resemble each other. Their gradients would push the same way for a long stretch and the model would chase the current scene. Random passages make each batch a fair small sample of the whole text.</p></details>
 </main>
 
 <script src="assets/data.js"></script>
+<script src="assets/glossary.js"></script>
 <script src="assets/micro.js"></script>
 <script>
 M.ready(function () {

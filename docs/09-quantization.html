@@ -12,31 +12,63 @@
   <h1>Fitting it in your RAM</h1>
   <p class="question">A model with 8 billion weights, stored at 16 bits each, is a 16-gigabyte file. Many laptops have 16 gigabytes of memory in total. How do people run it anyway?</p>
 
-  <p>Models are trained with weights stored as 16- or 32-bit floating-point numbers, because gradient descent needs to make very fine adjustments. Once training is over, nothing needs adjusting. The question becomes: how precisely do the weights have to be <em>stored</em> for the model to behave the same?</p>
-  <p>Much less precisely than you would guess. Storing weights with fewer bits is called <strong>quantization</strong>, and it is the single reason large models run on personal computers.</p>
+  <p>A trained model is a file of numbers: its weights. This chapter is about the size of that file, and it needs two units first.</p>
+  <div class="def"><span class="kind">Definitions</span>
+    <p>A <dfn>bit</dfn> is the smallest unit of storage: one choice between two values, 0 or 1. With <i>n</i> bits you can write 2<sup><i>n</i></sup> different values: 4 bits give 16, 8 bits give 256, 16 bits give 65,536.</p>
+    <p>A <dfn>byte</dfn> is 8 bits. A gigabyte, written GB, is a billion bytes.</p>
+  </div>
+  <p>Models are trained with each weight stored on 16 or 32 bits, because gradient descent needs to make very fine adjustments. That is where the 16 GB of the question come from: 8 billion weights × 16 bits ÷ 8 = 16 billion bytes. Once training is over, nothing needs adjusting. The question becomes: how precisely do the weights have to be <em>stored</em> for the model to behave the same?</p>
+  <p>Much less precisely than you would guess.</p>
+  <div class="def"><span class="kind">Definition</span>
+    <p><dfn>Quantization</dfn> is storing a model's weights with fewer bits each, by rounding them. It is the single reason large models run on personal computers.</p>
+  </div>
 
   <h2>Rounding to a grid</h2>
-  <p>With 4 bits you can write 16 different values. So pick a step size, and replace each weight by the nearest multiple of that step. What gets stored is a small integer per weight plus the step size, called the <strong>scale</strong>. To compute, the runtime multiplies them back together.</p>
-  <div class="eq">weight ≈ scale × integer, &nbsp; integer ∈ {−7, …, 7} for 4 bits</div>
+  <p>With 4 bits you can write 16 different values. So pick a step size, and replace each weight by the nearest multiple of that step. What gets stored is a small whole number per weight, plus the step size.</p>
+  <div class="def"><span class="kind">Definition</span>
+    <p>The <dfn>scale</dfn> is the step size of the rounding grid. A stored weight is recovered by multiplying its whole number by the scale.</p>
+  </div>
+  <div class="eq">weight ≈ scale × whole number, &nbsp; from −7 to 7 for 4 bits</div>
+  <h3>By hand: four weights on 3 bits</h3>
+  <p>With 3 bits the whole numbers run from −3 to 3. Take four weights: 0.20, −0.05, 0.42 and −0.30. The grid has to reach the largest of them, 0.42, with its last step, so the scale is 0.42 ÷ 3 = 0.14.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Weight</th><th>Divided by the scale</th><th>Stored (rounded)</th><th>Recovered: stored × 0.14</th><th>Error</th></tr>
+    <tr><td class="mono">0.20</td><td class="mono">1.43</td><td class="mono">1</td><td class="mono">0.14</td><td class="mono">0.06</td></tr>
+    <tr><td class="mono">−0.05</td><td class="mono">−0.36</td><td class="mono">0</td><td class="mono">0.00</td><td class="mono">0.05</td></tr>
+    <tr><td class="mono">0.42</td><td class="mono">3.00</td><td class="mono">3</td><td class="mono">0.42</td><td class="mono">0.00</td></tr>
+    <tr><td class="mono">−0.30</td><td class="mono">−2.14</td><td class="mono">−2</td><td class="mono">−0.28</td><td class="mono">0.02</td></tr>
+  </table></div>
+  <figure class="fig">
+    <svg viewBox="0 0 760 180" role="img" aria-labelledby="f9a">
+      <title id="f9a">A line with seven evenly spaced marks, numbered minus 3 to 3, one step of 0.14 apart. The four weights sit between the marks, and an arrow moves each one to the nearest mark: 0.20 to mark 1, minus 0.05 to mark 0, 0.42 to mark 3, minus 0.30 to mark minus 2.</title>
+      <defs><marker id="c9a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
+      <line x1="60" y1="105" x2="700" y2="105" class="ln"/><line x1="86" y1="92" x2="86" y2="118" class="ln"/><text x="86" y="140" text-anchor="middle" class="t-mono t-small">-3</text><line x1="184" y1="92" x2="184" y2="118" class="ln"/><text x="184" y="140" text-anchor="middle" class="t-mono t-small">-2</text><line x1="282" y1="92" x2="282" y2="118" class="ln"/><text x="282" y="140" text-anchor="middle" class="t-mono t-small">-1</text><line x1="380" y1="92" x2="380" y2="118" class="ln"/><text x="380" y="140" text-anchor="middle" class="t-mono t-small">0</text><line x1="478" y1="92" x2="478" y2="118" class="ln"/><text x="478" y="140" text-anchor="middle" class="t-mono t-small">1</text><line x1="576" y1="92" x2="576" y2="118" class="ln"/><text x="576" y="140" text-anchor="middle" class="t-mono t-small">2</text><line x1="674" y1="92" x2="674" y2="118" class="ln"/><text x="674" y="140" text-anchor="middle" class="t-mono t-small">3</text><circle cx="520" cy="60" r="6" class="bx-grad"/><text x="520" y="42" text-anchor="middle" class="t-mono t-small">0.20</text><line x1="520" y1="68" x2="478" y2="100" class="ln-grad" marker-end="url(#c9a)"/><circle cx="345" cy="60" r="6" class="bx-grad"/><text x="345" y="42" text-anchor="middle" class="t-mono t-small">−0.05</text><line x1="345" y1="68" x2="380" y2="100" class="ln-grad" marker-end="url(#c9a)"/><circle cx="674" cy="60" r="6" class="bx-grad"/><text x="674" y="42" text-anchor="middle" class="t-mono t-small">0.42</text><line x1="674" y1="68" x2="674" y2="100" class="ln-grad" marker-end="url(#c9a)"/><circle cx="170" cy="60" r="6" class="bx-grad"/><text x="170" y="42" text-anchor="middle" class="t-mono t-small">−0.30</text><line x1="170" y1="68" x2="184" y2="100" class="ln-grad" marker-end="url(#c9a)"/>
+      <text x="380" y="168" text-anchor="middle" class="t-small t-muted">the whole numbers that are stored; one step is the scale, 0.14</text>
+    </svg>
+    <figcaption><b>Rounding to a grid.</b> Each weight moves to the nearest mark, and only the number of the mark is kept.</figcaption>
+  </figure>
+  <p>The file now holds 1, 0, 3, −2 and the scale 0.14. Each weight is off by a few hundredths. That is what quantization does, to every weight of the model.</p>
   <p>This throws information away. The experiment below does it to the model of this course, for real, in your browser: every matrix is rounded, and then the rounded model is tested on held-out text.</p>
 
   <section class="bench" id="w-quant">
     <h3>Round the weights, measure the damage</h3>
-    <p class="try"><b>Try this.</b> Step the bits down from 16 to 1 and watch the loss. Find where it stops being harmless. Then, at 4 bits, switch from one scale per block of 32 weights to one scale for a whole matrix. Last, compare 2 bits with 1 bit.</p>
+    <p class="try"><b>Try this.</b> Step the bits down from 16 to 1, waiting for the loss each time. Find where it stops being harmless. Then go back to 4 bits and switch from one scale per block of 32 weights to one scale for a whole matrix. Press the button to see what the damaged model writes.</p>
   </section>
+
+  <p><strong>What you should have seen.</strong> The held-out loss is 1.567 at 16 bits. It is 1.568 at 8 bits, 1.577 at 6 and 1.593 at 5: almost no change, while the file shrinks from 672 KB to 231 KB. At 4 bits it is 1.726, at 3 bits 2.797, and at 2 bits 5.518, which is worse than the 4.17 of knowing nothing. At 1 bit it is 3.726, better than at 2. With one scale for a whole matrix, 4 bits give 3.011 instead of 1.726, and the model writes strings like <code>thachaired cliklled nonloro</code>.</p>
 
   <p>Three things explain why the first several steps cost almost nothing.</p>
   <ul>
     <li><strong>Weights huddle near zero.</strong> The grey histogram is a bell. A modest grid covers nearly all of it with small rounding errors.</li>
     <li><strong>Errors average out.</strong> Each number the model computes is a sum over hundreds of weights. Rounding pushes some up and some down, and in a sum those errors largely cancel.</li>
-    <li><strong>The model is used to noise.</strong> It was trained on random batches with a jittery optimiser. Solutions that only work with exact weights do not survive that process.</li>
+    <li><strong>The model is used to noise.</strong> It was trained on random batches, each pushing the weights a slightly different way (chapter 7). A setting of the weights that only works when every weight is exact does not survive that.</li>
   </ul>
   <p>The cancelling has a limit. Once the rounding errors are no longer small compared with the weights themselves, they compound from layer to layer and the loss turns sharply upward. For our small model with this simple rounding, 5 bits is still nearly free, 4 bits costs a visible 0.16, and 3 bits is ruinous. Large models quantized with better methods hold up at 4 bits, and the cliff comes just below.</p>
   <p>The comparison of 2 bits with 1 bit shows how much the method matters. With 2 bits this scheme has three levels, −1, 0 and +1, and stretches them to the largest weight in each block, so most weights round to zero. The result scores worse than guessing at random: a confidently wrong model. The 1-bit version keeps every weight's sign and one average size, and does better with half the bits.</p>
 
   <h2>Why blocks</h2>
-  <p>One scale for a whole matrix has a weakness: a single unusually large weight stretches the grid for everyone, and the many small weights all collapse to zero. Giving each block of 32 weights its own scale lets the grid fit locally. It costs one extra 16-bit number per 32 weights, half a bit per weight.</p>
-  <p>That arithmetic is exactly where real file formats come from. Four bits plus half a bit is 4.5 bits per weight, the size of the simplest 4-bit format used by llama.cpp, called Q4_0. Eight bits plus half a bit is 8.5, its Q8_0. The formats people actually use today are refinements: the "K" variants nest small blocks inside larger ones and spend more bits on the matrices that matter most.</p>
+  <p>One scale for a whole matrix has a weakness. Go back to the by-hand example and add one unusually large weight, 4.2. The grid must now reach 4.2, so the scale becomes 1.4, and 0.20, −0.05, 0.42 and −0.30 all round to 0. A single large weight has wiped out its neighbours. Giving each block of 32 weights its own scale keeps the damage local: a large weight only spoils its own block. It costs one extra 16-bit number per 32 weights, which is half a bit per weight.</p>
+  <p>That arithmetic is exactly where real file formats come from. The most used program for running models on a personal computer is llama.cpp, which chapter 10 installs. Four bits plus half a bit is 4.5 bits per weight, the size of its simplest 4-bit format, called Q4_0. Eight bits plus half a bit is 8.5, its Q8_0. The formats people actually use today are refinements: the "K" variants nest small blocks inside larger ones and spend more bits on the matrices that matter most.</p>
   <div class="scroll"><table>
     <tr><th>Format</th><th>Bits per weight</th><th>An 8-billion-weight model</th></tr>
     <tr><td>F16 (as trained)</td><td>16</td><td>16 GB</td></tr>
@@ -52,15 +84,21 @@
 
   <h2>Will it fit? How fast will it go?</h2>
   <p>Both questions can be answered with arithmetic before downloading anything.</p>
-  <p><strong>Memory.</strong> The weights take parameters × bits ÷ 8 bytes. On top comes the KV cache of chapter 8, which grows with the length of the context.</p>
-  <p><strong>Speed.</strong> To produce one token, the computer must read every weight once. On most hardware the bottleneck is not arithmetic. It is how fast memory can deliver bytes to the processor, the <strong>memory bandwidth</strong>. If the model is 5 GB and memory delivers 100 GB per second, you cannot exceed 20 tokens per second, however many cores you have.</p>
+  <p><strong>Memory.</strong> The weights take parameters × bits ÷ 8 bytes. By hand, for 8 billion weights in the usual format: 8 × 4.85 ÷ 8 = 4.85 GB. On top comes the KV cache of chapter 8, which grows with the length of the context.</p>
+  <p><strong>Speed.</strong> To produce one token, the computer must read every weight once, because every weight takes part in the forward pass. On most hardware the arithmetic is not what limits this. The limit is how fast memory can deliver bytes to the processor.</p>
+  <div class="def"><span class="kind">Definition</span>
+    <p><dfn>Memory bandwidth</dfn> is the number of bytes a computer's memory can deliver to its processor per second.</p>
+  </div>
+  <p>By hand: if the model is 5 GB and memory delivers 100 GB per second, the whole model can be read 100 ÷ 5 = 20 times per second. So you cannot exceed 20 tokens per second, however fast the processor is.</p>
   <div class="eq">tokens per second ≤ <span class="frac"><span>memory bandwidth</span><span>model size</span></span></div>
-  <p>This one inequality explains most of local-model hardware. Graphics cards are fast mainly because their memory is fast. Apple's M-series laptops do well because their unified memory has between two and ten times the bandwidth of ordinary laptop RAM. And a smaller quantization is not only smaller, it is faster, because there are fewer bytes to read per token.</p>
+  <p>This one rule explains most of the hardware people buy to run models. Graphics cards are fast mainly because their memory is fast. Apple's M-series laptops do well because their memory has between two and ten times the bandwidth of ordinary laptop memory. And a model stored on fewer bits is faster as well as smaller, because there are fewer bytes to read per token. Chapters 18 and 22 go further into the machine.</p>
 
   <section class="bench" id="w-fit">
     <h3>Memory and speed, before you download</h3>
-    <p class="try"><b>Try this.</b> Set the model size and format you are considering, and your hardware. Then lengthen the context and watch the cache grow.</p>
+    <p class="try"><b>Try this.</b> Read the result as it stands: 8 billion parameters, the usual 4-bit format, a context of 8,192 tokens. Lengthen the context to 32,768. Then set the model, format and hardware you are considering yourself.</p>
   </section>
+
+  <p><strong>What you should have seen.</strong> The starting case needs about 6.0 GB: 4.8 GB of weights and an estimated 1.2 GB of cache. On a machine that delivers 100 GB per second the ceiling is 21 tokens per second. At a context of 32,768 tokens the same model needs about 9.6 GB and no longer fits in 8 GB. The weights did not change. The cache grew.</p>
 
   <h2>Build it</h2>
   <pre class="code" data-src="ch09_quantize.py#quantize">def quantize(w, bits, block=32):
@@ -95,13 +133,25 @@
 
   <div class="note">
     <h3>What this chapter glossed over</h3>
-    <p><strong>Our rounding is the naive kind.</strong> Round-to-nearest with a per-block scale is the simplest scheme. Real quantizers choose scales to minimise the error on what matters, and some use sample text to find out which weights are sensitive. They lose less than what you see here.</p>
-    <p><strong>A tiny model is a harsh test.</strong> Large models have far more redundancy and tolerate rounding better than our 345,504 weights do. The shape of the curve carries over; the exact bit count where it bends does not.</p>
-    <p><strong>The speed bound is a ceiling.</strong> Real speeds land below it, and for small models or when reading a long prompt, raw compute is the limit instead. The hardware figures in the calculator are round numbers for typical machines of each kind.</p>
+    <p><strong>Our rounding is the simplest kind.</strong> Rounding to the nearest step with one scale per block is where everyone starts. Real methods choose scales to minimise the error on what matters, and some use sample text to find out which weights are sensitive. They lose less than what you see here.</p>
+    <p><strong>A small model is a harsh test.</strong> Large models have many more weights doing overlapping jobs, and tolerate rounding better than our 345,504 weights do. The shape of the curve carries over; the exact bit count where it bends does not.</p>
+    <p><strong>The speed bound is a ceiling.</strong> Real speeds land below it, and for small models or when reading a long prompt, the arithmetic is the limit instead. The hardware figures in the calculator are round numbers for typical machines of each kind.</p>
     <p><strong>The cache estimate assumes a typical layout.</strong> It guesses the depth and width of a model from its parameter count, the way chapter 6 counted parameters in reverse. Expect the real figure within a factor of two.</p>
   </div>
 
+  <div class="recap">
+    <h3>In short</h3>
+    <ul>
+      <li><a class="term" href="glossary.html#quantization">Quantization</a> stores each weight as a small whole number times a <a class="term" href="glossary.html#scale">scale</a>. By hand, 0.20 on 3 bits became 1 × 0.14.</li>
+      <li>Our model loses almost nothing down to 5 bits per weight (1.567 to 1.593), a visible 0.16 at 4 bits, and breaks at 3.</li>
+      <li>One scale per block of 32 weights keeps a large weight from wiping out the others: at 4 bits, 1.726 against 3.011 with one scale per matrix.</li>
+      <li>Size in bytes = parameters × bits ÷ 8. The usual format, at about 4.85 bits, makes an 8-billion-weight model 4.85 GB instead of 16.</li>
+      <li>Tokens per second cannot exceed <a class="term" href="glossary.html#memory-bandwidth">memory bandwidth</a> ÷ model size.</li>
+    </ul>
+  </div>
+
   <h2>Check yourself</h2>
+  <details class="check"><summary>On 3 bits with a scale of 0.14, what is stored for a weight of 0.33, and what is recovered?</summary><p>0.33 ÷ 0.14 = 2.36, which rounds to 2. Recovered: 2 × 0.14 = 0.28, an error of 0.05.</p></details>
   <details class="check"><summary>How large is a 12-billion-weight model in Q4_K_M?</summary><p>12 × 10⁹ × 4.85 ÷ 8 ≈ 7.3 GB, plus the cache. It fits a 16 GB machine with room for the system; it does not fit an 8 GB one.</p></details>
   <details class="check"><summary>Why does a per-block scale beat one scale per matrix, at the same number of bits?</summary><p>The grid must stretch to the largest weight it covers. One outlier in a matrix makes the steps coarse for all the others. With blocks, an outlier only spoils its own 32 neighbours.</p></details>
   <details class="check"><summary>You switch the same model from Q8_0 to Q4_K_M. What happens to the speed ceiling?</summary><p>It rises by 8.5 ÷ 4.85 ≈ 1.75 times, because each token now requires reading that many fewer bytes.</p></details>
@@ -109,6 +159,7 @@
 
 <script src="assets/data.js"></script>
 <script src="assets/weights.js"></script>
+<script src="assets/glossary.js"></script>
 <script src="assets/micro.js"></script>
 <script>
 M.ready(function () {

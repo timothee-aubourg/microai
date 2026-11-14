@@ -15,14 +15,43 @@
   <p>The same model file can write three words a second on one computer and two hundred on another. Chapter 9 explained how large the file is. This chapter explains why the machine around it matters so much, starting from what the work is made of.</p>
 
   <h2>One kind of work, repeated</h2>
-  <p>Open any layer of chapter 6 and you find the same operation: multiply a number by a weight, add it to a running total. A <strong>multiply-add</strong>. A matrix product is a large grid of them. To write one token, each weight in the model is used about once, so a model with eight billion weights does on the order of eight billion multiply-adds per token.</p>
+  <p>Open any layer of chapter 6 and you find the same operation: multiply a number by a weight, add it to a running total.</p>
+  <div class="def"><span class="kind">Definition</span>
+    <p>A <dfn>multiply-add</dfn> is one multiplication followed by one addition to a running total. It is the unit in which the work of a model is counted.</p>
+  </div>
+  <h3>By hand: counting the work</h3>
+  <p>Chapter 5 multiplied the vector (2, 1) by a matrix with the columns (1, 0) and (0.5, −1):</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Entry of the result</th><th>Computation</th><th>Multiply-adds</th></tr>
+    <tr><td>first</td><td class="mono">2 × 1 + 1 × 0</td><td class="mono">2</td></tr>
+    <tr><td>second</td><td class="mono">2 × 0.5 + 1 × −1</td><td class="mono">2</td></tr>
+  </table></div>
+  <p>Four multiply-adds, one for each number in the matrix. That holds at any size: multiplying a vector by a matrix costs one multiply-add per weight in it. To write one token, each weight in the model is used about once. So our model of 345,504 weights does a few hundred thousand multiply-adds per token, and a model with eight billion weights about eight billion.</p>
   <p>Two properties of this work decide everything that follows. It is completely regular: the same step, over long rows of numbers, with no decisions in between. And it touches every weight, every token.</p>
 
   <h2>Two kinds of processor</h2>
-  <p>A <strong>CPU</strong>, the processor that runs your programs, is built for variety. It has a handful of cores, often 8 to 16, and each is very good at following instructions that branch and change from one moment to the next. Each core can also do the same operation on 8 or 16 numbers at once.</p>
-  <p>A <strong>GPU</strong>, the graphics processor, was built to colour millions of pixels, which is the same small calculation for each pixel. It has thousands of simple lanes that all do one thing at the same time, and its own fast memory next to them. It is poor at varied work and superb at regular work.</p>
-  <p>Neural network arithmetic is the most regular work there is. That is the whole reason for the match.</p>
-  <p>You can feel the value of regularity without a GPU. Here is one matrix-times-vector product, 262,144 multiply-adds, done twice on the same CPU: once as a plain loop, one step at a time, and once handed over as a single block to a routine written for the purpose.</p>
+  <div class="def"><span class="kind">Definitions</span>
+    <p>A <dfn>CPU</dfn> is the processor that runs a computer's ordinary programs. It has a handful of cores, each able to work through its own list of instructions.</p>
+    <p>A <dfn>GPU</dfn>, the graphics processor, has thousands of simple lanes that all do the same operation at the same time, and its own fast memory next to them.</p>
+  </div>
+  <p>A CPU is built for variety. It has few cores, often 8 to 16, and each is very good at following instructions that branch and change from one moment to the next. Each core can also do the same operation on 8 or 16 numbers at once.</p>
+  <p>A GPU was built to colour millions of pixels, which is the same small calculation for each pixel. It is poor at varied work and superb at regular work.</p>
+
+  <figure class="fig">
+    <svg viewBox="0 0 760 210" role="img" aria-labelledby="f18a">
+      <title id="f18a">Two processors side by side. The CPU has a few large cores, each drawn as a wide box that can do varied work. The GPU has a great many small lanes, drawn as a grid of small squares, that all do the same step at once, with its own memory beside them.</title>
+      <g class="t-small">
+      <text x="170" y="24" text-anchor="middle" class="t-big">CPU</text><text x="170" y="44" text-anchor="middle" class="t-muted">a few cores, any kind of work</text>
+      <rect x="30" y="60" width="130" height="56" rx="6" class="bx"/><rect x="180" y="60" width="130" height="56" rx="6" class="bx"/><rect x="30" y="128" width="130" height="56" rx="6" class="bx"/><rect x="180" y="128" width="130" height="56" rx="6" class="bx"/>
+      <text x="560" y="24" text-anchor="middle" class="t-big">GPU</text><text x="560" y="44" text-anchor="middle" class="t-muted">thousands of lanes, one kind of work</text>
+      </g>
+      <g class="bx-fwd"><rect x="410" y="60" width="14" height="15" rx="2"/><rect x="430" y="60" width="14" height="15" rx="2"/><rect x="450" y="60" width="14" height="15" rx="2"/><rect x="470" y="60" width="14" height="15" rx="2"/><rect x="490" y="60" width="14" height="15" rx="2"/><rect x="510" y="60" width="14" height="15" rx="2"/><rect x="530" y="60" width="14" height="15" rx="2"/><rect x="550" y="60" width="14" height="15" rx="2"/><rect x="570" y="60" width="14" height="15" rx="2"/><rect x="590" y="60" width="14" height="15" rx="2"/><rect x="610" y="60" width="14" height="15" rx="2"/><rect x="410" y="81" width="14" height="15" rx="2"/><rect x="430" y="81" width="14" height="15" rx="2"/><rect x="450" y="81" width="14" height="15" rx="2"/><rect x="470" y="81" width="14" height="15" rx="2"/><rect x="490" y="81" width="14" height="15" rx="2"/><rect x="510" y="81" width="14" height="15" rx="2"/><rect x="530" y="81" width="14" height="15" rx="2"/><rect x="550" y="81" width="14" height="15" rx="2"/><rect x="570" y="81" width="14" height="15" rx="2"/><rect x="590" y="81" width="14" height="15" rx="2"/><rect x="610" y="81" width="14" height="15" rx="2"/><rect x="410" y="102" width="14" height="15" rx="2"/><rect x="430" y="102" width="14" height="15" rx="2"/><rect x="450" y="102" width="14" height="15" rx="2"/><rect x="470" y="102" width="14" height="15" rx="2"/><rect x="490" y="102" width="14" height="15" rx="2"/><rect x="510" y="102" width="14" height="15" rx="2"/><rect x="530" y="102" width="14" height="15" rx="2"/><rect x="550" y="102" width="14" height="15" rx="2"/><rect x="570" y="102" width="14" height="15" rx="2"/><rect x="590" y="102" width="14" height="15" rx="2"/><rect x="610" y="102" width="14" height="15" rx="2"/><rect x="410" y="123" width="14" height="15" rx="2"/><rect x="430" y="123" width="14" height="15" rx="2"/><rect x="450" y="123" width="14" height="15" rx="2"/><rect x="470" y="123" width="14" height="15" rx="2"/><rect x="490" y="123" width="14" height="15" rx="2"/><rect x="510" y="123" width="14" height="15" rx="2"/><rect x="530" y="123" width="14" height="15" rx="2"/><rect x="550" y="123" width="14" height="15" rx="2"/><rect x="570" y="123" width="14" height="15" rx="2"/><rect x="590" y="123" width="14" height="15" rx="2"/><rect x="610" y="123" width="14" height="15" rx="2"/><rect x="410" y="144" width="14" height="15" rx="2"/><rect x="430" y="144" width="14" height="15" rx="2"/><rect x="450" y="144" width="14" height="15" rx="2"/><rect x="470" y="144" width="14" height="15" rx="2"/><rect x="490" y="144" width="14" height="15" rx="2"/><rect x="510" y="144" width="14" height="15" rx="2"/><rect x="530" y="144" width="14" height="15" rx="2"/><rect x="550" y="144" width="14" height="15" rx="2"/><rect x="570" y="144" width="14" height="15" rx="2"/><rect x="590" y="144" width="14" height="15" rx="2"/><rect x="610" y="144" width="14" height="15" rx="2"/><rect x="410" y="165" width="14" height="15" rx="2"/><rect x="430" y="165" width="14" height="15" rx="2"/><rect x="450" y="165" width="14" height="15" rx="2"/><rect x="470" y="165" width="14" height="15" rx="2"/><rect x="490" y="165" width="14" height="15" rx="2"/><rect x="510" y="165" width="14" height="15" rx="2"/><rect x="530" y="165" width="14" height="15" rx="2"/><rect x="550" y="165" width="14" height="15" rx="2"/><rect x="570" y="165" width="14" height="15" rx="2"/><rect x="590" y="165" width="14" height="15" rx="2"/><rect x="610" y="165" width="14" height="15" rx="2"/></g>
+      <rect x="640" y="60" width="104" height="120" rx="6" class="bx-prob"/><text x="692" y="116" text-anchor="middle" class="t-small">its own</text><text x="692" y="134" text-anchor="middle" class="t-small">fast memory</text>
+    </svg>
+    <figcaption><b>Few and versatile, or many and simple.</b> The arithmetic of a model is one step repeated billions of times, which suits the right-hand design.</figcaption>
+  </figure>
+  <p>The arithmetic of a model is the most regular work there is. That is the whole reason for the match.</p>
+  <p>You can feel the value of regularity without a GPU. Here is one matrix-times-vector product, 262,144 multiply-adds, done twice on the same CPU: once as a plain loop, one step at a time, and once handed over as a single block to numpy, the library of fast number routines that all the code of this course uses.</p>
   <div class="scroll"><table class="mini">
     <tr><th>How the work is presented</th><th>Time</th><th>Multiply-adds per second</th></tr>
     <tr><td>One at a time, in a Python loop</td><td class="mono">6.39 ms</td><td class="mono">41 million</td></tr>
@@ -39,10 +68,10 @@
     <tr><td class="mono">64</td><td class="mono">4.7 µs</td></tr>
     <tr><td class="mono">512</td><td class="mono">4.2 µs</td></tr>
   </table></div>
-  <p>On this CPU, each input gets about 2.5 times cheaper. On a GPU, with far more lanes to fill, the effect is much larger. Two things you have met depend on it. Reading a prompt is fast per token because all its positions go through together (chapter 16). And a server answers many users at once by pushing their tokens through the model side by side, which is called <strong>batching</strong>.</p>
+  <p>On this CPU, each input gets about 2.5 times cheaper. On a GPU, with far more lanes to fill, the effect is much larger. Two things you have met depend on it. Reading a prompt is fast per token because all its positions go through together (chapter 16). And a server answers many users at once by pushing their tokens through the model side by side, which is called batching. Chapter 27 measures it.</p>
 
   <h2>The real limit: how fast memory delivers</h2>
-  <p>Writing is different from reading. It produces one token at a time, so there is nothing to put side by side. And for each token, every weight must travel from memory to the processor. For a large model that journey, not the arithmetic, is what takes the time. The rate at which memory can deliver is its <strong>bandwidth</strong>, in gigabytes per second, and it sets a ceiling:</p>
+  <p>Writing is different from reading. It produces one token at a time, so there is nothing to put side by side. And for each token, every weight must travel from memory to the processor. For a large model that journey, not the arithmetic, is what takes the time. The rate at which memory can deliver is the memory bandwidth of chapter 9, in gigabytes per second, and it sets a ceiling:</p>
   <div class="eq">tokens per second &le; memory bandwidth / size of the model</div>
   <p>One core of the machine that built this page reads memory at about 12 GB per second. An eight-billion-weight model at 4.85 bits per weight (chapter 9) is 4.85 GB. Twelve divided by 4.85: at most about three tokens per second, however fast the arithmetic. The same sum on other hardware:</p>
   <div class="scroll"><table class="mini">
@@ -59,12 +88,14 @@
 
   <section class="bench" id="w-speed">
     <h3>What will it do on that machine?</h3>
-    <p class="try"><b>Try this.</b> Pick a machine and grow the model until it no longer fits. Then lower the bits per weight and watch both the size and the ceiling move.</p>
+    <p class="try"><b>Try this.</b> The widget starts on a graphics card with 24 GB of memory and a model of 8 billion weights at 5 bits each. Grow the model to 20 billion weights, then to 40. Then lower the bits per weight to 3. Then pick other machines.</p>
   </section>
+
+  <p><strong>What you should have seen.</strong> At 8 billion weights the model is 5.0 GB, it fits, and the ceiling is 202 tokens per second, with 101 to 151 to expect in practice. At 20 billion it is 12.5 GB and the ceiling falls to 81: a larger model is slower on the same machine. At 40 billion it is 25.0 GB and does not fit in 24 GB, and the widget says the ceiling no longer applies. At 3 bits per weight the same 40 billion weights take 15.0 GB, fit again, and have a ceiling of 67.</p>
 
   <h2>It has to fit</h2>
   <p>The second number on a graphics card is the size of its memory. The weights, plus the KV cache of chapter 8, must fit in it. If they do not, part of the model stays in ordinary RAM and is computed by the CPU, and the speed falls toward the slower of the two. A card with less memory is not a slightly slower card. For a model that does not fit, it is a different class of machine.</p>
-  <p>Apple's recent computers make the opposite trade. Their memory is one pool shared by CPU and GPU: slower than a graphics card's own memory, and much larger. They run big models at moderate speed, where a single graphics card cannot load them at all.</p>
+  <p>Apple's recent computers make the opposite trade. Their memory is one pool shared by CPU and GPU: slower than a graphics card's own memory, and much larger. They run big models at moderate speed, where a single graphics card cannot load them at all. Chapter 22 goes through these kinds of memory one by one.</p>
 
   <h2>Training asks for more</h2>
   <p>Everything above is about using a model. Training (chapter 7) multiplies the demand. It processes many examples at once, keeps the intermediate numbers of every layer for the backward pass (chapter 3), and repeats this millions of times. That is why a model is trained on rooms full of GPUs and then runs on one.</p>
@@ -73,6 +104,8 @@
     <h3>Measure this device</h3>
     <p class="try"><b>Try this.</b> Press the button. Your own phone or computer will do the three measurements of this chapter, in the browser, in about a second.</p>
   </section>
+
+  <p><strong>What you should have seen.</strong> Three results, which depend on your device. On the machine that built this page: 419 million multiply-adds per second in one lane, so an 8-billion-weight model would take about 19 seconds per token at that rate. Memory read at about 5.6 GB per second, a ceiling of 1.1 tokens per second for a 4.85 GB model. And the model of this course at 1,481 tokens per second, because it is 23,155 times smaller. A browser uses one lane and none of the processor's tricks, so these are low figures for any device. The point is the gap between the first two results and the third.</p>
 
   <h2>Build it</h2>
   <pre class="code" data-src="ch18_hardware.py#loops">def multiply_one_at_a_time(A, x):
@@ -84,19 +117,31 @@
             total += a * b                 # one multiply-add: the unit of work of a neural network
         out.append(total)
     return out</pre>
-  <p class="src">From <code>code/ch18_hardware.py</code>. The slow version of a matrix product. The fast version is <code>A @ x</code>.</p>
+  <p class="src">From <code>code/ch18_hardware.py</code>. The slow version of a matrix product: one multiply-add per pass through the inner loop. The fast version is <code>A @ x</code>.</p>
   <pre class="code" data-lang="text">python code/ch18_hardware.py        # the three measurements, on your processor</pre>
 
   <div class="note">
     <h3>What this chapter glossed over</h3>
     <p><strong>No GPU was used.</strong> The measurements are from one CPU. The GPU figures are published specifications, not measurements made for this course.</p>
     <p><strong>The ceiling is for one stream of text.</strong> A server writing for many users at once reads the weights once per step for all of them, so its total rate can be many times the single-stream ceiling. Then arithmetic becomes the limit again.</p>
-    <p><strong>Reading a prompt is limited by arithmetic.</strong> Prefill does a great deal of computation per byte of weights fetched, so it is bound by the processor's speed, not by memory.</p>
+    <p><strong>Reading a prompt is limited by arithmetic.</strong> The prefill of chapter 16 does a great deal of computation for each byte of weights fetched, so it is limited by the processor's speed and not by memory.</p>
     <p><strong>More than two kinds of chip.</strong> Phones and laptops now carry small neural processors, and data centres use chips made only for this arithmetic. The two questions stay the same: how many multiply-adds per second, and how fast can the weights arrive.</p>
     <p><strong>Power and heat.</strong> A laptop slows down when it gets warm. Sustained speed can be well under the first minute's.</p>
   </div>
 
+  <div class="recap">
+    <h3>In short</h3>
+    <ul>
+      <li>The work of a model is <a class="term" href="glossary.html#multiply-add">multiply-adds</a>, about one per weight for each token written: eight billion for an eight-billion-weight model.</li>
+      <li>The work is perfectly regular, which suits a <a class="term" href="glossary.html#gpu">GPU</a>: thousands of lanes doing the same step. Handing the same work over as one block made it 554 times faster on one CPU.</li>
+      <li>Processing many inputs together costs less per input. Reading a prompt and serving many users both depend on that.</li>
+      <li>Writing is limited by how fast memory delivers the weights: tokens per second ≤ bandwidth ÷ model size.</li>
+      <li>The model and its cache have to fit in the fast memory. One that does not fit runs far slower than the sum predicts.</li>
+    </ul>
+  </div>
+
   <h2>Check yourself</h2>
+  <details class="check"><summary>A matrix has 96 rows and 384 columns. How many multiply-adds does it cost to multiply one vector by it?</summary><p>96 × 384 = 36,864, one for each weight in the matrix. This is the first matrix of the MLP in our model, used once for every position.</p></details>
   <details class="check"><summary>You quantize a model from 16 bits per weight to 4. The arithmetic is the same number of multiply-adds. Why does it write faster?</summary><p>Because a quarter as many bytes have to travel from memory per token, and for a large model that travel is the limit. The ceiling, bandwidth divided by size, goes up fourfold.</p></details>
   <details class="check"><summary>A 12 GB model on a graphics card with 8 GB of memory runs far slower than the bandwidth sum predicts. Why?</summary><p>It does not fit. A third of the weights sit in ordinary RAM and are processed by the CPU, at the CPU's memory speed. Every token has to pass through that slow third.</p></details>
   <details class="check"><summary>Why can a server answer forty users at nearly the speed of one, while one user cannot get a forty-times-faster answer?</summary><p>Forty streams can be put side by side: one trip through the weights serves all of them. One stream is a chain, each token waiting for the last. You can widen the road, and you cannot shorten the queue.</p></details>
@@ -104,6 +149,7 @@
 </main>
 
 <script src="assets/weights.js"></script>
+<script src="assets/glossary.js"></script>
 <script src="assets/micro.js"></script>
 <script>
 M.ready(function () {

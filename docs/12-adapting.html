@@ -10,33 +10,74 @@
 <main>
   <p class="where">Chapter 12</p>
   <h1>Teaching new habits</h1>
-  <p class="question">The model is a frozen file of billions of numbers. Can you change how it behaves without retraining all of them?</p>
+  <p class="question">The model is a finished file of billions of numbers. Can you change how it behaves without training all of them again?</p>
 
-  <p>Start by asking whether you need to. Chapter 11 gave you two ways to change a model's behaviour that leave the file alone: say what you want in the prompt, and retrieve what it needs to know. They are cheap, instant to revise, and should be tried first. Changing the weights, called <strong>fine-tuning</strong>, earns its cost when you need a habit that instructions do not produce reliably: a fixed output format, a house style, a specialised vocabulary.</p>
-  <p>Fine-tuning is the training loop of chapter 7, continued on new examples. The obstacle is size. Training needs, for every weight, the weight itself, its gradient, and the optimiser's running averages: several times the memory of the model, at full precision. An 8-billion-weight model that runs comfortably in 5 GB when quantized needs many tens of gigabytes to train this way.</p>
+  <p>Start by asking whether you need to. Chapter 11 gave you two ways to change a model's behaviour that leave the file alone: say what you want in the prompt, and retrieve what it needs to know. They are cheap, instant to revise, and should be tried first. Changing the weights earns its cost when you need a habit that instructions do not produce reliably: a fixed output format, a house style, a specialised vocabulary.</p>
+  <div class="def"><span class="kind">Definitions</span>
+    <p><dfn>Fine-tuning</dfn> is training a model that is already trained, a little further, on new examples of the behaviour you want. It is the loop of chapter 7, continued.</p>
+    <p>A weight is <dfn>frozen</dfn> when training is not allowed to change it.</p>
+  </div>
+  <p>The obstacle is size. Training needs, for every weight, the weight itself, its slope, and the two running averages of Adam (chapter 7): four numbers where running the model needs one, and at full precision, because training cannot work on the rounded weights of chapter 9. By hand, for 8 billion weights at 32 bits: 8 × 4 bytes × 4 = 128 GB, before counting the values that the backward pass keeps. The same model runs in 5 GB when quantized.</p>
 
   <h2>Train a small correction instead</h2>
   <p>Here is the idea that made fine-tuning practical on ordinary hardware. Leave every original matrix <i>W</i> frozen. Next to it, add a correction, and train only the correction. To keep the correction small, build it as the product of two thin matrices:</p>
   <div class="eq"><i>W</i>′ = <i>W</i> + <i>A</i> × <i>B</i> &nbsp;&nbsp; with <i>A</i> of size <i>d</i> × <i>r</i> and <i>B</i> of size <i>r</i> × <i>d</i></div>
-  <p>The number <i>r</i>, the <strong>rank</strong>, is small: 4, 8, 16. A full correction to a <i>d</i> × <i>d</i> matrix would have <i>d</i>² numbers. This one has 2<i>dr</i>. The method is called <strong>LoRA</strong>, for low-rank adaptation.</p>
+  <div class="def"><span class="kind">Definitions</span>
+    <p><dfn>LoRA</dfn>, short for low-rank adaptation, is fine-tuning in which the original matrices are frozen and only a small correction <i>A</i> × <i>B</i> is trained for each.</p>
+    <p>The <dfn>rank</dfn> <i>r</i> is the thin side of <i>A</i> and <i>B</i>: 4, 8 or 16 in practice.</p>
+    <p>An <dfn>adapter</dfn> is the set of trained corrections, kept as a small file next to the model.</p>
+  </div>
+  <h3>By hand: a correction of rank 1</h3>
+  <p>Take a matrix of 3 × 3, nine numbers. With rank 1, <i>A</i> is a column of three numbers and <i>B</i> a row of three. Multiplying them gives a full 3 × 3 table: each entry is one number of <i>A</i> times one number of <i>B</i>.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>A (column)</th><th>B (row): 1, 0, 2</th><th>Row of the correction A × B</th></tr>
+    <tr><td class="mono">0.1</td><td></td><td class="mono">0.1, 0, 0.2</td></tr>
+    <tr><td class="mono">0.2</td><td></td><td class="mono">0.2, 0, 0.4</td></tr>
+    <tr><td class="mono">−0.1</td><td></td><td class="mono">−0.1, 0, −0.2</td></tr>
+  </table></div>
+  <p>Six trained numbers produced a correction to all nine. On a table this small that saves little. The saving comes with size: a full correction to a <i>d</i> × <i>d</i> matrix has <i>d</i>² numbers, and this one has 2 × <i>d</i> × <i>r</i>. For a matrix of our model, 96 × 96 = 9,216 numbers against 2 × 96 × 4 = 768.</p>
+  <p>The price is visible in the table too. Every row of the correction is the same row, (1, 0, 2), scaled. A correction of rank 1 can only push the weights along one direction, and one of rank <i>r</i> along <i>r</i> directions.</p>
+
+  <figure class="fig">
+    <svg viewBox="0 0 760 220" role="img" aria-labelledby="f12a">
+      <title id="f12a">A large square, the frozen matrix W, plus the product of a tall thin strip A and a wide thin strip B. Only the two strips are trained. Their product has the size of the square.</title>
+      <g class="t-small">
+      <rect x="60" y="30" width="150" height="150" rx="4" class="bx"/><text x="135" y="100" text-anchor="middle" class="t-big">W</text><text x="135" y="122" text-anchor="middle" class="t-muted">frozen</text><text x="135" y="200" text-anchor="middle" class="t-mono">d × d</text>
+      <text x="250" y="112" text-anchor="middle" class="t-big">+</text>
+      <rect x="300" y="30" width="22" height="150" rx="3" class="bx-fwd"/><text x="311" y="200" text-anchor="middle" class="t-mono">A: d × r</text>
+      <text x="356" y="112" text-anchor="middle" class="t-big">×</text>
+      <rect x="390" y="94" width="150" height="22" rx="3" class="bx-fwd"/><text x="465" y="140" text-anchor="middle" class="t-mono">B: r × d</text>
+      <text x="640" y="96" text-anchor="middle">only A and B</text><text x="640" y="116" text-anchor="middle">are trained</text>
+      </g>
+    </svg>
+    <figcaption><b>A square and two strips.</b> The strips hold 2 × d × r numbers, and their product corrects all d × d weights of the square.</figcaption>
+  </figure>
 
   <section class="bench" id="w-shapes">
     <h3>How small is the correction?</h3>
-    <p class="try"><b>Try this.</b> The square is a frozen matrix and the two thin strips are the trainable ones, drawn to scale. Press the two presets and compare the percentages. The wider the model, the better the deal.</p>
+    <p class="try"><b>Try this.</b> The square is a frozen matrix and the two thin strips are the trainable ones, drawn to scale. Press the two presets and compare the percentages. Then move the sliders yourself.</p>
   </section>
 
-  <p>The saving is the ratio 2<i>r</i>/<i>d</i>, so it improves with width. On our 96-wide toy, rank 4 trains about 8% as many numbers as each square matrix it adapts, and 6% of the model overall. On a 4,096-wide model, rank 16 trains under 1%. And because <i>B</i> starts at zero, the product starts at zero: before the first training step the adapted model is exactly the original.</p>
-  <p>Why should such a restricted correction be enough? A product of thin matrices can only move the weights along <i>r</i> directions. The bet is that the change needed for one new habit is simple in that sense, even though the model as a whole is not. This is an empirical finding that has held up widely, not a theorem. When a task needs a larger change, a higher rank or full fine-tuning does better.</p>
+  <p><strong>What you should have seen.</strong> For our model, width 96 and rank 4: 9,216 frozen numbers and 768 trained, which is 8.33%. For a typical large setup, width 4,096 and rank 16: 16,777,216 frozen and 131,072 trained, which is 0.78%. The wider the model, the thinner the strips look next to the square.</p>
+
+  <p>The saving is the ratio 2<i>r</i>/<i>d</i>, so it improves with width. One more detail matters. <i>B</i> starts as all zeros, so the product <i>A</i> × <i>B</i> starts as all zeros: before the first training step the adapted model is exactly the original, and training moves away from it gradually.</p>
+  <p>Why should such a restricted correction be enough? The bet is that the change needed for one new habit is simple, in the sense that a few directions cover it, even though the model as a whole is not simple. This has been found to hold widely in practice. It is not a proven fact. When a task needs a larger change, a higher rank or full fine-tuning does better.</p>
 
   <h2>A real adapter, on our model</h2>
-  <p>To make the effect impossible to miss, the adapter in this repository teaches a deliberately silly habit: WRITE IN CAPITALS. The base model has seen capital letters mostly in speaker names and at the start of lines. The script <code>code/ch12_lora.py</code> freezes it, attaches rank-4 corrections to its attention and MLP matrices, and trains only those for 600 steps on upper-cased text.</p>
+  <p>To make the effect impossible to miss, the adapter in this repository teaches a deliberately silly habit: WRITE IN CAPITALS. The model of chapter 7 has seen capital letters mostly in speakers' names and at the start of lines. The script <code>code/ch12_lora.py</code> freezes it, attaches corrections of rank 4 to the matrices of its attention and its MLPs, and trains only those for 600 steps on the same text put in capitals.</p>
 
   <section class="bench" id="w-adapter">
     <h3>Same weights, with and without the adapter</h3>
-    <p class="try"><b>Try this.</b> Press Write. Both columns use the same frozen model, the same prompt and the same random numbers. The only difference is the small add-on.</p>
+    <p class="try"><b>Try this.</b> Press Write and compare the two columns. Both use the same frozen model, the same prompt and the same random numbers. The only difference is the adapter. Then read the line under them.</p>
   </section>
 
-  <p>Two properties make adapters convenient. They are tiny files, megabytes for a large model, so you can keep many and swap them. And an adapter can be <strong>merged</strong>: compute <i>W</i> + <i>A</i> × <i>B</i> once, store the result, and the adapted model runs at exactly the speed of the original. The script checks that the merged model gives the same outputs. A common variant, QLoRA, trains the adapter on top of a quantized base model, which is what lets people fine-tune multi-billion-weight models on a single consumer graphics card.</p>
+  <p><strong>What you should have seen.</strong> The left column continues <code>ROMEO:</code> in the usual mixed case. The right column writes lines such as <code>THE SHE DID SHOW THE SO THOU SEE.</code>, with speakers' names and line breaks still in place. The adapter has 20,736 trained numbers next to 345,504 frozen ones, 6.0%. On text in capitals the loss was 5.29 before and 1.83 after. The 5.29 is worse than the 4.17 of knowing nothing: the original model was confidently wrong about capitals.</p>
+
+  <p>Two properties make adapters convenient. They are small files, megabytes for a large model, so you can keep many and swap them. And an adapter can be merged.</p>
+  <div class="def"><span class="kind">Definition</span>
+    <p><dfn>Merging</dfn> an adapter is computing <i>W</i> + <i>A</i> × <i>B</i> once and storing the result as the new <i>W</i>. The merged model has the new habit and runs at exactly the speed of the original.</p>
+  </div>
+  <p>The script checks that the merged model gives the same outputs as the model with its adapter attached. A common variant, QLoRA, trains the adapter on top of a quantized model, which is what lets people fine-tune models of several billion weights on a single graphics card.</p>
 
   <h2>Build it</h2>
   <pre class="code" data-src="ch12_lora.py#lora">frozen = {k: t.data for k, t in model.p.items()}             # never updated
@@ -47,27 +88,39 @@ B = {k: Tensor(np.zeros((RANK, frozen[k].shape[1]))) for k in targets}   # zero:
 def apply_adapter():
     for k in targets:                                        # W_eff = W + (alpha/r) * A @ B
         model.p[k] = Tensor(frozen[k]) + (A[k] @ B[k]) * (ALPHA / RANK)</pre>
-  <p class="src">From <code>code/ch12_lora.py</code>. The rest of the script is the training loop you already know, applied to <code>A</code> and <code>B</code> only.</p>
+  <p class="src">From <code>code/ch12_lora.py</code>. <code>frozen</code> holds the original matrices, <code>A</code> starts as small random numbers and <code>B</code> as zeros. The factor <code>ALPHA / RANK</code> is a fixed number that sets the strength of the correction. The rest of the script is the training loop of chapter 7, applied to <code>A</code> and <code>B</code> only.</p>
 
   <div class="note">
     <h3>What this chapter glossed over</h3>
     <p><strong>Data is the hard part.</strong> The mechanics above take an afternoon. Assembling a few hundred or thousand good examples of the behaviour you want, and a held-out set to check you got it, takes most of the effort in any real project.</p>
     <p><strong>Fine-tuning can damage as well as teach.</strong> Push hard on a narrow dataset and the model gets worse at everything else. Our capitals adapter makes the model worse at ordinary text, by design. Always measure on both.</p>
-    <p><strong>Learning from scores instead of examples.</strong> Everything in this course trains on text that shows the right answer. Sometimes you cannot write the right answer but can <em>score</em> an attempt: did the code pass its tests, did the agent finish the task. Training on scores is reinforcement learning. In outline: sample several attempts, score them, and raise the probability of those that beat the average. The estimates are noisy, so methods such as PPO limit how far one update may move the model, and GRPO compares attempts at the same prompt against each other. That is the natural next subject after this course, and it rests on every chapter here.</p>
+    <p><strong>Learning from scores instead of examples.</strong> Everything in this course trains on text that shows the right answer. Sometimes you cannot write the right answer but can <em>score</em> an attempt: did the code pass its tests, did the agent finish the task. Training on scores is called reinforcement learning. In outline: let the model make several attempts, score them, and raise the probability of those that beat the average. Chapter 24 does this on a small agent and compares it with training on examples.</p>
+  </div>
+
+  <div class="recap">
+    <h3>In short</h3>
+    <ul>
+      <li>Try instructions and retrieval first. <a class="term" href="glossary.html#fine-tuning">Fine-tuning</a> is for a habit that they do not produce reliably.</li>
+      <li>Training every weight needs many times the memory of running the model. <a class="term" href="glossary.html#lora">LoRA</a> freezes the original matrices and trains a correction <i>A</i> × <i>B</i> for each.</li>
+      <li>A correction of <a class="term" href="glossary.html#rank">rank</a> <i>r</i> has 2 × <i>d</i> × <i>r</i> numbers instead of <i>d</i>²: 8.33% for our model at rank 4, 0.78% at width 4,096 and rank 16.</li>
+      <li>Our <a class="term" href="glossary.html#adapter">adapter</a> of 20,736 numbers made the model write in capitals: loss on such text 5.29 before, 1.83 after.</li>
+      <li>An adapter can be merged into the weights, and then costs nothing at run time. It can also make the model worse at everything else, so measure both.</li>
+    </ul>
   </div>
 
   <h2>Check yourself</h2>
   <details class="check"><summary>A matrix is 4,096 × 4,096. How many numbers does a rank-16 adapter for it train?</summary><p>2 × 4,096 × 16 = 131,072, against 16.8 million in the matrix: 0.8%.</p></details>
-  <details class="check"><summary>Why is one of the two thin matrices initialised to zero, and why not both?</summary><p>With <i>B</i> at zero the correction starts at zero, so training begins from the unmodified model. If both were zero, the gradient of each would be multiplied by the other and neither could ever move.</p></details>
-  <details class="check"><summary>You want the model to answer questions about your company's products, which change monthly. Fine-tune or retrieve?</summary><p>Retrieve. Facts that change belong in documents you can update, placed in the context when needed. Fine-tuning would have to be redone every month and would still state stale facts with confidence.</p></details>
+  <details class="check"><summary>Why is one of the two thin matrices initialised to zero, and why not both?</summary><p>With <i>B</i> at zero the correction starts at zero, so training begins from the unchanged model. If both were zero, neither could ever move: by the rule for multiplication in chapter 3, the slope for each is scaled by the other, and both would be scaled by zero.</p></details>
+  <details class="check"><summary>You want the model to answer questions about your company's products, which change monthly. Fine-tune or retrieve?</summary><p>Retrieve. Facts that change belong in documents you can update, placed in the context when needed. Fine-tuning would have to be done again every month and would still state last month's facts with confidence.</p></details>
 
   <h2>The whole path, once more</h2>
-  <p>A language model assigns probabilities to the next token (1). Text is cut into tokens (2). The model's numbers are tuned by following the gradient of the loss (3). Tokens become vectors (4) that exchange information through attention (5) inside a stack of blocks around a residual stream (6). Training is that tuning repeated on real text (7). Writing is sampling from the output, one token at a time, made fast by a cache (8). Rounding the weights makes the file fit your memory, and memory speed sets your tokens per second (9). A runtime and a server put it behind a local address, and a template turns continuation into conversation (10). What the model knows at run time is what you put in its window: history, retrieved passages, tool results (11). And when prompting is not enough, a small trained correction changes its habits (12).</p>
+  <p>A language model assigns probabilities to the next token (1). Text is cut into tokens (2). The model's numbers are tuned by following the gradient of the loss (3). Tokens become vectors (4) that exchange information through attention (5) inside a stack of blocks around a residual stream (6). Training is that tuning repeated on real text (7). Writing is sampling from the output, one token at a time, made fast by a cache (8). Rounding the weights makes the file fit your memory, and memory speed sets your tokens per second (9). A runtime and a server run it on your own computer, and a template turns continuing a text into a conversation (10). What the model knows while it runs is what you put in its window: the conversation, retrieved passages, the results of tools (11). And when prompting is not enough, a small trained correction changes its habits (12).</p>
   <p>Good next projects, in rising order of effort: train the small model on a text of your own by replacing <code>data/shakespeare.txt</code>; swap its character vocabulary for the BPE tokenizer of chapter 2; point the retrieval script at your own notes; give the agent a third tool that does something you actually need.</p>
-  <p>The course goes on from here. Chapters 13 and 14 make the agent dependable, chapters 15 to 17 open up the harness around it, chapter 18 goes down to the hardware, and chapter 19 puts every part into one small system that you train yourself.</p>
+  <p>The course goes on from here. Chapters 13 and 14 make the agent dependable, chapters 15 to 17 open up the program around it, chapter 18 goes down to the hardware, and chapter 19 puts every part into one small system that you train yourself.</p>
 </main>
 
 <script src="assets/weights.js"></script>
+<script src="assets/glossary.js"></script>
 <script src="assets/micro.js"></script>
 <script>
 M.ready(function () {

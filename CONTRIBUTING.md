@@ -43,9 +43,9 @@ table `M.lesson` in `docs/assets/micro.js` (one entry per chapter):
 A new chapter needs an entry in that table. The answer and the line to keep
 must follow from the chapter's own text and numbers.
 
-Chapters 3 to 19 do not yet have all of the reference style: the definition
-boxes, glossary entries and recap of chapters 1 and 2 are still to be added
-there. Chapters 20 to 38 have it.
+Every chapter now has the definition boxes, worked examples, glossary
+entries and recap of chapters 1 and 2. A new chapter is not finished without
+them.
 
 Optional maths goes in a folded `<details class="refresher">`. Step-by-step
 animations use `M.stepper` (see the BPE walkthrough in chapter 2).

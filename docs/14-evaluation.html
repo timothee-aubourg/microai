@@ -17,20 +17,50 @@
   <p>Both problems have the same answer, and it is not clever. Write down everything the agent does. Then ask it the same questions every time, and count.</p>
 
   <h2>Write everything down</h2>
-  <p>Wrap each model call and each tool call so that it notes four things: what went in, what came out, how long it took, and whether it failed. One such note is a <strong>span</strong>. The spans of one run, with the record of which call started which, form a <strong>trace</strong>.</p>
-  <p>The tracer in this chapter is about twenty lines, and it does not edit the agent. The loop of chapter 11 calls <code>chat</code> and looks tools up in a table. The tracer swaps both for versions that do the same work and take notes, runs the loop, and puts the originals back.</p>
+  <p>Wrap each call to the model and each call to a tool so that it notes four things: what went in, what came out, how long it took, and whether it failed.</p>
+  <div class="def"><span class="kind">Definitions</span>
+    <p>A <dfn>span</dfn> is the note of one call: its input, its output, its duration, and whether it failed.</p>
+    <p>A <dfn>trace</dfn> is the list of the spans of one run, with the record of which call started which.</p>
+  </div>
+  <h3>By hand: the trace of one question</h3>
+  <p>Take the question of chapter 11, "What is 17% of 2,340?", answered correctly. Its trace has three spans:</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Span</th><th>What went in</th><th>What came out</th></tr>
+    <tr><td>model</td><td>the instructions and the question</td><td>a request: <code>calculator("0.17 * 2340")</code></td></tr>
+    <tr><td>tool: calculator</td><td class="mono">0.17 * 2340</td><td class="mono">397.8</td></tr>
+    <tr><td>model</td><td>everything above, plus the result</td><td>17% of 2,340 is 397.8.</td></tr>
+  </table></div>
+  <figure class="fig">
+    <svg viewBox="0 0 760 190" role="img" aria-labelledby="f14a">
+      <title id="f14a">A trace drawn along a line of time. One long bar is the whole run. Under it, three shorter bars in a row are its spans: a call to the model, a call to the calculator, and a second call to the model.</title>
+      <g class="t-small">
+      <rect x="40" y="24" width="680" height="34" rx="5" class="bx"/><text x="380" y="46" text-anchor="middle">the run: one question, one trace</text>
+      <rect x="40" y="76" width="300" height="34" rx="5" class="bx-fwd"/><text x="190" y="98" text-anchor="middle">span: model</text>
+      <rect x="346" y="76" width="60" height="34" rx="5" class="bx-prob"/><text x="376" y="130" text-anchor="middle">span: calculator</text>
+      <rect x="412" y="76" width="308" height="34" rx="5" class="bx-fwd"/><text x="566" y="98" text-anchor="middle">span: model</text>
+      <line x1="40" y1="160" x2="720" y2="160" class="ln"/><text x="720" y="180" text-anchor="end" class="t-muted">time</text>
+      </g>
+    </svg>
+    <figcaption><b>A trace is spans in order.</b> With a real model the model spans take seconds and the tool spans milliseconds.</figcaption>
+  </figure>
+  <p>The final answer is only the last cell. The trace also shows what the model asked for, what the tool was given, and what it returned. When the answer is wrong, one of these cells is where it went wrong.</p>
+  <p>The code that takes these notes, the tracer, is about twenty lines here, and it does not edit the agent. The loop of chapter 11 calls <code>chat</code> and looks tools up in a table. The tracer swaps both for versions that do the same work and take notes, runs the loop, and puts the originals back.</p>
   <p>Below are nine questions put to that agent, with the trace of each run.</p>
 
   <section class="bench" id="w-trace">
     <h3>Nine tasks, nine traces</h3>
-    <p class="try"><b>Try this.</b> Open a task marked ✗. Before reading the final answer, find the span where the run went wrong. Tap a span to see exactly what went in and what came out.</p>
+    <p class="try"><b>Try this.</b> Open each of the three tasks marked ✗. Before reading the final answer, find the span where the run went wrong. Tap a span to see exactly what went in and what came out.</p>
   </section>
 
-  <p>Three of the nine fail, and for three different reasons. In <i>(3 + 4) * 12</i> the model span shows the arguments it wrote: <code>3 + 4) * 12</code>, with the opening bracket lost. The calculator span after it is marked as failed. In <i>17% of 2340</i> the first model span asks for the search tool: the wrong tool. In the last task the model calls the calculator, reports the result and stops, with half the question unanswered. Bad arguments, wrong tool, half the job. The final answers alone would not have told you which.</p>
+  <p><strong>What you should have seen.</strong> Six of nine pass. The three that fail do so for three different reasons. In <i>(3 + 4) * 12</i> the model span shows the arguments it wrote: <code>3 + 4) * 12</code>, with the opening bracket lost. The calculator span after it is marked as failed. In <i>17% of 2340</i> the first model span asks for the search tool: the wrong tool. In the last task the model calls the calculator, reports the result and stops, with half the question unanswered. Bad arguments, wrong tool, half the job. The final answers alone would not have told you which.</p>
   <p>Look also at the input of each model span. The second call of a run receives everything the first one did, plus the request and the tool's result. After a search, the input grows from under 200 characters to about 1,400. This is the context budget of chapter 11, measured.</p>
 
   <h2>Ask the same questions every time</h2>
-  <p>An <strong>evaluation</strong> is three things: a fixed list of tasks, a <strong>grader</strong> that decides pass or fail without a person looking, and a count. You run it before a change and after, and compare.</p>
+  <div class="def"><span class="kind">Definitions</span>
+    <p>An <dfn>evaluation</dfn> is three things: a fixed list of tasks, a grader, and a count of how many tasks pass.</p>
+    <p>A <dfn>grader</dfn> is code that decides pass or fail for one run, without a person looking.</p>
+  </div>
+  <p>You run the evaluation before a change and after, and compare.</p>
   <p>The tasks should come from your own use. The nine here are small on purpose. The grader makes two kinds of check.</p>
   <p><strong>Checks on the answer.</strong> Does the final text contain the right number, or one of the expected words? This is what the user cares about.</p>
   <p><strong>Checks on the path.</strong> Did the calculator run, and without an error? Did a search result contain the passage that holds the answer? These read the trace, not the answer. They matter for two reasons. An answer can be right for a bad reason: a model that multiplies in its head will be right on small numbers and wrong on large ones, and only the missing calculator call shows it. And a path check says <em>where</em> a failure is. "The right passage was never retrieved" sends you to the search. "It was retrieved and the answer is still wrong" sends you to the prompt or the model.</p>
@@ -38,9 +68,14 @@
 
   <h2>How far to trust a score</h2>
   <p>Six of nine is 67%. Suppose you add three sentences to the system prompt and get seven of nine, 78%. Is the agent better?</p>
-  <p>Think of each task as a coin that lands "pass" with some unknown probability. An evaluation flips <i>n</i> such coins and reports the fraction of passes. Flip again, with new tasks of the same kind or with the same tasks and a model that samples, and the fraction comes out different. The typical size of that wobble is the <strong>standard error</strong>:</p>
+  <p>Think of each task as a coin that lands "pass" with some unknown probability. An evaluation flips <i>n</i> such coins and reports the fraction of passes. Flip again, with new tasks of the same kind or with the same tasks and a model that samples, and the fraction comes out different.</p>
+  <div class="def"><span class="kind">Definition</span>
+    <p>The <dfn>standard error</dfn> of a score is the typical size of the difference between that score and the one you would get from another run of the same kind.</p>
+  </div>
   <div class="eq">standard error = &radic;( <i>p</i> (1 &minus; <i>p</i>) / <i>n</i> )</div>
   <p>where <i>p</i> is the pass rate and <i>n</i> the number of runs. About two scores in three land within one standard error of the truth, and nearly all within two.</p>
+  <h3>By hand: six of nine</h3>
+  <p>The pass rate is 6 / 9 = 0.67, so 1 − <i>p</i> is 0.33. Their product is 0.22. Divided by 9 it is 0.025, and the square root of that is 0.16. The score is 67%, give or take 16 points. Seven of nine, 78%, is well inside that range.</p>
   <div class="scroll"><table class="mini">
     <tr><th>Runs</th><th>Standard error at a 70% pass rate</th></tr>
     <tr><td class="mono">9</td><td class="mono">&plusmn; 15 points</td></tr>
@@ -48,13 +83,14 @@
     <tr><td class="mono">100</td><td class="mono">&plusmn; 4.6 points</td></tr>
     <tr><td class="mono">400</td><td class="mono">&plusmn; 2.3 points</td></tr>
   </table></div>
-  <p>With nine tasks the wobble is fifteen points each way. Six of nine and seven of nine are the same result. The square root also sets the price of precision: to halve the uncertainty you need four times the tasks.</p>
+  <p>With nine tasks the score moves by about fifteen points each way from one run to another. Six of nine and seven of nine are the same result. The square root also sets the price of precision: to halve the uncertainty you need four times the tasks.</p>
 
   <section class="bench" id="w-noise">
     <h3>Two systems, many evaluations</h3>
-    <p class="try"><b>Try this.</b> System B is truly better than system A by the amount you choose. Each is evaluated 400 times on fresh tasks. With 20 tasks and a 5-point improvement, how often does the better system come out ahead? Then raise the number of tasks until it almost always does.</p>
+    <p class="try"><b>Try this.</b> System B is truly better than system A by the amount you choose. Each is evaluated 400 times on fresh tasks. Start with 20 tasks and a 5-point improvement, and read how often the better system comes out ahead. Raise the tasks to 100, then 400. Last, go back to 20 tasks and set the gain to 0.</p>
   </section>
 
+  <p><strong>What you should have seen.</strong> With 20 tasks the standard error is 10.2 points, and the better system scored higher in about 58% of the pairs, the same in 12% and lower in 31%. With 100 tasks it came out ahead in about 75%, and with 400 tasks in about 93%. With no true gain at all, one system still "beat" the other in about 45% of the pairs each way: a difference between two scores, by itself, proves nothing. The figures move by a few points each time, because the simulation draws new tasks.</p>
   <p>Worked out exactly for 20 tasks, a system that is truly five points better (75% against 70%) scores higher only 57% of the time. It ties 13% of the time and scores <em>lower</em> 30% of the time. At 400 tasks it scores higher 94% of the time. Small evaluations are still worth having, because they catch large breakages at once. They cannot rank two close versions.</p>
 
   <h2>The working loop</h2>
@@ -62,7 +98,7 @@
   <ol>
     <li>Run the evaluation. Read the traces of the failures, not only the count.</li>
     <li>Name the fault: wrong tool, bad arguments, missing passage, wrong wording, too many steps.</li>
-    <li>Change one thing that addresses it: a tool description, the prompt, the chunking, a mask from chapter 13.</li>
+    <li>Change one thing that addresses it: the description of a tool, the prompt, how the documents are cut into chunks, a mask from chapter 13.</li>
     <li>Run everything again. A fix that breaks two other tasks is not a fix.</li>
     <li>When a real use fails in a new way, add it to the tasks. The list only grows.</li>
   </ol>
@@ -147,19 +183,31 @@ def score(rows):
     n = len(rows)
     p = sum(r['passed'] for r in rows) / n
     return p, math.sqrt(p * (1 - p) / n)</pre>
-  <p class="src">The evaluation, and the number that says how far to trust its result.</p>
+  <p class="src">The evaluation, and the standard error that says how far to trust its result.</p>
 
   <div class="note">
     <h3>What this chapter glossed over</h3>
-    <p><strong>The traces above come from the fake server.</strong> Its "model" picks tools with a few rules. The score of 6 in 9 describes those rules and no model. Its timings are also unlike a real run: a real model call takes seconds and dominates the trace, while the tools still take milliseconds. Run <code>code/ch14_eval.py</code> against the server of chapter 10 to see your own model's version.</p>
+    <p><strong>The traces above come from a stand-in for a model.</strong> The repository includes a small fake server whose "model" picks tools with a few rules. The score of 6 in 9 describes those rules and no model. Its timings are also unlike a real run: a real model call takes seconds and dominates the trace, while the tools still take milliseconds. Run <code>code/ch14_eval.py</code> against the server of chapter 10 to see your own model's version.</p>
     <p><strong>Graders are the hard part.</strong> A check for "397.8" fails a correct answer that says "about 398". Loosen it and it passes wrong ones. For free-form answers people often ask a second model to judge. That judge is itself a model that makes mistakes: before trusting it, compare its verdicts with your own on a sample.</p>
     <p><strong>Comparing on the same tasks is sharper.</strong> The experiment above gives each system fresh tasks. If both versions run on the same tasks, compare task by task: which ones flipped from fail to pass, and which the other way. That removes the luck of the draw in the tasks.</p>
     <p><strong>A real model is random.</strong> With sampling on, the same task can pass once and fail once. Run each task several times (<code>--repeat</code>) and count runs, not tasks.</p>
     <p><strong>A trace contains everything.</strong> The user's words, the retrieved documents, the tool results. It deserves the same care as the data it copies. On your own machine it is a file you control, which is one more argument for running locally.</p>
-    <p><strong>Tools exist for this.</strong> Tracing products add token counts, cost, a viewer and a shared record format. What they record is what the twenty lines here record.</p>
+    <p><strong>Ready-made tools exist for this.</strong> They add counts of tokens, cost, a viewer and a shared format for the records. What they record is what the twenty lines here record. Chapter 36 uses traces again, to watch a system after it is released.</p>
+  </div>
+
+  <div class="recap">
+    <h3>In short</h3>
+    <ul>
+      <li>A wrong answer does not say where the fault is. A <a class="term" href="glossary.html#trace">trace</a>, one <a class="term" href="glossary.html#span">span</a> per call to the model or a tool, does. Three failures here had three causes: bad arguments, the wrong tool, half the job.</li>
+      <li>An <a class="term" href="glossary.html#evaluation">evaluation</a> is a fixed list of tasks, a <a class="term" href="glossary.html#grader">grader</a> and a count. Run it before and after every change.</li>
+      <li>Check the answer, and check the path: an answer can be right for a bad reason.</li>
+      <li>A score has a <a class="term" href="glossary.html#standard-error">standard error</a> of √(<i>p</i>(1 − <i>p</i>)/<i>n</i>). Six of nine is 67% give or take 16 points.</li>
+      <li>With 20 tasks, a system that is truly 5 points better scores higher only about 57% of the time. Small evaluations catch breakages. They cannot rank close versions.</li>
+    </ul>
   </div>
 
   <h2>Check yourself</h2>
+  <details class="check"><summary>An evaluation of 100 tasks gives 80 passes. What is the standard error?</summary><p>0.8 × 0.2 = 0.16. Divided by 100 it is 0.0016, and the square root is 0.04. The score is 80%, give or take 4 points.</p></details>
   <details class="check"><summary>On an arithmetic task the answer check passes and the tools check fails. What happened, and does it matter?</summary><p>The model gave the right number without calling the calculator. It computed in its own weights, which is unreliable for anything but small numbers. The user saw a correct answer this time. The path check caught a habit that will produce wrong answers later.</p></details>
   <details class="check"><summary>After a prompt change the score goes from 14 of 20 to 16 of 20. What have you learned?</summary><p>Little from the count. At 20 runs the standard error is about ten points, and the change is ten points. Look instead at which tasks flipped. Two that now pass and none that broke, with traces showing the intended behaviour, is real evidence. To rank the two prompts by score alone you need many more tasks.</p></details>
   <details class="check"><summary>The tracer stores a copy of each input, not the input itself. Why?</summary><p>The agent keeps one list of messages and appends to it at every step. A span that stored the list itself would show, after the run, the final conversation in every model span. The copy freezes what the model received at that moment.</p></details>
@@ -167,6 +215,7 @@ def score(rows):
 </main>
 
 <script src="assets/evals.js"></script>
+<script src="assets/glossary.js"></script>
 <script src="assets/micro.js"></script>
 <script>
 M.ready(function () {

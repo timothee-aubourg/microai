@@ -13,33 +13,130 @@
   <p class="question">To the computer a token is an ID number: <code>a</code> is 39, <code>e</code> is 43, <code>z</code> is 64. How can arithmetic on arbitrary ID numbers ever discover that <code>a</code> and <code>e</code> behave alike?</p>
 
   <p>It cannot. The IDs are just positions in a list. If the formula multiplied them directly, it would be treating <code>z</code> as "more" than <code>a</code>, which means nothing.</p>
-  <p>So the very first step of the model throws the ID away and replaces it by a list of numbers, a <strong>vector</strong>. Our model uses 96 numbers per token. They live in a table with one row per token, and the lookup is as simple as it sounds: token 39 gets row 39. The table is called the <strong>embedding</strong>.</p>
-  <p>The important part is that the rows are parameters. They start as random noise, and gradient descent from chapter 3 adjusts them like any other weight. Nobody tells the model that vowels are alike. But if giving <code>a</code> and <code>e</code> similar rows lowers the loss, the gradient pushes them together.</p>
+  <p>So the very first step of the model throws the ID away and replaces it by a list of numbers. This chapter is about that list: what it is, how two such lists are compared, and what the trained model ended up putting in them.</p>
+
+  <div class="def"><span class="kind">Definitions</span>
+    <p>A <dfn>vector</dfn> is a list of numbers in a fixed order, such as (0.9, 0.1). The count of numbers in it is its number of <dfn>dimensions</dfn>. A vector of two numbers can be drawn as an arrow on paper: go 0.9 to the right and 0.1 up.</p>
+    <p>An <dfn>embedding</dfn> is the vector that stands for a token inside the model. The <dfn>embedding table</dfn> holds one row per token of the vocabulary, and each row is that token's embedding.</p>
+  </div>
+
+  <h3>By hand: looking a token up</h3>
+  <p>Take a vocabulary of three tokens and give each a vector of two numbers. The numbers here are made up.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Token ID</th><th>Token</th><th>Its row of the table</th></tr>
+    <tr><td class="mono">0</td><td class="mono">a</td><td class="mono">(0.9, 0.1)</td></tr>
+    <tr><td class="mono">1</td><td class="mono">e</td><td class="mono">(0.8, 0.3)</td></tr>
+    <tr><td class="mono">2</td><td class="mono">z</td><td class="mono">(−0.5, 0.7)</td></tr>
+  </table></div>
+  <p>The lookup is as simple as it sounds. The text <code>ze</code> is the IDs 2, 1, so the model takes row 2 and row 1: (−0.5, 0.7) and (0.8, 0.3). From here on it never uses the IDs again. Everything that follows is arithmetic on these vectors.</p>
+  <p>The model of this course does the same with larger numbers: 65 tokens, and 96 numbers per token instead of two. Its table therefore holds 65 × 96 = 6,240 numbers.</p>
+  <p>The important part is that these numbers are parameters, in the sense of chapter 3. They start as random noise, and gradient descent adjusts them like any other weight. Nobody tells the model that vowels are alike. But if giving <code>a</code> and <code>e</code> similar rows lowers the loss, their slopes push the two rows together.</p>
 
   <h2>The one operation that compares vectors</h2>
-  <p>What does "similar rows" mean? Nearly everything a transformer does with vectors comes down to one operation, the <strong>dot product</strong>: multiply the two vectors entry by entry and add up the results. Geometrically it measures how much one arrow points along the other, scaled by their lengths.</p>
-  <div class="eq"><i>a</i> · <i>b</i> = <i>a</i><sub>1</sub><i>b</i><sub>1</sub> + <i>a</i><sub>2</sub><i>b</i><sub>2</sub> + … = |<i>a</i>| |<i>b</i>| cos(angle)</div>
+  <p>What does "similar rows" mean? Nearly everything the model does with vectors comes down to one operation.</p>
+
+  <div class="def"><span class="kind">Definitions</span>
+    <p>The <dfn>dot product</dfn> of two vectors is one number: multiply the two vectors entry by entry and add up the results.</p>
+    <p>The <dfn>length</dfn> of a vector is the length of its arrow: square every entry, add, and take the square root.</p>
+    <p>The <dfn>cosine</dfn> of two vectors is their dot product divided by both lengths. It is 1 when the arrows point the same way, 0 when they are at right angles, and −1 when they point in opposite directions, whatever their lengths.</p>
+  </div>
+  <div class="eq"><i>a</i> · <i>b</i> = <i>a</i><sub>1</sub><i>b</i><sub>1</sub> + <i>a</i><sub>2</sub><i>b</i><sub>2</sub> + … &nbsp;&nbsp;&nbsp; cosine = <i>a</i> · <i>b</i> / ( |<i>a</i>| × |<i>b</i>| )</div>
+
+  <h3>By hand: which rows are alike?</h3>
+  <p>With the table above:</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Pair</th><th>Dot product</th><th>Cosine</th></tr>
+    <tr><td class="mono">a and e</td><td class="mono">0.9 × 0.8 + 0.1 × 0.3 = 0.75</td><td class="mono">0.75 / (0.91 × 0.85) = 0.97</td></tr>
+    <tr><td class="mono">a and z</td><td class="mono">0.9 × −0.5 + 0.1 × 0.7 = −0.38</td><td class="mono">−0.38 / (0.91 × 0.86) = −0.49</td></tr>
+  </table></div>
+  <p>The lengths come from the definition: for <code>a</code>, the square root of 0.9² + 0.1² is 0.91. The rows of <code>a</code> and <code>e</code> point almost the same way, with a cosine of 0.97. The row of <code>z</code> points away from both. "Similar" now has a number.</p>
+
+  <figure class="fig">
+    <svg viewBox="0 0 760 240" role="img" aria-labelledby="f4a">
+      <title id="f4a">The three rows of the small table drawn as arrows from one point. The arrows for a and e point almost the same way, to the right. The arrow for z points up and to the left, away from both.</title>
+      <defs><marker id="c4a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
+      <line x1="120" y1="200" x2="680" y2="200" class="ln-dash"/><line x1="380" y1="20" x2="380" y2="225" class="ln-dash"/>
+      <line x1="380" y1="200" x2="560" y2="180" class="ln-fwd" style="stroke-width:3" marker-end="url(#c4a)"/><text x="572" y="186" class="t-mono">a (0.9, 0.1)</text>
+      <line x1="380" y1="200" x2="540" y2="140" class="ln-fwd" style="stroke-width:3" marker-end="url(#c4a)"/><text x="552" y="138" class="t-mono">e (0.8, 0.3)</text>
+      <line x1="380" y1="200" x2="280" y2="60" class="ln-grad" style="stroke-width:3" marker-end="url(#c4a)"/><text x="270" y="50" text-anchor="end" class="t-mono">z (−0.5, 0.7)</text>
+      <text x="470" y="226" class="t-small t-muted">cosine of a and e: 0.97</text><text x="130" y="140" class="t-small t-muted">cosine of a and z: −0.49</text>
+    </svg>
+    <figcaption><b>Similar means pointing the same way.</b> The rows of the by-hand table, drawn as arrows.</figcaption>
+  </figure>
 
   <section class="bench" id="w-dot">
     <h3>The dot product, by hand</h3>
-    <p class="try"><b>Try this.</b> Drag the arrow tips. Make the arrows perpendicular: the dot product is 0. Point them in opposite directions: it turns negative. Now stretch one arrow without turning it: the dot product grows although the angle has not changed. The cosine ignores length; the dot product does not.</p>
+    <p class="try"><b>Try this.</b> Read the numbers under the arrows as they stand. Then drag the arrow tips. Make the arrows perpendicular. Point them in opposite directions. Last, stretch one arrow without turning it.</p>
   </section>
 
-  <p>Keep both readings in mind. The raw dot product is what the model computes, because it is cheap. The cosine, which divides out the lengths, is what you use when you only care about direction. Chapter 5 uses dot products to decide which tokens matter to each other, and chapter 11 uses cosines to find documents.</p>
+  <p><strong>What you should have seen.</strong> The arrows start at (2.4, 0.8) and (1.0, 2.0): the dot product is 2.4 × 1.0 + 0.8 × 2.0 = 4.00, the lengths are 2.53 and 2.24, and the cosine is 0.71, an angle of 45°. Perpendicular arrows give a dot product of 0. Opposite arrows give a negative one. Stretching an arrow makes the dot product grow although the angle has not changed, and the cosine stays where it was. The cosine ignores length. The dot product does not.</p>
+  <p>Keep both readings in mind. The raw dot product is what the model computes, because it is cheap. The cosine is what you use when you only care about direction. Chapter 5 uses dot products to decide which tokens matter to each other, and chapter 11 uses cosines to find documents.</p>
 
   <h2>What our model learned</h2>
-  <p>Here is the embedding table of the trained model: 65 characters, each a point in 96 dimensions. A screen has two, so the picture shows the two directions along which the points spread the most (a principal component projection). Tapping a character lists its nearest neighbours measured in the full 96 dimensions.</p>
+  <p>Here is the embedding table of the trained model, the one whose training chapter 7 follows: 65 characters, each a point in 96 dimensions. A screen has two. So the picture below is a flattened view: it keeps the two directions along which the points spread the most, and drops the other 94. Tapping a character lists its nearest neighbours, measured by cosine in the full 96 dimensions.</p>
 
   <section class="bench" id="w-map">
     <h3>The 65 characters, as the model sees them</h3>
-    <p class="try"><b>Try this.</b> Tap a lowercase vowel, then a capital letter, then a punctuation mark, and read who their neighbours are.</p>
+    <p class="try"><b>Try this.</b> Tap <code>e</code>, then <code>t</code>, then a full stop, and read who their neighbours are. Then tap any character you like.</p>
   </section>
 
-  <p>Three things stand out, and none of them was programmed. The vowels <code>a</code>, <code>e</code>, <code>i</code>, <code>o</code> are each other's nearest neighbours. The punctuation marks form the tightest group of all: to this model a full stop and a question mark are nearly the same thing (cosine 0.75), which is fair, since the same kind of text follows both. And many lowercase letters have their own capital as nearest neighbour: <code>t</code> sits next to <code>T</code>, <code>h</code> next to <code>H</code>. Nobody told the model that <code>T</code> is a capital <code>t</code>. It found out because the two are followed by similar text.</p>
+  <p><strong>What you should have seen.</strong> The nearest neighbours of <code>e</code> are <code>a</code> (cosine 0.33), <code>i</code> (0.27) and <code>o</code> (0.25). The nearest neighbour of <code>t</code> is <code>T</code> (0.32), and that of <code>h</code> is <code>H</code>. The nearest neighbour of the full stop is the question mark, at 0.75, followed by the exclamation mark and the semicolon.</p>
+  <p>Three things stand out, and none of them was programmed. The vowels <code>a</code>, <code>e</code>, <code>i</code>, <code>o</code> are each other's nearest neighbours. The punctuation marks form the tightest group of all: to this model a full stop and a question mark are nearly the same thing, which is fair, since the same kind of text follows both. And many lowercase letters have their own capital as nearest neighbour. Nobody told the model that <code>T</code> is a capital <code>t</code>. It found out because the two are followed by similar text.</p>
+  <p>This is what chapter 1 asked for at its wall: a model that treats similar contexts similarly. A count table had one unrelated row for every context. Here, tokens that behave alike have vectors that point alike, so what the model learns about one carries over to the other.</p>
 
   <h2>Two more jobs for the same idea</h2>
-  <p><strong>Position.</strong> The computation in the next chapter treats its input as an unordered bag. To tell <code>dog bites man</code> from <code>man bites dog</code>, the model needs to know where each token sits. Our model learns a second table with one row per position, 64 rows, and simply adds the position's row to the token's row. The sum is the vector that enters the network.</p>
-  <p><strong>Output.</strong> At the far end, the network has produced one final vector per position and must turn it into 65 scores, one per possible next character. It does this by taking the dot product of the final vector with every row of the embedding table. The prediction is, quite literally, the answer to "which token's direction does my output point along?" Using the same table at both ends is called weight tying.</p>
+  <h3>Position</h3>
+  <p>The table gives <code>a</code> the same vector wherever it stands. That loses something a count table had for free. Look at two short texts, <code>ze</code> and <code>ez</code>, with the small table above:</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Text</th><th>Vectors the model receives</th></tr>
+    <tr><td class="mono">ze</td><td class="mono">(−0.5, 0.7) and (0.8, 0.3)</td></tr>
+    <tr><td class="mono">ez</td><td class="mono">(0.8, 0.3) and (−0.5, 0.7)</td></tr>
+  </table></div>
+  <p>The same two vectors, in another order. You might think the order of the list is enough. It is not, because of how the next chapter works: there, each token collects information from the others by comparing vectors, and a comparison of two vectors gives the same number wherever the two tokens stand. To that step, a text is a bag of vectors. <code>dog bites man</code> and <code>man bites dog</code> would be the same bag.</p>
+  <p>So the place of each token has to be written into its vector before anything else happens.</p>
+  <div class="def"><span class="kind">Definition</span>
+    <p>A <dfn>position embedding</dfn> is a vector that stands for a place in the text: first, second, third. It is added to the token's embedding.</p>
+  </div>
+  <p>Our model has a second table for this, with one row per position. It reads at most 64 characters at once, so the table has 64 rows of 96 numbers: 6,144 more parameters, random at the start and learned like the first table.</p>
+  <h3>By hand: adding the position</h3>
+  <p>Adding two vectors means adding them entry by entry. Suppose the position table of our small example is this:</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Position</th><th>Its row</th></tr>
+    <tr><td>first</td><td class="mono">(0.1, 0.0)</td></tr>
+    <tr><td>second</td><td class="mono">(0.0, 0.2)</td></tr>
+  </table></div>
+  <p>Then the two texts no longer give the same vectors:</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Text</th><th>First token + first position</th><th>Second token + second position</th></tr>
+    <tr><td class="mono">ze</td><td class="mono">(−0.5, 0.7) + (0.1, 0.0) = (−0.4, 0.7)</td><td class="mono">(0.8, 0.3) + (0.0, 0.2) = (0.8, 0.5)</td></tr>
+    <tr><td class="mono">ez</td><td class="mono">(0.8, 0.3) + (0.1, 0.0) = (0.9, 0.3)</td><td class="mono">(−0.5, 0.7) + (0.0, 0.2) = (−0.5, 0.9)</td></tr>
+  </table></div>
+  <p>An <code>e</code> in first place is now (0.9, 0.3) and an <code>e</code> in second place is (0.8, 0.5): close to each other, since it is the same letter, and not identical, since it stands somewhere else. Each sum is the vector that the rest of the model works on. It carries both facts at once, which token and where.</p>
+  <p>Nothing tells the model what a position is. The 64 rows start as noise, with no hint that position 9 comes after position 8. The next experiment looks at what training made of them.</p>
+
+  <section class="bench" id="w-pos">
+    <h3>What the position table learned</h3>
+    <p class="try"><b>Try this.</b> The bars compare the row of one position with the rows of positions further along. Start at position 10 and read the bars from top to bottom. Then move the slider to 1, and to 30.</p>
+  </section>
+
+  <p><strong>What you should have seen.</strong> At position 10, the row is nearly the same as its neighbour's, with a cosine of 0.99, and still very close 8 places away. Further along the likeness fades, and 32 places away the cosine is negative: the two rows point in different directions. Averaged over the whole table, neighbouring positions have a cosine of 0.96, positions 8 apart 0.82, 16 apart 0.47 and 32 apart −0.37. The model has laid its positions out in order, like marks along a line, although nobody told it they were ordered. Position 1 is the exception: its row resembles no other very much (0.71 at best), because the first character of a text is a special place with nothing before it.</p>
+  <p>The order was learned for the same reason the vowels came together. Characters 9 and 10 of a passage are in almost the same situation, so rows that are almost the same serve them both.</p>
+
+  <h3>Output</h3>
+  <p>Now jump to the far end of the model. Chapters 5 and 6 fill in the middle. All that matters here is what comes out of it: for the position being predicted, one final vector of 96 numbers, which is the model's summary of the text so far.</p>
+  <p>A vector is not a prediction. Chapter 1 asked for a probability for every possible next token, so the final vector must become 65 numbers, one per token. The model gets them with the dot product again: the score of a token is the dot product of the final vector with that token's row of the embedding table. A high score means the final vector points along that token's row.</p>
+  <p>By hand, with the small table: suppose the final vector is (1.0, 0.2).</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Token</th><th>Its row</th><th>Score: dot product with (1.0, 0.2)</th></tr>
+    <tr><td class="mono">a</td><td class="mono">(0.9, 0.1)</td><td class="mono">0.9 + 0.02 = 0.92</td></tr>
+    <tr><td class="mono">e</td><td class="mono">(0.8, 0.3)</td><td class="mono">0.8 + 0.06 = 0.86</td></tr>
+    <tr><td class="mono">z</td><td class="mono">(−0.5, 0.7)</td><td class="mono">−0.5 + 0.14 = −0.36</td></tr>
+  </table></div>
+  <p>The highest score goes to <code>a</code>, the token whose row points most along the final vector. The prediction is, quite literally, the answer to "which token's direction does my output point along?" Chapter 5 shows how scores become the probabilities of chapter 1.</p>
+  <p>Why the same table? It could have been a second one, and some models do that. Using one table has two effects. It saves 6,240 parameters. And it ties the two meanings of a row together: tokens that are read alike, because their rows are close, are also predicted alike, because the final vector that scores high with one scores high with the other. In the small table, <code>e</code> got 0.86, right behind <code>a</code>.</p>
+  <div class="def"><span class="kind">Definition</span>
+    <p><dfn>Weight tying</dfn> is using the same table at both ends of the model: to turn tokens into vectors at the input, and to turn the final vector into scores at the output.</p>
+  </div>
 
   <h2>Build it</h2>
   <pre class="code" data-src="gpt.py#params">p = {}
@@ -56,23 +153,36 @@ for i in range(n_layer):
     p[f'h{i}.mlp.w2'] = w(4 * d, d, std=res_std)   # ...and project back
 p['ln_f.g'] = Tensor(np.ones(d));  p['ln_f.b'] = Tensor(np.zeros(d))
 self.p = p</pre>
-  <p class="src">From <code>code/gpt.py</code>. These few lines declare every parameter of the model. <code>wte</code> and <code>wpe</code> are the two tables of this chapter; the rest belongs to chapters 5 and 6.</p>
+  <p class="src">From <code>code/gpt.py</code>. These few lines declare every parameter of the model. <code>wte</code> is the token embedding table and <code>wpe</code> the position table; in the code, <code>d</code> is the 96 and <code>block_size</code> the 64. Each is created as a tensor (chapter 3) filled with small random numbers. The other lines belong to chapters 5 and 6.</p>
 
   <div class="note">
     <h3>What this chapter glossed over</h3>
     <p><strong>A projection is a shadow.</strong> The map keeps <span id="expl">a fraction</span> of the spread of the points and discards the rest. Two characters that sit together on the map can be far apart in the dimensions you cannot see. Trust the neighbour list over the picture.</p>
-    <p><strong>This is only the starting point of meaning.</strong> The table gives each token one fixed vector, whatever its context. The <em>p</em> in <em>spear</em> and the <em>p</em> in <em>hope</em> enter the network identical. Making them different, according to their neighbours, is the job of the layers that follow.</p>
-    <p><strong>Modern models encode position differently.</strong> Instead of adding a learned row, most current open models rotate the vectors inside the attention step by an angle that depends on position (rotary embeddings). It handles long texts better. The purpose is the same.</p>
+    <p><strong>This is only the starting point of meaning.</strong> The table gives each token one fixed vector, whatever its context. The <em>p</em> in <em>spear</em> and the <em>p</em> in <em>hope</em> enter the network identical. Making them different, according to their neighbours, is the job of chapters 5 and 6.</p>
+    <p><strong>Modern models encode position differently.</strong> Instead of adding a learned row, most current models turn the vectors by an angle that depends on position. Chapter 30 builds that and compares it with the table used here. The purpose is the same.</p>
+  </div>
+
+  <div class="recap">
+    <h3>In short</h3>
+    <ul>
+      <li>A token ID is replaced at once by a <a class="term" href="glossary.html#vector">vector</a>, its <a class="term" href="glossary.html#embedding">embedding</a>: one row of a table of parameters. Ours has 65 rows of 96 numbers.</li>
+      <li>Two vectors are compared with the <a class="term" href="glossary.html#dot-product">dot product</a>: multiply entry by entry and add. The <a class="term" href="glossary.html#cosine">cosine</a> is the same thing with the lengths divided out.</li>
+      <li>Training moves tokens that behave alike towards the same direction. In our model the nearest neighbour of <code>e</code> is <code>a</code>, of <code>t</code> is <code>T</code>, and of the full stop is the question mark.</li>
+      <li>A second table adds a <a class="term" href="glossary.html#position-embedding">position embedding</a>, so the model knows where each token stands. Training put its 64 rows in order: neighbouring positions have a cosine of 0.96, positions 32 apart −0.37.</li>
+      <li>The output scores are dot products of the final vector with the rows of the same table, which is <a class="term" href="glossary.html#weight-tying">weight tying</a>.</li>
+    </ul>
   </div>
 
   <h2>Check yourself</h2>
+  <details class="check"><summary>With the small table of this chapter, what is the dot product of the rows of <code>e</code> and <code>z</code>?</summary><p>0.8 × −0.5 + 0.3 × 0.7 = −0.40 + 0.21 = −0.19. It is negative: the two rows point away from each other.</p></details>
   <details class="check"><summary>How many parameters are in our token table? And in the table of a model with 128,000 tokens and 4,096 numbers per token?</summary><p>65 × 96 = 6,240. The large one has 128,000 × 4,096 ≈ 524 million: about 1,500 times our entire model, just for the first lookup.</p></details>
-  <details class="check"><summary>Two vectors have dot product 0. What does the model "think" of them?</summary><p>That they have nothing to do with each other along the direction being tested. In 96 dimensions there is a lot of room for vectors to be perpendicular, which is how one vector can carry many unrelated features at once.</p></details>
-  <details class="check"><summary>Why is the output layer a set of dot products with the embedding rows?</summary><p>It asks which token the final vector resembles. If the network transforms the context into something pointing along the row of <code>u</code>, then <code>u</code> gets the highest score. One table then serves two purposes: turning tokens into vectors, and vectors back into tokens.</p></details>
+  <details class="check"><summary>Two vectors have dot product 0. What does the model "think" of them?</summary><p>That they have nothing to do with each other: their arrows are at right angles, and the cosine is 0 too. In 96 dimensions there is a lot of room for vectors to be at right angles to one another.</p></details>
+  <details class="check"><summary>Why is the output layer a set of dot products with the embedding rows?</summary><p>It asks which token the final vector resembles. If the model turns the context into a vector pointing along the row of <code>u</code>, then <code>u</code> gets the highest score. One table then serves two purposes: turning tokens into vectors, and vectors back into tokens.</p></details>
 </main>
 
 <script src="assets/data.js"></script>
 <script src="assets/weights.js"></script>
+<script src="assets/glossary.js"></script>
 <script src="assets/micro.js"></script>
 <script>
 M.ready(function () {
@@ -148,6 +258,25 @@ M.ready(function () {
     });
     box.appendChild(leg); box.appendChild(out);
     cv.redraw(); neighbours();
+  })();
+
+  (function () {
+    var box = M.$('#w-pos'), m = M.loadModel();
+    if (!m) { box.appendChild(M.el('p', { text: 'The trained model did not load, so this experiment is unavailable.' })); return; }
+    var d = m.cfg.d_model, E = m.w.wpe, n = m.cfg.block, bars = M.el('div'), stat = M.el('p', { class: 'readout' });
+    function dot(i, j) { var s = 0; for (var k = 0; k < d; k++) s += E[i * d + k] * E[j * d + k]; return s; }
+    function cos(i, j) { return dot(i, j) / Math.sqrt(dot(i, i) * dot(j, j)); }   // the cosine of this chapter, on two rows of the position table
+    function draw() {
+      var i = pos.value - 1, rows = [];
+      [1, 2, 4, 8, 16, 32].forEach(function (g) { if (i + g < n) { var c = cos(i, i + g); rows.push({ label: g + (g === 1 ? ' place on' : ' places on'), p: Math.max(0, c), text: c.toFixed(2), hl: g === 1, cut: c < 0 }); } });
+      M.bars(bars, rows, 1);
+      stat.innerHTML = rows.length ? 'Cosine between the row of position <b>' + pos.value + '</b> and the rows of later positions.' : 'No later position to compare with.';
+    }
+    var pos = M.slider({ label: 'Position', min: 1, max: 60, step: 1, value: 10, fmt: function (v) { return v; }, oninput: draw });
+    M.posCos = function (i, j) { return Math.round(cos(i - 1, j - 1) * 100) / 100; };
+    box.appendChild(M.row(pos)); box.appendChild(bars); box.appendChild(stat);
+    box.appendChild(M.el('p', { class: 'caption', text: 'The position table of the trained model: 64 rows of ' + d + ' numbers. A bar is empty when the cosine is negative.' }));
+    draw();
   })();
 });
 </script>

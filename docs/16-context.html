@@ -12,16 +12,33 @@
   <h1>Spending the window</h1>
   <p class="question">Every step of an agent sends the whole conversation again. What does that cost, and what do you do when it stops fitting?</p>
 
-  <p>The session of chapter 15 ended as a conversation of 3,025 characters. To get there the model read 12,749 characters, because each of its five requests contained everything before it. A longer task makes this worse quickly: the text grows by a steady amount per step, so the total read grows with the square of the number of steps.</p>
+  <p>The session of chapter 15 ended as a conversation of 3,025 characters. To get there the model read 12,749 characters, because each of its five requests contained everything before it. A longer task makes this worse quickly. The text grows by a steady amount per step, so each request is longer than the last, and the total read grows with the square of the number of steps: twice as many steps, about four times as much to read.</p>
   <p>Two budgets are being spent. One is time: reading costs computation. The other is room: the window is finite (chapter 11). They are managed with different tools, and the tools interfere with each other. That interference is the subject here.</p>
 
   <h2>Reading and writing are different work</h2>
-  <p>A request has two phases. First the model reads the prompt. All of those tokens are known in advance, so they can be processed together. Then it writes, and each new token has to wait for the one before it. The reading phase is often called <strong>prefill</strong> and the writing phase <strong>decode</strong>.</p>
+  <p>A request has two phases. First the model reads the prompt. All of those tokens are known in advance, so they can be processed together. Then it writes, and each new token has to wait for the one before it.</p>
+  <div class="def"><span class="kind">Definitions</span>
+    <p><dfn>Prefill</dfn> is the reading phase of a request: the model processes the whole prompt.</p>
+    <p><dfn>Decode</dfn> is the writing phase: the model produces its reply one token at a time.</p>
+  </div>
   <p>You feel them separately. The pause before the first word appears is the reading. The speed of the words after that is the writing. An agent step typically reads thousands of tokens and writes a few dozen, so its cost is mostly reading.</p>
 
   <h2>Do not read it twice</h2>
-  <p>Chapter 8 introduced the KV cache: for every token read, the model stores a key and a value per layer, so that later tokens can attend to it without recomputing it. Those stored numbers depend only on that token and the tokens before it, never on what comes after. So they stay valid for any text that begins the same way.</p>
-  <p>A server can use this between requests. It keeps the cache of the last request. When the next one arrives it compares the two token by token, keeps the cache up to the first difference, and computes only the rest. This is a <strong>prefix cache</strong>. Measured on the model of this course, with five requests that each extend the previous one by nine characters:</p>
+  <p>Chapter 8 introduced the KV cache: for every token read, the model stores a key and a value per layer, so that later tokens can read it without computing it again. Those stored numbers depend only on that token and the tokens before it, never on what comes after. So they stay valid for any text that begins the same way.</p>
+  <p>A server can use this between requests.</p>
+  <div class="def"><span class="kind">Definition</span>
+    <p>A <dfn>prefix cache</dfn> is a KV cache kept from one request to the next. When a new request arrives, the server compares it with the last one token by token, keeps the cache up to the first difference, and computes only the rest.</p>
+  </div>
+  <h3>By hand: what is reused</h3>
+  <p>The last request was <code>abcdef</code>. Three possible next requests:</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>New request</th><th>Same beginning</th><th>Tokens to compute</th></tr>
+    <tr><td class="mono">abcdefgh</td><td class="mono">abcdef</td><td class="mono">2</td></tr>
+    <tr><td class="mono">abcXefgh</td><td class="mono">abc</td><td class="mono">5</td></tr>
+    <tr><td class="mono">Xbcdefgh</td><td>nothing</td><td class="mono">8</td></tr>
+  </table></div>
+  <p>The second request differs from the old one in a single character, and five tokens have to be computed, because everything after the change had read the old character. In the third, one changed character at the start throws the whole cache away.</p>
+  <p>Measured on the model of this course, with five requests that each extend the previous one by nine characters:</p>
   <div class="scroll"><table class="mini">
     <tr><th>Server</th><th>Tokens computed per request</th><th>Total</th></tr>
     <tr><td>Forgets between requests</td><td class="mono">25, 34, 43, 52, 61</td><td class="mono">215</td></tr>
@@ -29,19 +46,37 @@
     <tr><td>Keeps the cache, one character at the start changes each time</td><td class="mono">25, 34, 43, 52, 61</td><td class="mono">215</td></tr>
   </table></div>
   <p>The second row does 3.5 times less work and produces the same scores: the script checks every request against a computation from scratch. The third row is the warning. One character changed near the beginning, and the cache was worth nothing, because every later token had attended to it.</p>
-  <p>From this follows the first rule of building agents: <strong>keep the beginning of the conversation fixed, and only ever add to the end.</strong> No clock in the system prompt. The same tools in the same order at every step. No rewriting of earlier messages. llama.cpp's server reuses the common beginning of consecutive requests by default, and hosted services price cached input lower for the same reason.</p>
+  <p>From this follows the first rule of building agents: <strong>keep the beginning of the conversation fixed, and only ever add to the end.</strong> No clock in the system prompt. The same tools in the same order at every step. No rewriting of earlier messages. The server of llama.cpp reuses the common beginning of requests that follow one another, without being asked, and services that charge by the token charge less for input that was cached, for the same reason.</p>
+
+  <figure class="fig">
+    <svg viewBox="0 0 760 190" role="img" aria-labelledby="f16a">
+      <title id="f16a">Two requests drawn as bars. The second begins with exactly the same text as the first and adds a little at the end. The shared beginning is taken from the cache, and only the new end is computed. Below, a third request in which one character near the start has changed: everything after the change is computed again.</title>
+      <g class="t-small">
+      <text x="16" y="36" class="t-muted">request 1</text><rect x="110" y="20" width="420" height="26" rx="4" class="bx-fwd"/><text x="320" y="38" text-anchor="middle">computed</text>
+      <text x="16" y="86" class="t-muted">request 2</text><rect x="110" y="70" width="420" height="26" rx="4" class="bx-soft"/><text x="320" y="88" text-anchor="middle">same beginning: from the cache</text><rect x="532" y="70" width="80" height="26" rx="4" class="bx-fwd"/><text x="572" y="88" text-anchor="middle">new</text>
+      <text x="16" y="136" class="t-muted">changed</text><rect x="110" y="120" width="40" height="26" rx="4" class="bx-soft"/><rect x="152" y="120" width="12" height="26" rx="2" class="bx-grad"/><rect x="166" y="120" width="446" height="26" rx="4" class="bx-fwd"/><text x="390" y="138" text-anchor="middle">computed again</text>
+      <text x="158" y="170" text-anchor="middle" class="t-grad">one character changed</text>
+      </g>
+    </svg>
+    <figcaption><b>Only what follows a change is read again.</b> A change at the end costs little. A change at the start costs everything.</figcaption>
+  </figure>
 
   <section class="bench" id="w-cache">
     <h3>One session, four ways to run it</h3>
-    <p class="try"><b>Try this.</b> Start with "Only add to the end" and note the total. Switch to the clock. Then make the session long enough to cross the window line, and try the two ways of shrinking it.</p>
+    <p class="try"><b>Try this.</b> A session of 14 steps. Start with "Only add to the end" and note the total. Switch to the clock. Then set the steps to 30, which no longer fits the window, and try the two ways of shrinking the conversation.</p>
   </section>
 
+  <p><strong>What you should have seen.</strong> At 14 steps, adding only to the end makes the model compute 14,931 characters, where a server with no cache would compute 127,365, 8.5 times as much. With a clock in the system prompt it computes all 127,365: the cache is never used. At 30 steps the largest request is 29,651 characters and does not fit the window of 16,000. Trimming old results at every step fits it, at 61,011 characters computed. Compacting when three quarters full fits it too, with three compactions and 33,611 characters computed, about half as much.</p>
+
   <h2>When it no longer fits</h2>
-  <p>Adding to the end cannot go on forever. Past the window line the request is refused, or the oldest text falls out without notice. Three tools make the conversation smaller, in order of violence.</p>
+  <p>Adding to the end cannot go on for ever. Past the size of the window the request is refused, or the oldest text falls out without notice. Three tools make the conversation smaller, from the gentlest to the most drastic.</p>
   <p><strong>Clip at the source.</strong> Cut a long tool result before it enters the conversation, as <code>clip</code> does in chapter 15. This costs nothing later, because nothing already read is changed.</p>
   <p><strong>Trim old results.</strong> A file read ten steps ago has usually done its job. Replace old results with their first lines.</p>
   <p><strong>Compact.</strong> Ask the model to summarise the work so far, and replace the middle of the conversation with that summary.</p>
-  <p>The last two rewrite text the model has already read, so they break the first rule. From the first changed character on, the cache is void and everything is read again. Measured on a session of six file reads of 1,500 characters each: trimming takes it from 10,870 to 5,722 characters and leaves the first 883 identical. Compacting takes it to 4,036 and leaves the first 483 identical.</p>
+  <div class="def"><span class="kind">Definition</span>
+    <p><dfn>Compaction</dfn> is replacing a long stretch of a conversation by a summary of it, written by the model.</p>
+  </div>
+  <p>The last two rewrite text the model has already read, so they break the first rule. From the first changed character on, the cache is useless and everything is read again. Measured on a session of six file reads of 1,500 characters each: trimming takes it from 10,870 to 5,722 characters and leaves the first 883 identical. Compacting takes it to 4,036 and leaves the first 483 identical.</p>
   <p>So the two budgets pull against each other. The experiment shows the way out: trimming a little at every step pays the re-reading price at every step, while compacting rarely, in one large cut, pays it once and then enjoys a short conversation that grows at the end again. Shrink seldom and shrink a lot.</p>
 
   <h2>Memory is a decision about the window</h2>
@@ -68,7 +103,7 @@
             logits = self.run.step(t, self.cache)      # the only real work
         self.ids = list(ids)
         return logits, len(ids) - same                 # scores for the next token, tokens computed</pre>
-  <p class="src">From <code>code/ch16_context.py</code>. A prefix cache on top of the runner of chapter 8: find the shared beginning, void the rest, compute what is new.</p>
+  <p class="src">From <code>code/ch16_context.py</code>. A prefix cache on top of the code of chapter 8: find the shared beginning, drop the rest of the cache, compute what is new.</p>
   <pre class="code" data-src="ch16_context.py#trim">def trim_results(messages, keep=2, limit=200):
     """Old tool results are most of an agent's context. Shorten all but the latest `keep`."""
     out, seen = [], 0
@@ -100,13 +135,27 @@ def compact(messages, summarize, keep=4):
     <p><strong>A full window is also a worse window.</strong> Models tend to use a long, cluttered context less reliably than a short, relevant one. Size is not only a cost.</p>
   </div>
 
+  <div class="recap">
+    <h3>In short</h3>
+    <ul>
+      <li>An agent reads far more than it writes, and it reads the same beginning at every step. The cost of a task is mostly reading.</li>
+      <li>A <a class="term" href="glossary.html#prefix-cache">prefix cache</a> keeps the work done on the shared beginning of two requests. On our model: 61 tokens computed instead of 215, with the same results.</li>
+      <li>One change near the start throws the cache away. Keep the beginning fixed and only add to the end.</li>
+      <li>When the window fills, cut results before they enter, trim old ones, or <a class="term" href="glossary.html#compaction">compact</a>. The last two change text already read, so everything after the change is read again.</li>
+      <li>Shrink seldom and by a lot: in the experiment, compacting three times cost about half the reading of trimming at every step.</li>
+      <li>What is called memory in an agent is a choice of what to put back into the window.</li>
+    </ul>
+  </div>
+
   <h2>Check yourself</h2>
+  <details class="check"><summary>The last request was <code>hello world</code>. The new one is <code>hello there world</code>. How many characters does a prefix cache save?</summary><p>The two agree on <code>hello </code>, six characters, and differ from the seventh on. Those six are reused, and the other eleven are computed, although most of them were in the old request too. Only an unchanged beginning counts.</p></details>
   <details class="check"><summary>Someone adds "The current time is 14:32:07" as the first line of the system prompt. What happens to the cost of a twenty-step task?</summary><p>If the time is refreshed on each request, the first line differs every time, so the shared beginning has length zero and every request is read in full. Put changing information at the end, in the newest message, where nothing after it depends on it.</p></details>
   <details class="check"><summary>Why does the cache become invalid after the first difference, and not only at the changed token?</summary><p>Each token's stored keys and values were computed by attending to all the tokens before it. Change one early token and every later token would have computed something different. Only what came before the change is untouched.</p></details>
   <details class="check"><summary>Trimming old results at every step keeps the window small. Why does it cost more reading than compacting now and then?</summary><p>Each trim changes text two steps back, so each request is read again from that point on: about two results' worth per step instead of one. A compaction costs one larger re-read, after which the conversation again grows only at the end.</p></details>
   <details class="check"><summary>An agent "remembers" your preferences from last week. Where are they stored?</summary><p>Not in the model: its weights did not change. They are in text that the harness saved and now puts back into the request, as a note file read at the start or a retrieved passage.</p></details>
 </main>
 
+<script src="assets/glossary.js"></script>
 <script src="assets/micro.js"></script>
 <script>
 M.ready(function () {
