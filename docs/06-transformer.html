@@ -10,42 +10,117 @@
 <main>
   <p class="where">Chapter 6</p>
   <h1>The whole machine</h1>
-  <p class="question">Attention moves information between positions, but a weighted average cannot compute anything new. What does the computing? And how do you stack many such steps without the signal degrading on the way?</p>
+  <p class="question">Attention moves information between positions, but an average cannot compute anything new. What does the computing? And how do you stack many such steps without losing the signal on the way?</p>
 
-  <p>You now have every ingredient: token vectors, attention, and a way to train. A GPT assembles them into one repeated unit, the <strong>block</strong>, and stacks it. Ours has 3 blocks. A model you download has dozens. The block is the same.</p>
+  <p>You now have every ingredient: token vectors (chapter 4), attention (chapter 5), and a way to train (chapter 3). This chapter assembles them into the model itself. It needs three more parts, and each one answers a problem you can state in a sentence.</p>
 
-  <h2>A stream that everything writes into</h2>
-  <p>Picture one vector per position, 96 numbers wide, running from the bottom of the model to the top. This is the <strong>residual stream</strong>. Nothing ever replaces it. Each component reads the stream, computes something, and <em>adds</em> its result back in.</p>
-  <p>Each block makes two additions:</p>
-  <ul>
-    <li><strong>Attention</strong> lets positions exchange information, as in chapter 5. Tokens talk to each other.</li>
-    <li>The <strong>MLP</strong> then works on each position separately: it stretches the 96 numbers to 384 with one matrix, bends them through a nonlinear function, and brings them back to 96 with a second matrix. Each token thinks on its own about what it has heard.</li>
-  </ul>
+  <div class="def"><span class="kind">Definitions</span>
+    <p>A <dfn>transformer</dfn> is a model built by repeating one unit that contains attention. A <dfn>GPT</dfn> is a transformer trained to predict the next token, with the causal mask of chapter 5. The model of this course is a small GPT.</p>
+    <p>The repeated unit is called a <dfn>block</dfn>, or a layer. Ours has 3 blocks. A model you download has dozens. The block is the same.</p>
+  </div>
+
+  <h2>Part one: something that computes</h2>
+  <p>Attention moves information from one position to another. What a token receives is an average of what other tokens hold. An average of vectors can only land somewhere between them: it cannot work anything out. So after each attention step, the model gives every token a moment to compute on its own.</p>
+  <div class="def"><span class="kind">Definitions</span>
+    <p>The <dfn>MLP</dfn>, short for multi-layer perceptron, is that computing step. It takes one token's vector, stretches it to a longer one with a matrix, bends every number through a fixed function, and brings it back to the original size with a second matrix.</p>
+    <p>The bend is called an <dfn>activation function</dfn>. The simplest one keeps positive numbers as they are and turns negative numbers into 0.</p>
+  </div>
+  <h3>By hand: an MLP on one vector</h3>
+  <p>Take the vector (1, −1). The first matrix has three columns, (1, 0), (0, 1) and (1, 1), so it stretches two numbers into three. Each new number is a dot product, as in chapter 5:</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Step</th><th>Result</th></tr>
+    <tr><td>stretch: (1, −1) with each of the three columns</td><td class="mono">(1, −1, 0)</td></tr>
+    <tr><td>bend: negative numbers become 0</td><td class="mono">(1, 0, 0)</td></tr>
+    <tr><td>bring back: with the columns (1, 2, 0) and (0, 1, 1)</td><td class="mono">(1, 0)</td></tr>
+  </table></div>
+  <p>The three numbers in the middle work as detectors. Each one tests the input for one pattern: the first asks "is the first entry large?", the second "is the second entry large?". The bend decides which detectors fire, and only those pass anything on. Here the second detector stayed silent. Without the bend the middle would have been (1, −1, 0), and the result (−1, −1) instead of (1, 0).</p>
+  <p>The bend is what makes this a computation. Two matrices in a row with nothing between them do no more than one matrix: multiplying a number by 2 and then by 3 is multiplying it by 6, and the same holds for tables. With the bend in between, the step can react to one pattern and ignore another.</p>
+  <p>In our model the MLP stretches the 96 numbers to 384 and brings them back to 96. The bend it uses is a smooth version of the one above, called GELU: it turns −1 into −0.16 instead of 0, and leaves 3 at 3. Smooth matters for the same reason as in the softmax: gradient descent needs slopes. Two thirds of the parameters of every block sit in its MLP, and that is where the model stores most of what it knows.</p>
+
+  <h2>Part two: a stream that everything adds to</h2>
+  <p>Now stack blocks. The obvious way is a chain: block 1 turns the vector into a new one, block 2 turns that into another, and so on. It fails for deep stacks, and the reason is in chapter 3. The slopes travel backward through every block, multiplying as they go. If each block shrinks them a little, say by a factor of 0.8, then after 30 blocks they have shrunk by 0.8<sup>30</sup> = 0.001. Almost nothing reaches the first blocks, and they never learn. This was the practical obstacle to deep models for years.</p>
+  <div class="def"><span class="kind">Definition</span>
+    <p>The <dfn>residual stream</dfn> is the vector of each position as it travels through the model. No block replaces it. Each part reads it, computes something, and <em>adds</em> its result to it.</p>
+  </div>
+  <h3>By hand: two additions</h3>
+  <p>A token enters a block with the vector (1.0, 2.0).</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Step</th><th>What is added</th><th>The stream afterwards</th></tr>
+    <tr><td>on entry</td><td></td><td class="mono">(1.0, 2.0)</td></tr>
+    <tr><td>attention reads the stream and adds its result</td><td class="mono">(0.3, −0.1)</td><td class="mono">(1.3, 1.9)</td></tr>
+    <tr><td>the MLP reads the stream and adds its result</td><td class="mono">(−0.2, 0.4)</td><td class="mono">(1.1, 2.3)</td></tr>
+  </table></div>
+  <p>The vector that leaves the block is the one that entered plus two corrections. That is all a block does:</p>
   <div class="eq"><i>x</i> ← <i>x</i> + attention(norm(<i>x</i>)) &nbsp;&nbsp;&nbsp; <i>x</i> ← <i>x</i> + mlp(norm(<i>x</i>))</div>
-  <p>The nonlinear bend matters. Without it, any stack of matrices collapses into one matrix, and the model could only draw straight lines through its inputs. With it, the 384 intermediate numbers act as detectors that switch on for particular patterns, and that is where the model stores most of what it knows. Two thirds of the parameters of every block sit in its MLP.</p>
+  <p>Adding fixes the shrinking slopes with almost no machinery. Nudge <i>x</i> by a small amount and <i>x</i> + f(<i>x</i>) moves by that amount, plus whatever f adds. So its slope is 1 plus something. The "1" is a direct path: the slopes reach every block undiminished, however deep the stack. It also changes what a block has to learn. It does not have to rebuild the whole vector. It only contributes a correction.</p>
 
-  <h2>Why add instead of replace</h2>
-  <p>Suppose each block replaced the vector with its output. Then a signal passing through 30 blocks is transformed 30 times, and so is the gradient coming back. If each step shrinks it slightly, almost nothing arrives at the first block, and the early layers never learn. This was the practical obstacle to deep networks for years.</p>
-  <p>Adding fixes it with almost no machinery. The slope of <i>x</i> + f(<i>x</i>) with respect to <i>x</i> is 1 plus something. The "1" is a direct path: the gradient reaches every block undiminished, however deep the stack. It also changes what a block has to learn. It no longer needs to rebuild the whole representation. It only contributes a correction.</p>
-  <p>The <strong>norm</strong> in front of each component is the last piece. As blocks keep adding to the stream, its numbers could drift to any size. Layer normalisation rescales each vector to a standard spread before a component reads it, so every component sees inputs in the range it was trained on. It is also what keeps the square-root argument of chapter 5 roughly valid.</p>
+  <figure class="fig">
+    <svg viewBox="0 0 760 210" role="img" aria-labelledby="f6a">
+      <title id="f6a">One block. The stream runs straight through from left to right. A first branch leaves it, passes through a normalisation and attention, and is added back. A second branch leaves it, passes through a normalisation and the MLP, and is added back.</title>
+      <defs><marker id="c6a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
+      <line x1="16" y1="160" x2="740" y2="160" class="ln-fwd" style="stroke-width:3" marker-end="url(#c6a)"/>
+      <text x="16" y="186" class="t-small t-fwd">the stream: one vector per position</text>
+      <g class="t-small">
+      <path d="M70 160 L70 60 L96 60" fill="none" class="ln" marker-end="url(#c6a)"/>
+      <rect x="100" y="42" width="70" height="36" rx="6" class="bx-soft"/><text x="135" y="65" text-anchor="middle">norm</text>
+      <line x1="172" y1="60" x2="196" y2="60" class="ln" marker-end="url(#c6a)"/>
+      <rect x="200" y="42" width="110" height="36" rx="6" class="bx-prob"/><text x="255" y="65" text-anchor="middle">attention</text>
+      <path d="M312 60 L350 60 L350 144" fill="none" class="ln" marker-end="url(#c6a)"/>
+      <circle cx="350" cy="160" r="13" class="bx"/><text x="350" y="165" text-anchor="middle" class="t-big">+</text>
+      <path d="M420 160 L420 60 L446 60" fill="none" class="ln" marker-end="url(#c6a)"/>
+      <rect x="450" y="42" width="70" height="36" rx="6" class="bx-soft"/><text x="485" y="65" text-anchor="middle">norm</text>
+      <line x1="522" y1="60" x2="546" y2="60" class="ln" marker-end="url(#c6a)"/>
+      <rect x="550" y="42" width="90" height="36" rx="6" class="bx-prob"/><text x="595" y="65" text-anchor="middle">MLP</text>
+      <path d="M642 60 L680 60 L680 144" fill="none" class="ln" marker-end="url(#c6a)"/>
+      <circle cx="680" cy="160" r="13" class="bx"/><text x="680" y="165" text-anchor="middle" class="t-big">+</text>
+      <text x="205" y="26" text-anchor="middle" class="t-muted">tokens exchange information</text><text x="545" y="26" text-anchor="middle" class="t-muted">each token computes alone</text>
+      </g>
+    </svg>
+    <figcaption><b>One block.</b> The stream is never replaced. Attention and the MLP each read it and add to it.</figcaption>
+  </figure>
+
+  <h2>Part three: keeping the numbers in range</h2>
+  <p>The formula has a third word in it, norm. Blocks keep adding to the stream, so its numbers could drift to any size. A part that was trained on inputs of a typical size of 1 behaves badly on inputs a hundred times larger.</p>
+  <div class="def"><span class="kind">Definition</span>
+    <p><dfn>Layer normalisation</dfn> rescales one vector so that its numbers have an average of 0 and a typical size of 1: subtract the average of its numbers from each, then divide each by their spread.</p>
+  </div>
+  <h3>By hand</h3>
+  <p>Take the vector (2, 4, 6). Its average is 4. Subtracting it gives (−2, 0, 2). The spread is the square root of the average square: the squares are 4, 0 and 4, their average is 2.67, and its square root is 1.63. Dividing gives (−1.22, 0, 1.22).</p>
+  <p>Now take (20, 40, 60), ten times larger. The same steps give (−1.22, 0, 1.22) again. The pattern is kept: which numbers are high and which are low. The size is gone. Each part of the model reads the stream through such a rescaling, so it always sees inputs in the range it was trained on. The stream itself is left as it is. It is also what keeps the square-root argument of chapter 5 roughly valid.</p>
+
+  <h2>The whole model, from text to probabilities</h2>
+  <p>Here is every step in order. Each one is something you have done by hand.</p>
+  <ol>
+    <li>Cut the text into tokens and look each one up in the embedding table (chapters 2 and 4).</li>
+    <li>Add the position embedding (chapter 4). This is the start of the stream.</li>
+    <li>Three times over: attention adds to the stream (chapter 5), then the MLP adds to it.</li>
+    <li>Rescale the final vector once more, and take its dot product with every row of the embedding table (chapter 4). That gives one score per token.</li>
+    <li>The softmax turns the scores into probabilities (chapter 5). Chapter 1's loss measures how good they are.</li>
+  </ol>
+  <div class="def"><span class="kind">Definition</span>
+    <p>The scores of step 4, before the softmax, are called <dfn>logits</dfn>. You will meet the word in every piece of model code.</p>
+  </div>
 
   <section class="bench" id="w-lens">
     <h3>Watch a prediction take shape</h3>
-    <p class="try"><b>Try this.</b> Each panel reads the stream at one depth and turns it into a guess for the next character, using the output step of chapter 4. Watch the right answer rise from block to block. Then untick a block: the model still runs, because every block reads and writes the same stream. It is just worse.</p>
+    <p class="try"><b>Try this.</b> The text ends in <code>furt</code>, and the right next character is <code>h</code>. Each panel reads the stream at one depth and turns it into a guess, using steps 4 and 5. Read the four panels from first to last. Then untick block 1, tick it again, and do the same with blocks 2 and 3.</p>
   </section>
 
-  <p>Read the first panel with care. Straight after the embedding, the stream holds nothing but the current character's own row of the table, and the row most similar to it is itself. So the "guess" is simply the character just read, with full confidence. Every bit of actual prediction is added by the blocks. With the default text, the correct <code>h</code> gets about 40% after block 1, almost 90% after block 2, and near certainty after block 3.</p>
+  <p><strong>What you should have seen.</strong> After the embedding, the guess is <code>t</code> at 100%. After block 1 the correct <code>h</code> has 40.2%, after block 2 it has 88.2%, and after block 3 it has 99.6%. Without block 1 the model still runs, and its final guess is wrong: <code>e</code> at 54.3%. Without block 2 it still says <code>h</code>, at 91.5%. Without block 3 it says <code>h</code> at 88.2%.</p>
+  <p>Read the first panel with care. Straight after the embedding, the stream holds little more than the current character's own row of the table, and the row most similar to it is itself. So the "guess" is simply the character just read. Every bit of actual prediction is added by the blocks. And removing a block does not break the model, because every block reads the same stream and adds to it. What is lost is that block's contribution. The first block's turned out to matter most here.</p>
 
   <h2>Counting the parameters</h2>
-  <p>With width <i>d</i>, each block holds four <i>d</i>×<i>d</i> matrices for attention (queries, keys, values, output) and two matrices of <i>d</i>×4<i>d</i> for the MLP: 12<i>d</i>² numbers in all. Add the token table, vocabulary × <i>d</i>.</p>
+  <p>Call the width of the stream <i>d</i>; ours is 96. Each block holds four matrices of <i>d</i> × <i>d</i> for attention (queries, keys, values, and the one that mixes the heads) and two matrices of <i>d</i> × 4<i>d</i> for the MLP. That is 4<i>d</i>² + 8<i>d</i>² = 12<i>d</i>² numbers. Add the token table, vocabulary × <i>d</i>.</p>
   <div class="eq">parameters ≈ vocabulary × <i>d</i> + layers × 12 <i>d</i>²</div>
+  <p>By hand for our model: 65 × 96 = 6,240 for the table, and 3 × 12 × 96² = 331,776 for the blocks. The sum is 338,016. The exact count is 345,504: the formula leaves out the position table and the small parameters of the normalisations.</p>
 
   <section class="bench" id="w-count">
     <h3>How big is a model?</h3>
-    <p class="try"><b>Try this.</b> Press each preset. Then double the width and see the block parameters quadruple. Depth costs linearly; width costs quadratically.</p>
+    <p class="try"><b>Try this.</b> Press each preset and read the total. Then press Our model, set the width to 128, note the total, and set it to 256. Go back to Our model and double the layers from 3 to 6.</p>
   </section>
 
-  <p>The same line of arithmetic covers our toy and models five orders of magnitude larger. That is the sense in which you are learning the real thing. Open-weight models have refined the parts: a different normalisation, a gated MLP, positions encoded by rotation, queries sharing keys between heads. None of these change the anatomy of this chapter.</p>
+  <p><strong>What you should have seen.</strong> Our model: 338,016. GPT-2 small: 123.5 million. The 8-billion-class model: 6.97 billion by this formula. Doubling the width from 128 to 256 takes the total from 598,144 to 2.4 million, four times as much. Doubling the layers from 3 to 6 takes it from 338,016 to 669,792, twice as much. Depth costs in proportion. Width costs with the square.</p>
+  <p>The same line of arithmetic covers our small model and models five orders of magnitude larger. That is the sense in which you are learning the real thing. Current models have refined the parts: a simpler normalisation, a gated MLP, positions encoded by rotation, heads that share keys and values. Chapter 30 goes through these. None of them changes the anatomy of this chapter.</p>
 
   <h2>Build it</h2>
   <pre class="code" data-src="gpt.py#layernorm">@staticmethod
@@ -54,7 +129,7 @@ def layernorm(x, g, b, eps=1e-5):
     xc = x - x.mean(axis=-1, keepdims=True)
     var = (xc * xc).mean(axis=-1, keepdims=True)
     return xc * (var + eps) ** -0.5 * g + b</pre>
-  <p class="src">From <code>code/gpt.py</code>.</p>
+  <p class="src">From <code>code/gpt.py</code>. The by-hand steps: subtract the average, divide by the spread. The last two names, <code>g</code> and <code>b</code>, are two small learned tensors that let the model stretch and shift the result again if that helps.</p>
   <pre class="code" data-src="gpt.py#forward">def forward(self, idx, targets=None, trace=None):
     """idx: (B, T) array of token ids -&gt; logits (B, T, vocab), and the loss if targets given."""
     B, T = idx.shape
@@ -74,22 +149,37 @@ def layernorm(x, g, b, eps=1e-5):
         return logits, None
     loss = cross_entropy(logits.reshape(B * T, self.vocab_size), targets.reshape(B * T))
     return logits, loss</pre>
-  <p class="src">The complete forward pass of a GPT. Together with the attention function of chapter 5 and the parameter list of chapter 4, this is the entire model.</p>
+  <p class="src">The complete forward pass of a GPT: the five steps above, in the same order. <code>idx</code> holds the token IDs, <code>x</code> is the stream, and <code>gelu</code> is the bend. Together with the attention function of chapter 5 and the parameter list of chapter 4, this is the entire model.</p>
 
   <div class="note">
     <h3>What this chapter glossed over</h3>
     <p><strong>Reading the stream halfway is an approximation.</strong> The model was trained to make its final vector readable, not the intermediate ones. The middle panels are a useful window, and they can also mislead.</p>
-    <p><strong>What a block "does" is not well defined.</strong> "Attention communicates, the MLP computes" is a good first picture. In a trained network the work is smeared across components, and understanding it precisely is an open research field (mechanistic interpretability).</p>
-    <p><strong>The formula is a main-terms count.</strong> It leaves out the position table and the normalisation gains. For our model it gives 338,016 against the exact 345,504.</p>
+    <p><strong>What a block "does" is not well defined.</strong> "Attention communicates, the MLP computes" is a good first picture. In a trained model the work is spread across the parts, and understanding it precisely is an open research field, called mechanistic interpretability.</p>
+    <p><strong>The formula counts the main terms.</strong> It leaves out the position table and the parameters of the normalisations. For our model it gives 338,016 against the exact 345,504.</p>
+    <p><strong>The by-hand bend is the simple one.</strong> It is called ReLU. Our model uses GELU, which is smooth near zero. The two do the same job.</p>
+  </div>
+
+  <div class="recap">
+    <h3>In short</h3>
+    <ul>
+      <li>A <a class="term" href="glossary.html#gpt">GPT</a> repeats one <a class="term" href="glossary.html#block">block</a>. Each block makes two additions to the stream: <a class="term" href="glossary.html#attention">attention</a>, where tokens exchange information, and the <a class="term" href="glossary.html#mlp">MLP</a>, where each token computes alone.</li>
+      <li>The MLP stretches a vector, bends it, and brings it back. The bend is what lets it react to one pattern and ignore another.</li>
+      <li>The <a class="term" href="glossary.html#residual-stream">residual stream</a> is added to and never replaced. That keeps a direct path for the slopes through any number of blocks.</li>
+      <li><a class="term" href="glossary.html#layer-normalisation">Layer normalisation</a> rescales a vector to an average of 0 and a typical size of 1 before a part reads it.</li>
+      <li>In our model the right character went from 40.2% after block 1 to 99.6% after block 3.</li>
+      <li>Parameters ≈ vocabulary × <i>d</i> + layers × 12<i>d</i>². Ours: 338,016 by this formula, 345,504 exactly.</li>
+    </ul>
   </div>
 
   <h2>Check yourself</h2>
+  <details class="check"><summary>Normalise the vector (1, 3) by hand.</summary><p>The average is 2, so subtracting gives (−1, 1). The squares are 1 and 1, their average is 1, and its square root is 1. The result is (−1, 1).</p></details>
   <details class="check"><summary>How many parameters does one block of our model have, by the formula?</summary><p>12 × 96² = 110,592. Three blocks give 331,776, which is 96% of the whole model.</p></details>
   <details class="check"><summary>You double the width of a model and keep the depth. What happens to its file size, roughly?</summary><p>It quadruples, because the blocks scale with <i>d</i>². The token table only doubles, but for any model of useful size the blocks dominate.</p></details>
   <details class="check"><summary>Why does removing a block not crash the model?</summary><p>Every block reads a 96-wide vector and adds a 96-wide vector. Take one out and the shapes still fit. What is lost is that block's contribution, which later blocks were trained to expect.</p></details>
 </main>
 
 <script src="assets/weights.js"></script>
+<script src="assets/glossary.js"></script>
 <script src="assets/micro.js"></script>
 <script>
 M.ready(function () {
