@@ -12,13 +12,30 @@
   <h1>Build the whole thing</h1>
   <p class="question">Can you build every part yourself, from random numbers to an agent that uses a tool, on a laptop, in one sitting?</p>
 
-  <p>Yes. This chapter is one file, <code>code/ch19_system.py</code>, that bolts together the engines of the earlier chapters. It writes its own training data, trains a model of 108,032 weights on your CPU in about five minutes, and runs that model inside a harness with three tools. The result is a very small assistant that answers questions like "what is 23 times 45?" by asking a calculator.</p>
+  <p>Yes. This chapter is one file, <code>code/ch19_system.py</code>, that puts together the parts of the earlier chapters. It writes its own training data, trains a model of 108,032 weights on your CPU in about five minutes, and runs that model inside a harness with three tools. The result is a very small assistant that answers questions like "what is 23 times 45?" by asking a calculator.</p>
   <p>It is limited on purpose, and it is complete. Every part that a large system has is here in a form you can read in one evening, and the model below is running in your browser now.</p>
 
   <section class="bench" id="w-agent">
     <h3>The whole system, live</h3>
-    <p class="try"><b>Try this.</b> Ask for a sum with two numbers under 100. Watch who writes each line. Then ask something it was never taught and see what it does.</p>
+    <p class="try"><b>Try this.</b> Ask the question in the box, and read who writes each line. Tap <code>what is 7 minus 60?</code>. Then tap <code>what is 123 plus 4?</code> and <code>what is the capital of france?</code>, two things it was never taught.</p>
   </section>
+
+  <p><strong>What you should have seen.</strong> For 23 times 45, four lines: your question, the model's request <code>C mul 23 45</code>, the harness's result <code>R 1035</code>, and the model's answer, "23 times 45 is 1035." The model processed 66 characters of its window of 96. A result below zero works too. For 123 plus 4 it calls <code>add 12 4</code> and answers "12 plus 4 is 16." For the capital of France it calls <code>sub 9 3</code> and answers "9 minus 3 is 6." It never hesitates, and the last two answers are about questions nobody asked.</p>
+
+  <figure class="fig">
+    <svg viewBox="0 0 760 230" role="img" aria-labelledby="f19a">
+      <title id="f19a">One question through the whole system. The user writes a line beginning with U. The model writes a line beginning with C, a request for a tool. The harness runs the tool and writes a line beginning with R, the result. The model writes a line beginning with A, the answer. The model writes two of the four lines, and the harness and its tool write the result.</title>
+      <defs><marker id="c19a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
+      <g class="t-small">
+      <rect x="16" y="20" width="430" height="40" rx="6" class="bx"/><text x="30" y="45" class="t-mono">U what is 23 times 45?</text><text x="560" y="45" class="t-muted">written by the user</text>
+      <rect x="16" y="72" width="430" height="40" rx="6" class="bx-fwd"/><text x="30" y="97" class="t-mono">C mul 23 45</text><text x="560" y="97" class="t-fwd">written by the model</text>
+      <rect x="16" y="124" width="430" height="40" rx="6" class="bx-prob"/><text x="30" y="149" class="t-mono">R 1035</text><text x="560" y="149" class="t-muted">written by the harness, from its tool</text>
+      <rect x="16" y="176" width="430" height="40" rx="6" class="bx-fwd"/><text x="30" y="201" class="t-mono">A 23 times 45 is 1035.</text><text x="560" y="201" class="t-fwd">written by the model</text>
+      </g>
+      <g class="ln"><line x1="448" y1="40" x2="548" y2="40"/><line x1="448" y1="92" x2="548" y2="92"/><line x1="448" y1="144" x2="548" y2="144"/><line x1="448" y1="196" x2="548" y2="196"/></g>
+    </svg>
+    <figcaption><b>Four lines, three writers.</b> The model never computes the product. It asks, and then it copies.</figcaption>
+  </figure>
 
   <h2>The map</h2>
   <p>Here is every part of the system, where this course built it, and what plays that part in a full-size system.</p>
@@ -29,15 +46,15 @@
     <tr><td>Model</td><td>Scores for the next token</td><td><code>gpt.py</code>, 108,032 weights, ch 4–6</td><td>The same design, billions of weights</td></tr>
     <tr><td>Training</td><td>Finds the weights</td><td><code>engine.py</code> and a loop, ch 3 and 7</td><td>The same loop on many GPUs for weeks</td></tr>
     <tr><td>Weights file</td><td>The model at rest</td><td>A numpy archive, ch 9</td><td>A quantized file of gigabytes</td></tr>
-    <tr><td>Inference engine</td><td>Runs the model fast</td><td>KV cache and sampler, ch 8</td><td>llama.cpp and similar runtimes</td></tr>
+    <tr><td>Runtime</td><td>Runs the model fast</td><td>KV cache and sampling, ch 8</td><td>llama.cpp and similar runtimes, ch 10</td></tr>
     <tr><td>Hardware</td><td>Does the arithmetic</td><td>One CPU core, ch 18</td><td>GPUs with fast memory</td></tr>
     <tr><td>Conversation format</td><td>Says who is speaking</td><td>Four letters: U, C, R, A</td><td>A chat template with special tokens, ch 15</td></tr>
-    <tr><td>Output format</td><td>Keeps tool calls parseable</td><td>The mask, ch 13</td><td>Grammars built from JSON Schema</td></tr>
+    <tr><td>Output format</td><td>Keeps tool calls readable by a program</td><td>The mask, ch 13</td><td>Grammars built from JSON Schema</td></tr>
     <tr><td>Harness</td><td>Turns requests into actions</td><td>Forty lines, ch 11 and 15</td><td>Claude Code, Pi and others</td></tr>
     <tr><td>Context</td><td>Decides what the model sees</td><td>One short conversation, ch 16</td><td>Prefix caches, compaction, memory files</td></tr>
     <tr><td>Tracing</td><td>Records what happened</td><td>One span per line and per tool, ch 14</td><td>Tracing services</td></tr>
-    <tr><td>Evaluation</td><td>Says whether it works</td><td>200 unseen questions, ch 14</td><td>Task suites run on every change</td></tr>
-    <tr><td>Safety</td><td>Bounds the damage</td><td>Tools that can only compute, ch 17</td><td>Permissions and sandboxes</td></tr>
+    <tr><td>Evaluation</td><td>Says whether it works</td><td>200 unseen questions, ch 14</td><td>Lists of tasks run on every change</td></tr>
+    <tr><td>Safety</td><td>Limits the damage</td><td>Tools that can only compute, ch 17</td><td>Gates and sandboxes</td></tr>
   </table></div>
   <p>Nothing in the right-hand column is a different kind of thing from its neighbour on the left. It is larger, faster and more careful.</p>
 
@@ -69,7 +86,11 @@ A 23 times 45 is 1035.        the model reports</pre>
     <tr><td>what is 5 plus 5 plus 5?</td><td>Called <code>add 5 5</code> and answered "5 plus 5 is 10."</td></tr>
     <tr><td>what is the capital of france?</td><td>Called <code>sub 9 3</code> and answered "9 minus 3 is 6."</td></tr>
   </table></div>
-  <p>It has no way to say "I do not know", because no example ever showed it that sentence. It produces the nearest thing it has a shape for. This is the small, fully visible version of what is called hallucination in large models: fluent output in a learned form, with nothing behind it.</p>
+  <p>It has no way to say "I do not know", because no example ever showed it that sentence. It produces the nearest thing it has a form for.</p>
+  <div class="def"><span class="kind">Definition</span>
+    <p>A <dfn>hallucination</dfn> is output that is fluent and has the right form, and is not based on anything: an answer produced because an answer of that form is likely, whether or not it is true.</p>
+  </div>
+  <p>The table above is the small, fully visible version of it. In a large model the same thing happens with a reference that does not exist or a date that is wrong.</p>
 
   <h2>Make it yours</h2>
   <p>The file is meant to be changed. Each of these is under an hour, and each teaches the part it touches.</p>
@@ -165,13 +186,25 @@ python code/ch19_system.py --eval                   # 200 unseen questions</pre>
   <div class="note">
     <h3>What this chapter glossed over</h3>
     <p><strong>Scale changes what is possible, not what is there.</strong> This model copies two numbers and fills a sentence. A large model does things no one can yet fully explain. The parts list is the same. What emerges from the model part is not.</p>
-    <p><strong>The data is synthetic and tiny.</strong> Real models learn language first, from enormous text, and tool use afterwards, from far fewer examples. Here one small file teaches both, which only works because the "language" has a dozen sentences.</p>
+    <p><strong>The data is made by a program, and small.</strong> Real models learn language first, from enormous text, and tool use afterwards, from far fewer examples. Here one small file teaches both, which only works because the "language" has a dozen sentences.</p>
     <p><strong>One turn, one tool call.</strong> A real conversation has many of each, and the harness loops until the model stops asking.</p>
-    <p><strong>The tools are harmless.</strong> Three pure functions. The questions of chapter 17 begin when a tool can change something.</p>
+    <p><strong>The tools are harmless.</strong> Three functions that only compute. The questions of chapter 17 begin when a tool can change something.</p>
     <p><strong>Training time varies.</strong> Five minutes was measured on the machine that built this page. A run with a different random seed can land slightly differently, so check yours with <code>--eval</code>.</p>
   </div>
 
+  <div class="recap">
+    <h3>In short</h3>
+    <ul>
+      <li>One file holds a whole system: data, tokenizer, model, training, sampling, a format, a harness, tracing and an evaluation. Every part of a large system has its small version here.</li>
+      <li>The model, 108,032 weights trained in about five minutes, learned a conversation format with four kinds of line: U, C, R and A. It writes the C and the A. The harness writes the R.</li>
+      <li>On 200 questions with number pairs kept out of training, the tool call and the answer were right 200 times. It learned a procedure, and it did not learn arithmetic.</li>
+      <li>Outside what it was shown it fails with full confidence: a small, visible <a class="term" href="glossary.html#hallucination">hallucination</a>.</li>
+      <li>The weights cannot be written down. What can be written is the short program that finds them.</li>
+    </ul>
+  </div>
+
   <h2>Check yourself</h2>
+  <details class="check"><summary>Write the four lines of the conversation for the question "what is 8 plus 9?", and say who writes each.</summary><p><code>U what is 8 plus 9?</code> from the user. <code>C add 8 9</code> from the model. <code>R 17</code> from the harness, after running the tool. <code>A 8 plus 9 is 17.</code> from the model, which copies the 17 from the line above.</p></details>
   <details class="check"><summary>The model answers "23 times 45 is 1035." It was never taught to multiply. Where did 1035 come from?</summary><p>From the harness. The model wrote <code>mul 23 45</code>, the harness ran the function and wrote <code>R 1035</code> into the context, and the model copied that number into its sentence. Attention pointing at a few earlier characters is all it needs.</p></details>
   <details class="check"><summary>Why does it call a tool for "what is the capital of france?"</summary><p>After a line starting with "U what is", every training example continued with a tool call. That continuation is overwhelmingly likely, so it is produced, with whatever numbers the model finds most plausible. It was never shown an alternative.</p></details>
   <details class="check"><summary>You add a fourth tool to the table in the code and do not retrain. What happens when you ask for it?</summary><p>Nothing useful. The harness could run it, but the model has never seen its name in a request and gives it almost no probability. A large model can read a new tool's description and use it at once, because it learned to follow descriptions in general. This one learned three names.</p></details>
@@ -179,6 +212,7 @@ python code/ch19_system.py --eval                   # 200 unseen questions</pre>
 </main>
 
 <script src="assets/agent.js"></script>
+<script src="assets/glossary.js"></script>
 <script src="assets/micro.js"></script>
 <script>
 M.ready(function () {

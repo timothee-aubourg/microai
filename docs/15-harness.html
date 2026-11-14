@@ -12,8 +12,30 @@
   <h1>The program around the model</h1>
   <p class="question">A coding assistant lists your files, runs your tests and edits a line. A model can only write text. What is the rest made of?</p>
 
-  <p>Chapter 11 showed the trick in miniature: the model writes a request, and your program carries it out. Tools that do real work on a real project, such as Claude Code or Pi, are that same trick with more care around it. The program that provides the care has a name: the <strong>harness</strong>.</p>
+  <p>Chapter 11 showed the trick in miniature: the model writes a request, and your program carries it out. Tools that do real work on a real project, such as Claude Code or Pi, are that same trick with more care around it. The program that provides the care has a name.</p>
+  <div class="def"><span class="kind">Definitions</span>
+    <p>A <dfn>harness</dfn> is the program around a model that turns it into an agent: it sends the requests, runs the tools the model asks for, and decides what is allowed.</p>
+    <p>The <dfn>system prompt</dfn> is the text the harness puts at the very start of every request: who the model is working for, how to behave, and which tools it has.</p>
+  </div>
   <p>A harness is ordinary software. Nothing in it is learned. It consists of five things: a system prompt, a set of tools, a loop, rules about what may run without asking, and some care for the context window. This chapter builds one in a hundred lines and shows exactly what travels between it and the model.</p>
+
+  <figure class="fig">
+    <svg viewBox="0 0 760 230" role="img" aria-labelledby="f15a">
+      <title id="f15a">The loop of a harness in four beats. The model writes a request for a tool or a final answer. The harness decides whether the request may run. The harness runs the tool. The result is added to the conversation, and the model is called again with everything so far. A final answer leaves the loop and goes to the user.</title>
+      <defs><marker id="c15a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
+      <g class="t-small">
+      <rect x="16" y="50" width="160" height="80" rx="8" class="bx-fwd"/><text x="96" y="80" text-anchor="middle" class="t-big">1. the model writes</text><text x="96" y="104" text-anchor="middle">a tool request, or an answer</text>
+      <rect x="206" y="50" width="160" height="80" rx="8" class="bx-soft"/><text x="286" y="80" text-anchor="middle" class="t-big">2. the harness decides</text><text x="286" y="104" text-anchor="middle">may this run?</text>
+      <rect x="396" y="50" width="160" height="80" rx="8" class="bx-soft"/><text x="476" y="80" text-anchor="middle" class="t-big">3. the harness acts</text><text x="476" y="104" text-anchor="middle">runs the tool</text>
+      <rect x="586" y="50" width="158" height="80" rx="8" class="bx"/><text x="665" y="80" text-anchor="middle" class="t-big">4. into the context</text><text x="665" y="104" text-anchor="middle">the result, cut if long</text>
+      <text x="380" y="178" text-anchor="middle" class="t-muted">the model is called again, with everything so far</text>
+      <text x="96" y="216" text-anchor="middle" class="t-muted">an answer goes to the user</text>
+      </g>
+      <g class="ln"><line x1="178" y1="90" x2="202" y2="90" marker-end="url(#c15a)"/><line x1="368" y1="90" x2="392" y2="90" marker-end="url(#c15a)"/><line x1="558" y1="90" x2="582" y2="90" marker-end="url(#c15a)"/>
+      <path d="M665 132 L665 156 L130 156 L130 136" fill="none" marker-end="url(#c15a)"/><line x1="60" y1="132" x2="60" y2="198" class="ln-dash" marker-end="url(#c15a)"/></g>
+    </svg>
+    <figcaption><b>The loop.</b> Only the first box is the model. The other three are the harness.</figcaption>
+  </figure>
 
   <h2>Four tools are enough to start</h2>
   <p>Our harness gives the model four tools.</p>
@@ -24,26 +46,39 @@
     <tr><td class="mono">edit</td><td>Replaces one passage in a file. The model quotes the old text, which must occur exactly once.</td></tr>
     <tr><td class="mono">bash</td><td>Runs a shell command in the project folder and returns its output.</td></tr>
   </table></div>
-  <p>The first three cover files. The fourth covers everything else a computer can do: run the tests, search, install a package, use git. A model that can write shell commands can use any program that already exists.</p>
+  <p>The first three cover files. The fourth runs a command line, the text interface through which programs are started. It covers everything else a computer can do: run the tests, search, install a package. A model that can write shell commands can use any program that already exists.</p>
   <p>This short list is a real design. Pi, an open-source harness, gives the model exactly these four tools by default, with a system prompt of under a thousand tokens. Claude Code makes the other choice and builds in more: next to Bash, Read, Edit and Write it has tools to find files and search their content, to fetch web pages, to keep a to-do list and to start a helper agent, among others. Few general tools keep the request small and leave the model to combine them. Many special tools cost more room in every request and are easier to control one by one.</p>
   <p>Note how <code>edit</code> works. The model has no cursor. It can only quote. So it names the place to change by quoting the text that is there now, and the harness refuses if that text is missing or occurs twice.</p>
 
   <h2>What the model actually receives</h2>
-  <p>The model takes one sequence of tokens (chapter 6). It has no second input for tools and no third one for results. So before each call the server flattens everything, the system prompt, the tool descriptions and every message so far, into one text. The layout of that text is the model's <strong>chat template</strong>: the layout it saw in training, with special tokens that mark who is speaking.</p>
-  <p>The way back is the same. When the model "calls a tool" it writes text in an agreed layout, and the server parses that text into the structured request your loop receives. Below is one task, start to finish, with each request shown as the model gets it.</p>
+  <p>The model takes one sequence of tokens (chapter 6). It has no second input for tools and no third one for results. So before each call the server writes everything, the system prompt, the descriptions of the tools and every message so far, into one text. The layout of that text is the chat template of chapter 10: the layout the model saw in training, with special tokens that mark who is speaking.</p>
+  <p>The way back is the same. When the model "calls a tool" it writes text in an agreed layout, and the server reads that text and hands your loop a request with a name and arguments. Below is one task, start to finish, with each request shown as the model gets it.</p>
+  <h3>By hand: how much the model reads</h3>
+  <p>The task takes five calls to the model. Each request holds everything before it, plus what happened since:</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Request</th><th>Characters</th><th>New since the last one</th></tr>
+    <tr><td class="mono">1</td><td class="mono">2,050</td><td>all of it</td></tr>
+    <tr><td class="mono">2</td><td class="mono">2,303</td><td class="mono">253</td></tr>
+    <tr><td class="mono">3</td><td class="mono">2,562</td><td class="mono">259</td></tr>
+    <tr><td class="mono">4</td><td class="mono">2,809</td><td class="mono">247</td></tr>
+    <tr><td class="mono">5</td><td class="mono">3,025</td><td class="mono">216</td></tr>
+    <tr><td>read in all</td><td class="mono">12,749</td><td></td></tr>
+  </table></div>
+  <p>The conversation ends at 3,025 characters, and the model read 12,749 to get there, because it read the beginning five times. Chapter 16 starts from this sum.</p>
 
   <section class="bench" id="w-wire">
     <h3>One task, five requests</h3>
-    <p class="try"><b>Try this.</b> Step through the five calls. Watch what the first request is mostly made of, and how each later one is the previous one plus a little.</p>
+    <p class="try"><b>Try this.</b> Step through the five calls with Next. At each one, read what the model wrote and what the harness did with it. Tap the blocks of the first request to see what it is mostly made of.</p>
   </section>
 
+  <p><strong>What you should have seen.</strong> Call 1: the model asks to run the tests, and the harness reports <code>exit code 1</code> with a failing test. Call 2: it asks to read <code>stats.py</code> and gets the file, with <code>len(xs) - 1</code> in it. Call 3: it asks for an edit that replaces <code>/ (len(xs) - 1)</code> by <code>/ len(xs)</code>. Call 4: it runs the tests again, and they pass. Call 5: it writes a sentence with no tool request, so the loop ends and the sentence goes to the user.</p>
   <p>Three things to take from this. The first request is 2,050 characters, and 1,921 of them are the system prompt and the tool descriptions: the model has read a manual before the user has said eighty characters. Every later request repeats all of it and adds about 250. And the model never ran anything. The word <code>bash</code> only ever appears as text. The harness did the running.</p>
 
   <h2>The loop</h2>
   <p>The loop has four beats, and it is the loop of chapter 11.</p>
   <ol>
     <li><strong>The model writes.</strong> Either a request for a tool, or a final answer.</li>
-    <li><strong>The harness decides.</strong> May this request run? The next chapter but one is about this line.</li>
+    <li><strong>The harness decides.</strong> May this request run? Chapter 17 is about this line.</li>
     <li><strong>The harness acts.</strong> It runs the tool. If the tool fails, the error message is the result.</li>
     <li><strong>The result becomes context.</strong> It is appended to the conversation, cut down if it is long, and the loop goes around.</li>
   </ol>
@@ -52,9 +87,9 @@
   <h2>What real harnesses add</h2>
   <p>Everything below is more of the same five things.</p>
   <p><strong>Instructions from the project.</strong> A file in the repository, named <code>CLAUDE.md</code> or <code>AGENTS.md</code> by convention, is read at the start and placed in the system prompt: how to run the tests, what not to touch.</p>
-  <p><strong>Tools from elsewhere.</strong> A protocol called MCP lets a separate program offer tools. The harness asks it for their descriptions and adds them to the request. Each one costs room in every request, used or not.</p>
-  <p><strong>Helper agents.</strong> A tool whose implementation is another loop, with its own fresh window. It does a side task and returns only a summary, so the main window stays small.</p>
-  <p><strong>Housekeeping.</strong> Shortening the conversation when it grows (chapter 16), permissions and a sandbox (chapter 17), traces (chapter 14), and an interface that streams text, shows changes and lets you interrupt.</p>
+  <p><strong>Tools from elsewhere.</strong> An agreed set of messages, called MCP, lets a separate program offer tools. The harness asks it for their descriptions and adds them to the request. Each one costs room in every request, used or not. Chapters 37 and 38 build this and measure that cost.</p>
+  <p><strong>Helper agents.</strong> A tool that is itself another loop, with its own fresh window. It does a side task and returns only a summary, so the main window stays small. Chapter 32 measures what that saves.</p>
+  <p><strong>Housekeeping.</strong> Shortening the conversation when it grows (chapter 16), rules about what may run and a closed-off place to run it (chapter 17), traces (chapter 14), and an interface that shows the text as it is written, shows changes and lets you interrupt.</p>
   <p>Pi leaves most of these out on purpose and lets you add them as extensions. Reading a small harness like it is the fastest way to see that there is no further secret.</p>
 
   <h2>Build it</h2>
@@ -151,7 +186,7 @@ def run(task, root, approve=lambda name, args: True, max_steps=12, on_step=None)
         else:
             out.append(('user' if m['role'] == 'user' else 'model', f"&lt;|im_start|&gt;{m['role']}\n{m['content']}&lt;|im_end|&gt;\n"))
     return out + [('cue', '&lt;|im_start|&gt;assistant\n')]                # the model continues from here</pre>
-  <p class="src">The flattening shown in the experiment. With a real server you never write this: the server applies the model's own template.</p>
+  <p class="src">The writing-out into one text that the experiment shows. With a real server you never write this: the server applies the model's own template.</p>
   <pre class="code" data-lang="text">python code/ch15_harness.py --mock                       # the recorded run above
 python code/ch15_harness.py --dir scratch "Write a script that prints the first ten primes, and run it."</pre>
 
@@ -160,10 +195,22 @@ python code/ch15_harness.py --dir scratch "Write a script that prints the first 
     <p><strong>The "model" above is a script.</strong> The fake server plays one fixed routine: run the tests, read, fix one known bug, run again. It shows what the harness does and says nothing about what a model can do. The harness has not been run against a real model for this course.</p>
     <p><strong>Templates differ.</strong> The layout shown is the one Qwen 2.5 models were trained on. Other families use other markers and other ways of writing a tool call. Use the wrong one and the model sees a layout it never learned.</p>
     <p><strong>With a real model, <code>bash</code> is real.</strong> It can delete files and reach the network. Work in a folder you can afford to lose until you have read chapter 17.</p>
-    <p><strong>Left out.</strong> Streaming, interrupting a run, several tool calls in one reply, long-running commands, images.</p>
+    <p><strong>Left out.</strong> Showing text as it is written, interrupting a run, several tool calls in one reply, commands that run for a long time, images.</p>
+  </div>
+
+  <div class="recap">
+    <h3>In short</h3>
+    <ul>
+      <li>A <a class="term" href="glossary.html#harness">harness</a> is ordinary code around the model: a <a class="term" href="glossary.html#system-prompt">system prompt</a>, tools, a loop, rules about what may run, and care for the window.</li>
+      <li>Four tools are enough to work on a project: read, write, edit, and a command line.</li>
+      <li>The model receives one text. In our session the first request was 2,050 characters, of which 1,921 were the system prompt and the descriptions of the tools.</li>
+      <li>Every request repeats everything before it: five requests, 12,749 characters read, for a conversation of 3,025.</li>
+      <li>The model never runs anything. It writes a request, and the harness decides, acts, and writes the result back.</li>
+    </ul>
   </div>
 
   <h2>Check yourself</h2>
+  <details class="check"><summary>A sixth call would add about 250 characters. How many characters would that request hold, and how many would the model have read in all?</summary><p>About 3,025 + 250 = 3,275 for the request, and 12,749 + 3,275 = 16,024 in all. Each step costs a little more than the one before, because it reads everything again.</p></details>
   <details class="check"><summary>The model has never been told what <code>edit</code> does in any special way. How does it know?</summary><p>From the tool description: a name, one sentence and the argument names, which the server writes into the request as text. The model reads it the way it reads anything. A vague description gives a model that misuses the tool.</p></details>
   <details class="check"><summary>You connect a server that offers forty more tools. The agent uses two of them. What did the other thirty-eight cost?</summary><p>Their descriptions are in every request of the session, so they take room in the window and time to read at every step. They can also distract: more choices, more wrong choices. Offer the tools a task needs.</p></details>
   <details class="check"><summary>Why does a failed command go back to the model as text, when the harness could stop with an error?</summary><p>Because the model can often recover: a missing file suggests another path, a failed test says what to fix. Stopping throws away the work so far. The brake against endless retries is the step limit.</p></details>
@@ -171,6 +218,7 @@ python code/ch15_harness.py --dir scratch "Write a script that prints the first 
 </main>
 
 <script src="assets/harness.js"></script>
+<script src="assets/glossary.js"></script>
 <script src="assets/micro.js"></script>
 <script>
 M.ready(function () {

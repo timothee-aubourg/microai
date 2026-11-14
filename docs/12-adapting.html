@@ -38,6 +38,21 @@
   <p>Six trained numbers produced a correction to all nine. On a table this small that saves little. The saving comes with size: a full correction to a <i>d</i> × <i>d</i> matrix has <i>d</i>² numbers, and this one has 2 × <i>d</i> × <i>r</i>. For a matrix of our model, 96 × 96 = 9,216 numbers against 2 × 96 × 4 = 768.</p>
   <p>The price is visible in the table too. Every row of the correction is the same row, (1, 0, 2), scaled. A correction of rank 1 can only push the weights along one direction, and one of rank <i>r</i> along <i>r</i> directions.</p>
 
+  <figure class="fig">
+    <svg viewBox="0 0 760 220" role="img" aria-labelledby="f12a">
+      <title id="f12a">A large square, the frozen matrix W, plus the product of a tall thin strip A and a wide thin strip B. Only the two strips are trained. Their product has the size of the square.</title>
+      <g class="t-small">
+      <rect x="60" y="30" width="150" height="150" rx="4" class="bx"/><text x="135" y="100" text-anchor="middle" class="t-big">W</text><text x="135" y="122" text-anchor="middle" class="t-muted">frozen</text><text x="135" y="200" text-anchor="middle" class="t-mono">d × d</text>
+      <text x="250" y="112" text-anchor="middle" class="t-big">+</text>
+      <rect x="300" y="30" width="22" height="150" rx="3" class="bx-fwd"/><text x="311" y="200" text-anchor="middle" class="t-mono">A: d × r</text>
+      <text x="356" y="112" text-anchor="middle" class="t-big">×</text>
+      <rect x="390" y="94" width="150" height="22" rx="3" class="bx-fwd"/><text x="465" y="140" text-anchor="middle" class="t-mono">B: r × d</text>
+      <text x="640" y="96" text-anchor="middle">only A and B</text><text x="640" y="116" text-anchor="middle">are trained</text>
+      </g>
+    </svg>
+    <figcaption><b>A square and two strips.</b> The strips hold 2 × d × r numbers, and their product corrects all d × d weights of the square.</figcaption>
+  </figure>
+
   <section class="bench" id="w-shapes">
     <h3>How small is the correction?</h3>
     <p class="try"><b>Try this.</b> The square is a frozen matrix and the two thin strips are the trainable ones, drawn to scale. Press the two presets and compare the percentages. Then move the sliders yourself.</p>
