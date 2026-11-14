@@ -12,35 +12,90 @@
   <h1>Rolling the dice</h1>
   <p class="question">The trained model outputs 65 probabilities. Why not simply pick the most likely character every time?</p>
 
-  <p>Try it and you get a model stuck in a rut. The single most likely continuation of common text is more common text, so always taking the favourite tends to circle through the same safe phrases. The opposite policy, sampling exactly according to the probabilities, has its own flaw: the model gives a little probability to many poor options, and over hundreds of draws one of them will be picked and derail the passage.</p>
-  <p>Good text lives between these two. The settings you see in every model interface, temperature, top-k and top-p, are three ways to reshape the probabilities before rolling the dice. None of them touches the model. They act on its output.</p>
+  <p>Try it and you get a model stuck in a rut. The single most likely continuation of common text is more common text, so always taking the favourite tends to circle through the same safe phrases. The opposite policy, sampling exactly according to the probabilities as chapter 1 did, has its own flaw: the model gives a little probability to many poor options, and over hundreds of draws one of them will be picked and derail the passage.</p>
+  <p>Good text lives between these two. The settings you see in every model interface are three ways to reshape the probabilities before rolling the dice. None of them touches the model. They act on its output, the logits of chapter 6.</p>
+
+  <div class="def"><span class="kind">Definitions</span>
+    <p><dfn>Greedy decoding</dfn> is always taking the most likely token. Nothing is left to chance.</p>
+    <p><dfn>Temperature</dfn> is a number <i>T</i> by which the logits are divided before the softmax. Below 1 it sharpens the distribution; above 1 it flattens it.</p>
+    <p><dfn>Top-k</dfn> keeps the <i>k</i> most likely tokens and removes all the others.</p>
+    <p><dfn>Top-p</dfn>, also called nucleus sampling, keeps the smallest set of most likely tokens whose probabilities add up to at least <i>p</i>, and removes the rest.</p>
+  </div>
+  <div class="eq"><i>p</i><sub><i>i</i></sub> = softmax(score<sub><i>i</i></sub> / <i>T</i>)</div>
+
+  <h3>By hand: three tokens, three settings</h3>
+  <p>Suppose the model gives three tokens the scores 2, 1 and 0. Chapter 5 worked out the softmax of such a list. Here it is at three temperatures:</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Temperature</th><th>Scores after dividing</th><th>Probabilities</th></tr>
+    <tr><td class="mono">1</td><td class="mono">2, 1, 0</td><td class="mono">0.67, 0.24, 0.09</td></tr>
+    <tr><td class="mono">0.5</td><td class="mono">4, 2, 0</td><td class="mono">0.87, 0.12, 0.02</td></tr>
+    <tr><td class="mono">2</td><td class="mono">1, 0.5, 0</td><td class="mono">0.51, 0.31, 0.19</td></tr>
+  </table></div>
+  <p>The softmax turns <em>differences</em> between scores into <em>ratios</em> between probabilities. Dividing by 0.5 doubles every difference, so the favourite pulls further ahead: 0.87 instead of 0.67. Dividing by 2 halves every difference and the three tokens move towards equal shares. At a temperature of 1 the model's own probabilities are untouched. As the temperature goes to 0 the favourite takes everything, which is greedy decoding.</p>
+  <p>Now the two cuts, on the probabilities at temperature 1:</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Setting</th><th>What is kept</th><th>Probabilities, rescaled to add up to 1</th></tr>
+    <tr><td>top-k = 2</td><td>the two most likely: 0.67 and 0.24</td><td class="mono">0.73, 0.27, 0</td></tr>
+    <tr><td>top-p = 0.9</td><td>0.67 alone is under 0.9; with 0.24 the sum is 0.91</td><td class="mono">0.73, 0.27, 0</td></tr>
+    <tr><td>top-p = 0.6</td><td>0.67 alone already reaches 0.6</td><td class="mono">1, 0, 0</td></tr>
+  </table></div>
+  <p>The rescaling divides what is kept by its total: 0.67 / 0.91 = 0.73. Top-k is simple and blunt: sometimes only two options are sensible, sometimes fifty, and <i>k</i> is the same for both. Top-p adapts. When the model is sure, a few tokens reach the threshold and the rest is cut. When it is unsure, many tokens are kept.</p>
+
+  <figure class="fig">
+    <svg viewBox="0 0 760 210" role="img" aria-labelledby="f8a">
+      <title id="f8a">The path from the model's scores to one character. The scores are divided by the temperature, the softmax turns them into probabilities, top-k and top-p remove the unlikely tokens, and one token is drawn at random from what is left.</title>
+      <defs><marker id="c8a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
+      <g class="t-small">
+      <rect x="16" y="60" width="120" height="80" rx="8" class="bx-fwd"/><text x="76" y="92" text-anchor="middle" class="t-big">the model</text><text x="76" y="116" text-anchor="middle">65 scores</text>
+      <rect x="166" y="60" width="120" height="80" rx="8" class="bx-soft"/><text x="226" y="92" text-anchor="middle" class="t-big">÷ T</text><text x="226" y="116" text-anchor="middle">temperature</text>
+      <rect x="316" y="60" width="120" height="80" rx="8" class="bx-soft"/><text x="376" y="92" text-anchor="middle" class="t-big">softmax</text><text x="376" y="116" text-anchor="middle">probabilities</text>
+      <rect x="466" y="60" width="120" height="80" rx="8" class="bx-soft"/><text x="526" y="92" text-anchor="middle" class="t-big">cut</text><text x="526" y="116" text-anchor="middle">top-k, top-p</text>
+      <rect x="616" y="60" width="128" height="80" rx="8" class="bx-prob"/><text x="680" y="92" text-anchor="middle" class="t-big">draw</text><text x="680" y="116" text-anchor="middle">one character</text>
+      <text x="380" y="186" text-anchor="middle" class="t-muted">the character is added to the text, and the model is asked again</text>
+      </g>
+      <g class="ln"><line x1="138" y1="100" x2="162" y2="100" marker-end="url(#c8a)"/><line x1="288" y1="100" x2="312" y2="100" marker-end="url(#c8a)"/><line x1="438" y1="100" x2="462" y2="100" marker-end="url(#c8a)"/><line x1="588" y1="100" x2="612" y2="100" marker-end="url(#c8a)"/>
+      <path d="M680 142 L680 164 L76 164 L76 146" fill="none" marker-end="url(#c8a)"/></g>
+    </svg>
+    <figcaption><b>From scores to a character.</b> The model's part ends at the first box. Everything after it is a few lines of ordinary code.</figcaption>
+  </figure>
 
   <section class="bench" id="w-play">
     <h3>Sampling from the trained model</h3>
-    <p class="try"><b>Try this.</b> Write at temperature 0 and watch it loop. Write at 2.0 and watch it fall apart. Go back to 0.8, then set top-p to 0.9 and compare. The bars show the dice the model is about to roll: greyed rows were cut by top-k or top-p.</p>
+    <p class="try"><b>Try this.</b> Read the bars: they are the dice the model is about to roll after <code>ROMEO:</code> and a line break. Set the temperature to 0 and write. Clear, set it to 2.0 and write. Clear, go back to 0.8 and write. Then set top-p to 0.90 and look at the bars again. Greyed rows were cut.</p>
   </section>
 
-  <h2>What the three knobs do</h2>
-  <p><strong>Temperature</strong> divides the model's raw scores by a number <i>T</i> before the softmax of chapter 5.</p>
-  <div class="eq"><i>p</i><sub><i>i</i></sub> = softmax(score<sub><i>i</i></sub> / <i>T</i>)</div>
-  <p>Recall that the softmax turns score <em>differences</em> into probability <em>ratios</em>. Dividing by <i>T</i> = 0.5 doubles every difference, so the favourite pulls further ahead. As <i>T</i> approaches 0 the favourite takes everything. <i>T</i> = 2 halves the differences and flattens the distribution toward uniform noise. <i>T</i> = 1 leaves the model's own probabilities untouched.</p>
-  <p><strong>Top-k</strong> keeps the <i>k</i> most likely tokens and discards the rest. Simple, but blunt: sometimes only two options are sensible, sometimes fifty.</p>
-  <p><strong>Top-p</strong>, also called nucleus sampling, adapts. It keeps the smallest set of tokens whose probabilities add up to <i>p</i>, say 0.9, and discards the long tail. When the model is sure, that set is one or two tokens. When it is unsure, the set is wide.</p>
+  <p><strong>What you should have seen.</strong> At 0.8 the next character is open: <code>I</code> 14.4%, <code>T</code> 14.1%, <code>W</code> 13.4%, <code>A</code> 11.5%, and many more. At temperature 0 the bars show <code>I</code> at 100% and the text soon loops: "the state of the state, That will strike an an of the state", again and again. At 2.0 the favourites fall to about 7% each, nearly level with unlikely characters, and the text falls apart into strings like <code>gawfry</code> and <code>dogmunAble</code>. At 0.8 it reads as Shakespeare-like lines with speakers' names. With top-p at 0.90 the tail of the list is cut and the survivors rise a little, <code>I</code> to 15.7%.</p>
 
   <h2>Generation is a loop, and the loop is wasteful</h2>
-  <p>To write 200 characters the model runs 200 times, each time on the text so far plus one more character. Done naively, step 200 recomputes everything for the 199 characters already processed at step 199. Almost all of that work is repeated.</p>
-  <p>The causal mask of chapter 5 makes the waste avoidable. An earlier position never looks at later ones, so nothing computed for it can change when the text grows. In particular its attention <strong>keys</strong> and <strong>values</strong> are fixed forever. Store them. Then a new token only has to compute its own query, compare it with the stored keys, and add its own key and value to the store. This is the <strong>KV cache</strong>, and every runtime uses it.</p>
+  <p>To write 200 characters the model runs 200 times, each time on the text so far plus one more character. Done the plain way, step 200 computes again everything it computed for the first 199 characters at step 199. Almost all of that work is repeated.</p>
+  <p>The causal mask of chapter 5 makes the waste avoidable. An earlier position never reads later ones, so nothing computed for it can change when the text grows. In particular its attention keys and values are fixed for good.</p>
+  <div class="def"><span class="kind">Definition</span>
+    <p>The <dfn>KV cache</dfn> is the store of the keys and values of every token already processed, in every layer. A new token only computes its own query, compares it with the stored keys, and adds its own key and value to the store.</p>
+  </div>
+  <h3>By hand: counting comparisons</h3>
+  <p>Count the query-key comparisons in one head. A token at position <i>n</i> compares its query with <i>n</i> keys: its own and those before it.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Writing token number</th><th>Without the cache: all positions again</th><th>With the cache: the new one only</th></tr>
+    <tr><td class="mono">1</td><td class="mono">1</td><td class="mono">1</td></tr>
+    <tr><td class="mono">2</td><td class="mono">1 + 2 = 3</td><td class="mono">2</td></tr>
+    <tr><td class="mono">3</td><td class="mono">1 + 2 + 3 = 6</td><td class="mono">3</td></tr>
+    <tr><td class="mono">4</td><td class="mono">1 + 2 + 3 + 4 = 10</td><td class="mono">4</td></tr>
+    <tr><td>total for four tokens</td><td class="mono">20</td><td class="mono">10</td></tr>
+  </table></div>
+  <p>At four tokens the cache saves half. The saving grows fast, as the next experiment shows.</p>
 
   <section class="bench" id="w-kv">
     <h3>Work per token, with and without the cache</h3>
-    <p class="try"><b>Try this.</b> Each small square is one query-key comparison in one attention head. Drag the slider to generate more tokens and compare how much is computed at this step (blue) on each side.</p>
+    <p class="try"><b>Try this.</b> Each small square is one query-key comparison in one attention head. The slider starts at 8 tokens. Read the line under the squares, then drag to 24 and read it again.</p>
   </section>
 
-  <p>Without the cache, the comparisons per new token grow with the square of the length and their total with its cube. With it, each token costs one row. Measured on our model with <code>code/ch08_sample.py</code>, processing the same 60 characters and getting the same outputs to within rounding: 89 milliseconds recomputing everything, 33 with the cache. The gap is modest because the model is tiny and its window short; it widens quickly with both.</p>
-  <p>The cache explains two things you will notice when running a real model in chapter 10. First, memory use grows with the length of the conversation: the cache stores a key and a value per token, per layer. Second, runtimes report two speeds. Reading your prompt is fast per token, because all positions can be processed in one parallel pass. Writing the reply is slower per token, because each one must wait for the one before.</p>
+  <p><strong>What you should have seen.</strong> At 8 tokens, this step costs 36 comparisons without the cache and 8 with it; the totals so far are 120 against 36. At 24 tokens the step costs 300 against 24, and the totals are 2,600 against 300. At 64 tokens, a full window of our model, the totals are 45,760 against 2,080: the cache does a twenty-second of the work.</p>
+  <p>Measured on our model with <code>code/ch08_sample.py</code>, processing the same 60 characters and getting the same outputs to within rounding: 89 milliseconds computing everything again, 33 with the cache. The gap in time is smaller than the gap in comparisons because the model is small and does other work besides. It widens quickly with the size of the model and the length of the text.</p>
+  <p>The cache explains two things you will notice when running a real model in chapter 10. First, memory use grows with the length of the conversation: the cache stores a key and a value per token, per layer. Second, programs that run models report two speeds. Reading your prompt is fast per token, because all its positions can be processed in one pass. Writing the reply is slower per token, because each token must wait for the one before.</p>
 
   <h2>When the window is full</h2>
-  <p>Our model has 64 position rows and cannot see further back than that. The generation loop in this repository handles a full window in the bluntest way: it keeps the most recent half of the text, rebuilds the cache from it, and carries on. Real runtimes offer the same choice in more refined forms: stop, or drop the oldest part of the conversation and reprocess. Either way, what falls out of the window is gone. The model has no other memory. Chapter 11 is about living with that.</p>
+  <p>Chapter 2 defined the context window: the most tokens a model can look at in one go. Ours is 64 characters, because the position table of chapter 4 has 64 rows. What happens at character 65?</p>
+  <p>The generation loop in this repository handles it in the bluntest way: it keeps the most recent half of the text, 32 characters, rebuilds the cache from them, and carries on. Programs that run real models offer the same choice in more refined forms: stop, or drop the oldest part of the conversation and process the rest again. Either way, what falls out of the window is gone. The model has no other memory. Chapter 11 is about living with that.</p>
 
   <h2>Build it</h2>
   <pre class="code" data-src="ch08_sample.py#sample">def sample_next(logits, temperature=1.0, top_k=0, top_p=1.0, rng=np.random.default_rng()):
@@ -56,7 +111,7 @@
         p[order[before &gt;= top_p]] = 0
         p /= p.sum()
     return int(rng.choice(len(p), p=p))</pre>
-  <p class="src">From <code>code/ch08_sample.py</code>. All three knobs in a dozen lines.</p>
+  <p class="src">From <code>code/ch08_sample.py</code>. All three settings in a dozen lines, in the order of the figure.</p>
   <pre class="code" data-src="ch08_sample.py#kvcache">def step(self, token, cache):
     """Process ONE new token. `cache` holds the keys and values of all earlier tokens."""
     w, H, hd = self.w, self.H, self.d // self.H
@@ -100,16 +155,29 @@
     <h3>What this chapter glossed over</h3>
     <p><strong>There is no best setting.</strong> Low temperature suits tasks with one right answer, such as extracting a date. Higher temperature suits tasks where variety is the point. Defaults around 0.7 to 1.0 with a top-p near 0.9 are conventions, not laws.</p>
     <p><strong>Same prompt, different answers.</strong> Sampling is random by design. Fixing the random seed makes a run repeatable on the same machine and software. Temperature 0 removes the dice, though tiny numerical differences between machines can still change a close call.</p>
-    <p><strong>More samplers exist.</strong> Runtimes add repetition penalties, min-p and others. Each is another small function between the scores and the dice, like the one above.</p>
+    <p><strong>More settings exist.</strong> Programs that run models add penalties for repetition, a cut called min-p and others. Each is another small function between the scores and the dice, like the one above.</p>
+  </div>
+
+  <div class="recap">
+    <h3>In short</h3>
+    <ul>
+      <li>The model gives scores. How a character is drawn from them is ordinary code, and it changes the text a great deal.</li>
+      <li><a class="term" href="glossary.html#temperature">Temperature</a> divides the scores before the softmax. By hand, scores of 2, 1 and 0 gave the favourite 0.87 at 0.5, 0.67 at 1 and 0.51 at 2. At 0 our model loops; at 2 it writes noise.</li>
+      <li><a class="term" href="glossary.html#top-k">Top-k</a> keeps a fixed number of tokens. <a class="term" href="glossary.html#top-p">Top-p</a> keeps as many as it takes to reach a share of the probability.</li>
+      <li>The <a class="term" href="glossary.html#kv-cache">KV cache</a> stores the keys and values of tokens already read, so each new token costs one row of comparisons. Over a full window of 64: 2,080 comparisons instead of 45,760.</li>
+      <li>Past the context window, the oldest text is dropped. The model has no other memory.</li>
+    </ul>
   </div>
 
   <h2>Check yourself</h2>
-  <details class="check"><summary>Temperature 1 with top-k set to 1. What do you get?</summary><p>Greedy decoding. Only the favourite survives the cut, so it gets probability 1 whatever the temperature.</p></details>
+  <details class="check"><summary>Three tokens have probabilities 0.5, 0.3 and 0.2. What does top-p = 0.7 keep, and with what probabilities?</summary><p>0.5 alone is under 0.7; 0.5 + 0.3 = 0.8 reaches it. The first two are kept and rescaled by their total: 0.5 / 0.8 = 0.625 and 0.3 / 0.8 = 0.375.</p></details>
+  <details class="check"><summary>Temperature 1 with top-k set to 1. What do you get?</summary><p>Greedy decoding, the same as temperature 0. Only the favourite survives the cut, so it gets probability 1 whatever the temperature.</p></details>
   <details class="check"><summary>How many numbers does the KV cache of our model hold when the window is full?</summary><p>A key and a value of 96 numbers, for each of 64 positions, in each of 3 layers: 2 × 96 × 64 × 3 = 36,864 numbers. The same sum for a large model and a long conversation reaches gigabytes, as chapter 9 shows.</p></details>
-  <details class="check"><summary>Why would the cache be wrong without the causal mask?</summary><p>If earlier positions could attend to later ones, appending a token would change what every earlier position computes, and their stored keys and values would be stale. The mask is what makes the past immutable.</p></details>
+  <details class="check"><summary>Why would the cache be wrong without the causal mask?</summary><p>If earlier positions could read later ones, adding a token would change what every earlier position computes, and their stored keys and values would be out of date. The mask is what makes the past fixed.</p></details>
 </main>
 
 <script src="assets/weights.js"></script>
+<script src="assets/glossary.js"></script>
 <script src="assets/micro.js"></script>
 <script>
 M.ready(function () {
