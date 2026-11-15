@@ -166,6 +166,27 @@
 
   <p><strong>What you should have seen.</strong> At 8,192 tokens the model and its cache take 5.9 GB of the 12. The total passes 12 GB a little above 50,000 tokens. Nothing about the model changed. Only the conversation got longer. When that happens a runtime either refuses the request, or moves part of the model to RAM and falls off the ledge of the first experiment.</p>
 
+  <section class="yourturn" aria-label="Your turn, by hand">
+    <h3>Your turn, by hand</h3>
+    <p class="need">Paper, a pencil and a calculator · about 15 minutes</p>
+    <p>A model of 14 billion weights at 4 bits each has 40 layers and keys of 1,024 numbers, stored on 2 bytes each. It runs on a graphics card with 16 GB of VRAM that delivers 448 GB per second. The computer's RAM delivers 89.6 GB per second.</p>
+    <ol>
+      <li>How many GB are the weights, and what is the ceiling in tokens per second when they are all on the card?</li>
+      <li>How many bytes of KV cache does one token of context need? How much is that at 16,384 tokens, and do model and cache still fit?</li>
+      <li>At about how many tokens of context does the card fill up?</li>
+      <li>The session reaches 65,536 tokens. Suppose the runtime moves just enough of the weights to RAM to make room for the cache. How many GB move, and what is the new ceiling?</li>
+    </ol>
+    <details class="answer"><summary>Check your working</summary>
+      <ol class="worked">
+        <li>14 billion × 4 ÷ 8 = 7 GB. Ceiling: 448 ÷ 7 = 64 tokens per second.</li>
+        <li>2 × 40 layers × 1,024 numbers × 2 bytes = 163,840 bytes per token. At 16,384 tokens: 163,840 × 16,384 = 2.68 GB. With the weights, 7 + 2.68 = 9.68 GB of 16: it fits.</li>
+        <li>The cache has 16 − 7 = 9 GB of room. 9,000,000,000 ÷ 163,840 is about 54,900 tokens.</li>
+        <li>At 65,536 tokens the cache is 10.74 GB, and with the weights 17.74 GB: 1.74 GB too many. So 1.74 GB of weights go to RAM and 7 − 1.74 = 5.26 GB stay on the card. Time per token: 5.26 ÷ 448 = 0.0117 s, plus 1.74 ÷ 89.6 = 0.0194 s, 0.0312 s in all. The ceiling is 1 ÷ 0.0312 = 32 tokens per second.</li>
+      </ol>
+      <p>The same model on the same card writes half as fast because the conversation got longer, and the 1.74 GB in RAM take more time than the 5.26 GB on the card.</p>
+    </details>
+  </section>
+
   <h2>Getting it into memory</h2>
   <p>Before any of this, the file has to get from the disk into memory. There are two ways to open it, and <code>ch22_memory.py</code> times both on a file of 256 MB.</p>
   <div class="scroll"><table class="mini">

@@ -91,6 +91,31 @@
   <p><strong>With little text, the teacher changes everything.</strong> Taught by 5,000 characters of text alone, the student scores 6.573, which is worse than knowing nothing. It has memorised its 5,000 characters, and on new text it is confident and wrong. Taught by the teacher on those same 5,000 characters, it scores 2.654.</p>
   <p>Nothing new was read. The student saw the same 5,000 characters both times. What changed is the answer it was given at each one. The teacher never says "certainly this", so the student cannot learn to be certain, and at every position it is handed a summary of the two hundred times more text the teacher once read.</p>
 
+  <section class="yourturn" aria-label="Your turn, by hand">
+    <h3>Your turn, by hand</h3>
+    <p class="need">Paper, a pencil and a calculator · about 10 minutes</p>
+    <p>One position, where the text had "g". Compare two students, first against the text and then against the teacher. Use &minus;log 0.97 &asymp; 0.03, &minus;log 0.02 &asymp; 3.91, &minus;log 0.01 &asymp; 4.61, &minus;log 0.6 &asymp; 0.51, &minus;log 0.3 &asymp; 1.20, &minus;log 0.1 &asymp; 2.30.</p>
+    <div class="scroll"><table class="mini">
+      <tr><th></th><th class="mono">g</th><th class="mono">d</th><th class="mono">s</th></tr>
+      <tr><td>teacher</td><td class="mono">0.6</td><td class="mono">0.3</td><td class="mono">0.1</td></tr>
+      <tr><td>student A</td><td class="mono">0.97</td><td class="mono">0.02</td><td class="mono">0.01</td></tr>
+      <tr><td>student B</td><td class="mono">0.6</td><td class="mono">0.3</td><td class="mono">0.1</td></tr>
+    </table></div>
+    <ol>
+      <li>Find the loss of each student against the text, &minus;log of the probability it gave to "g". Which one does the text prefer?</li>
+      <li>Find the loss of each student against the teacher's list, as in the example above. Which one does the teacher prefer?</li>
+      <li>In unseen text the same situation comes up again, and this time the next character is "d". Find the loss of each student.</li>
+    </ol>
+    <details class="answer"><summary>Check your working</summary>
+      <ol class="worked">
+        <li>A: 0.03. B: 0.51. The text prefers A, the student that is nearly certain.</li>
+        <li>A: 0.6 &times; 0.03 + 0.3 &times; 3.91 + 0.1 &times; 4.61 = 0.018 + 1.173 + 0.461 = 1.65. B: 0.6 &times; 0.51 + 0.3 &times; 1.20 + 0.1 &times; 2.30 = 0.306 + 0.360 + 0.230 = 0.90. The teacher prefers B. No student can score lower than 0.90 against this list: the best a student can do is copy it.</li>
+        <li>A: 3.91. B: 1.20.</li>
+      </ol>
+      <p>Against the text, certainty wins every time, and a student that sees each situation only once or twice learns to be certain about what it saw. On new text it pays for it, as the 6.573 above shows. Against the teacher, certainty is punished at every position, before any new text is seen.</p>
+    </details>
+  </section>
+
   <h2>What it buys in practice</h2>
   <p>Chapter 26 needed a draft model that the large model agrees with. That is what "same first choice as the teacher" measures, so the two chapters meet. Used as draft models with drafts of 2:</p>
   <div class="scroll"><table class="mini">

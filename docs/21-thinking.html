@@ -111,6 +111,28 @@ A odd                          T 110111010011      one mark per bit
   </div>
   <p>A model has to be trained for that setting to work. Ours was not. It only ever saw answers that came after all twelve marks. If the harness cuts it off after eleven and demands the answer, it does not give a slightly worse answer. It writes scraps such as "en" and then starts another row of marks. The script measures 0 right out of 400.</p>
 
+  <section class="yourturn" aria-label="Your turn, by hand">
+    <h3>Your turn, by hand</h3>
+    <p class="need">Paper and a pencil · about 10 minutes</p>
+    <p>Answer one row the way the second model does, count what it costs, and then see what a shorter budget leaves you.</p>
+    <pre class="code" data-lang="text">0 1 1 0 1 0 0 1 1 1 0 1</pre>
+    <ol>
+      <li>Write the twelve marks under the row, as in the table of this chapter. What is the answer?</li>
+      <li>Count the tokens the model writes after the prompt <code>T </code>: the marks, a line break, <code>A </code>, the answer and two line breaks. How many would the direct model write for the same answer?</li>
+      <li>The harness stops after six marks. Write down the sixth mark, and work out how many of the 64 possible last six bits would make the whole row odd. What does the sixth mark tell you about the answer?</li>
+      <li>A shorter format writes one mark per pair of bits: odd or even for the first two bits, then for the first four, and so on. Write its six marks. What does each step now need, and how many tokens does the answer cost?</li>
+    </ol>
+    <details class="answer"><summary>Check your working</summary>
+      <ol class="worked">
+        <li>Marks: 0 1 0 0 1 1 1 0 1 0 0 1. The last mark is 1, so "odd". The row has seven 1s, which agrees.</li>
+        <li>12 marks + 1 line break + 2 for <code>A </code> + 3 for <code>odd</code> + 2 line breaks = 20 tokens. The direct model would write <code>odd</code> and two line breaks: 5.</li>
+        <li>The sixth mark is 1: odd so far. The whole row is odd when the last six bits hold an even number of 1s, and that is true of 32 of the 64 possible endings. The sixth mark says nothing about the answer: it is a coin toss until the last bit is read.</li>
+        <li>Marks: 1 0 1 0 0 1, the same as every second mark of the first format. Each step now needs the previous mark and two bits, and must know that two 1s cancel. The answer costs 6 + 1 + 2 + 3 + 2 = 14 tokens.</li>
+      </ol>
+      <p>For this question there is no useful halfway answer, so cutting the thinking short does not give a worse answer, it gives a guess. The only way to spend fewer tokens is to make each step bigger, which is what the model could not learn when it had to take all twelve at once.</p>
+    </details>
+  </section>
+
   <h2>At full size</h2>
   <p>Large models are trained on examples in which thinking comes first and the answer after, the way ours was. The chat template of chapter 15 has a place for it: Qwen3, for instance, puts the thinking between two special tokens ahead of the reply. The harness can show that part, fold it away or drop it from the conversation it sends back.</p>
   <p>In an agent, thinking sits between the tool calls. After a tool result the model writes what the result means and what to do next, and then writes the next request. Chapter 14's traces are where you read it. When an agent picks the wrong tool, the thinking just before the call usually says why.</p>

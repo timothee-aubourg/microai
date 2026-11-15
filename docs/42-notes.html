@@ -125,6 +125,29 @@ U what is n plus 7?</pre>
   </section>
   <p><strong>What you should have seen.</strong> The log starts with <code>n is 42, k is 9</code>. After you set n to 50, <code>what is n plus 7?</code> gives 57 with every way that keeps notes, and a guess (12) with none. The context grows from 53 characters with one note to 72 with every note. With so few notes the agent copes with the stale one. Add more names and change a few of them, and "every note" starts to fail, as the table shows it does on average.</p>
 
+  <section class="yourturn" aria-label="Your turn, by hand">
+    <h3>Your turn, by hand</h3>
+    <p class="need">Paper and a pencil · about 10 minutes</p>
+    <p>A person's log, in the order the facts were stated, and the question that comes next. Apply the four ways exactly as the code above does: "every note" keeps every fact in order; "latest" keeps one line per name, with its newest value, in the place where the name was first stated; "latest, picked" keeps from those only the names in the question. If the lines do not fit in the room, the first line is dropped, again and again, until they do.</p>
+    <pre class="code" data-lang="text">n is 42    k is 19    p is 18    b is 33    d is 27
+f is 61    n is now 50    g is 75    h is 12    k is now 30
+
+U what is n times 3 minus 11?</pre>
+    <ol>
+      <li>Work out the room for notes: 160 − (characters in the question) − 60. A note line such as <code>M n is 50</code> takes its characters plus one for the end of the line. How many note lines fit?</li>
+      <li>Write the note lines that each of the four ways shows the model.</li>
+      <li>What is the right answer? Which ways show the model the value it needs?</li>
+    </ol>
+    <details class="answer"><summary>Check your working</summary>
+      <ol class="worked">
+        <li>The question has 27 characters, so the room is 160 − 27 − 60 = 73. Every note line here takes 9 + 1 = 10, so seven fit, 70 characters.</li>
+        <li>Nothing: no lines. Every note: 10 lines, 100 characters; the three oldest go (<code>n is 42</code>, <code>k is 19</code>, <code>p is 18</code>), leaving <code>M b is 33</code>, <code>M d is 27</code>, <code>M f is 61</code>, <code>M n is 50</code>, <code>M g is 75</code>, <code>M h is 12</code>, <code>M k is 30</code>. Latest: 8 names in the order first stated, <code>n 50, k 30, p 18, b 33, d 27, f 61, g 75, h 12</code>, 80 characters; the first goes, and that is <code>M n is 50</code>, leaving <code>M k is 30</code>, <code>M p is 18</code>, <code>M b is 33</code>, <code>M d is 27</code>, <code>M f is 61</code>, <code>M g is 75</code>, <code>M h is 12</code>. Latest, picked: <code>M n is 50</code> alone.</li>
+        <li>50 × 3 = 150, and 150 − 11 = 139. "Every note" and "latest, picked" show <code>n is 50</code>. "Latest" does not show <code>n</code> at all.</li>
+      </ol>
+      <p>"Latest" lost the one note the question needed: replacing a value kept <code>n</code> in its first place at the top, and the cut takes from the top. "Every note" kept it by luck of order. Given these four contexts, the agent of chapter 39 answered 139 only with the picked note. With every note in view it wrote <code>mul 22 3</code> and answered 55, with "latest" <code>mul 12 3</code> and 25, with nothing <code>mul 1 3</code> and −8.</p>
+    </details>
+  </section>
+
   <h2>At full size</h2>
   <ul>
     <li><strong>Memory files.</strong> Coding agents read a file of instructions and facts about the project at the start of every session, and some let the model add to it. It is the "latest" way: the file is edited, not appended to, so old facts are replaced.</li>

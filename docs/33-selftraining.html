@@ -99,6 +99,36 @@
   </ul>
   <p>So the answer to the question at the top is yes, with one condition that carries all the weight. A system can raise itself, by a check that comes from outside it, as far as that check can see.</p>
 
+  <section class="yourturn" aria-label="Your turn, by hand">
+    <h3>Your turn, by hand</h3>
+    <p class="need">Paper and a pencil · about 10 minutes</p>
+    <p>Here are eight conversations in the format of chapter 24: six written by the pre-trained model, two written for this exercise: U is the question, C the call, R the calculator's result, A the answer. The length counts every character of the conversation, as <code>len(e['text'])</code> does in the code above. Apply the three ways of selecting and see what the next round would be trained on.</p>
+    <div class="scroll"><table class="mini">
+      <tr><th></th><th>Conversation</th><th>Length</th></tr>
+      <tr><td class="mono">1</td><td class="mono">U what is 81 plus 8?<br>A 81 plus 8 is 81.</td><td class="mono">41</td></tr>
+      <tr><td class="mono">2</td><td class="mono">U what is 23 times 18?<br>C mul 23 18<br>R 414<br>A 23 times 18 is 414.</td><td class="mono">64</td></tr>
+      <tr><td class="mono">3</td><td class="mono">U what is 33 minus 43?<br>A 33 minus 43 is -26.</td><td class="mono">46</td></tr>
+      <tr><td class="mono">4</td><td class="mono">U what is 47 plus 26?<br>C add 47 26<br>R 73<br>A 47 plus 26 is 73.</td><td class="mono">60</td></tr>
+      <tr><td class="mono">5</td><td class="mono">U what is 17 times 73?<br>A 17 times 73 is 1265.</td><td class="mono">47</td></tr>
+      <tr><td class="mono">6</td><td class="mono">U what is 56 plus 37?<br>C add 56 37<br>R 93<br>A 56 plus 37 is 39.</td><td class="mono">60</td></tr>
+      <tr><td class="mono">7</td><td class="mono">U what is 40 plus 2?<br>A 40 plus 2 is 42.</td><td class="mono">41</td></tr>
+      <tr><td class="mono">8</td><td class="mono">U what is 88 minus 51?<br>C sub 88 51<br>R 37<br>A 88 minus 51 is 37.</td><td class="mono">62</td></tr>
+    </table></div>
+    <ol>
+      <li>Mark each answer: does it rest on a tool result, and is the sum right? Count both over the eight.</li>
+      <li>Apply the three rules of <code>KEEP</code>: the check, keep every answer, and keep those shorter than 50. Write down which answers each one keeps.</li>
+      <li>For each kept set, count how many use the calculator and how many are right. What will the next round teach, and which wrong answer slips through which rule?</li>
+    </ol>
+    <details class="answer"><summary>Check your working</summary>
+      <ol class="worked">
+        <li>Answers 2, 4, 6 and 8 call the calculator: 4 of 8. Right: 2, 4, 7 and 8, also 4 of 8. Answer 6 called the calculator and copied 93 as 39. Answer 7 is right with no call: 40 plus 2 is easy to guess.</li>
+        <li>The check keeps 2, 4, 6, 8. Every answer keeps all eight. Shorter than 50 keeps 1, 3, 5, 7, the four with no call, because a call and its result add 17 or 18 characters.</li>
+        <li>The check: 4 of 4 use the calculator, 3 of 4 right. Every answer: 4 of 8 and 4 of 8, the same mix the model produces now, so it has nothing to move towards. Short: 0 of 4 use the calculator, 1 of 4 right. The next round of the check teaches "call the calculator", and keeps answer 6's wrong copy with it. The short rule teaches "never call", and even keeps one right answer, number 7, which makes it look a little less bad than it is.</li>
+      </ol>
+      <p>Each rule is a filter on what the model already wrote. The check moves the model towards the calculator and passes the copying fault along, exactly the seven wrong answers that stayed in the first loop.</p>
+    </details>
+  </section>
+
   <h2>At full size</h2>
   <ul>
     <li><strong>Code that passes its tests.</strong> A model writes many solutions, the tests are run, and the solutions that pass become training text. The tests are the check, and a program is one of the few kinds of answer that can be checked without a person.</li>

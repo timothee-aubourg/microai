@@ -184,6 +184,28 @@
   </table>
   <p>Three tokens: <code>the␣</code>, <code>h</code>, <code>at</code>. The tokenizer has never seen <i>hat</i>, but it can still encode it from pieces it knows. Decoding goes the other way: replace each token by its bytes and glue them together.</p>
 
+  <section class="yourturn" aria-label="Your turn, by hand">
+    <h3>Your turn, by hand</h3>
+    <p class="need">Paper and a pencil · about 15 minutes</p>
+    <p>Train a tokenizer on the text below by running byte-pair encoding until no pair occurs twice, then use its merges to encode a new text. Write ␣ for a space. Every character here is one byte.</p>
+    <pre class="code" data-lang="text">see␣seen␣seed␣sees␣bees</pre>
+    <ol>
+      <li>Count the tokens. Then count every pair of neighbouring tokens, and merge the most frequent pair into token 256. Count the tokens again.</li>
+      <li>Recount the pairs in the new sequence and merge the most frequent one into token 257. Then do it once more, into token 258.</li>
+      <li>Recount the pairs. Why stop here?</li>
+      <li>Encode the new text <code>see␣see</code> with your three merges, applied in order. Which token IDs do you get?</li>
+    </ol>
+    <details class="answer"><summary>Check your working</summary>
+      <ol class="worked">
+        <li>23 tokens, one per byte. The pairs: <code>e e</code> 5 times, <code>s e</code> 4, <code>␣ s</code> 3, <code>e s</code> 2, and eight more pairs once each. Merge <code>e + e</code> into 256 (<code>ee</code>): <code>s ee ␣ s ee n ␣ s ee d ␣ s ee s ␣ b ee s</code>, 18 tokens.</li>
+        <li>Now <code>s ee</code> occurs 4 times, <code>␣ s</code> 3 times and <code>ee s</code> twice. Merge <code>s + ee</code> into 257 (<code>see</code>): <code>see ␣ see n ␣ see d ␣ see s ␣ b ee s</code>, 14 tokens. Then <code>␣ see</code> occurs 3 times and nothing else more than once. Merge <code>␣ + see</code> into 258 (<code>␣see</code>): <code>see ␣see n ␣see d ␣see s ␣ b ee s</code>, 11 tokens.</li>
+        <li>Every pair left occurs exactly once. A further merge would only memorise this one text, the trap of chapter 1.</li>
+        <li>Bytes: <code>s e e ␣ s e e</code>. Merge 256 gives <code>s ee ␣ s ee</code>, merge 257 gives <code>see ␣ see</code>, merge 258 gives <code>see ␣see</code>. Two tokens, IDs 257 and 258.</li>
+      </ol>
+      <p>The same word became two different tokens: 257 at the start of the text and 258 after a space, because the space before a word is part of its token. To the model the two IDs are unrelated until training teaches it otherwise.</p>
+    </details>
+  </section>
+
   <h2>The trade</h2>
   <p>Every merge shortens the sequences and lengthens the vocabulary. Both have a price. Longer sequences mean more computation per sentence and less text in the context window. A larger vocabulary means a larger table of token vectors (chapter 4), a larger final layer that has to score every token, and rarer tokens that the model sees too seldom to learn well.</p>
   <p>Models you can download settle on vocabularies from a few tens of thousands to a few hundred thousand tokens. GPT-2 used 50,257: 256 bytes, 50,000 merges and one special token. For ordinary English prose such tokenizers average roughly four characters, or three quarters of a word, per token. That ratio is the conversion rate behind every context-window size and every tokens-per-second figure you will read.</p>

@@ -199,6 +199,25 @@ P mul 23 45, sub $1 17
   </section>
   <p><strong>What you should have seen.</strong> For one link, step by step reads 48 characters in two passes and plan first 35 in one. Each link adds about 28 characters and one pass to step by step, and about 19 characters and no pass to the plan, so at four links it is about 131 against 93 characters and five passes against one. The plan line uses <code>$1</code>, <code>$2</code> … for the result of the step before. Both columns are right almost every time.</p>
 
+  <section class="yourturn" aria-label="Your turn, by hand">
+    <h3>Your turn, by hand</h3>
+    <p class="need">Paper and a pencil · about 15 minutes</p>
+    <p>Take a job of three links, worked left to right: <code>what is 12 plus 30 times 4 minus 8?</code>. Write it both ways, count what it costs, then count what crashes cost a job of ten such questions.</p>
+    <ol>
+      <li>Write the step-by-step conversation, line by line, in the format above. Then write the plan-first conversation, up to the end of the plan line.</li>
+      <li>Count the passes of each, and the characters each context holds at the end. Count as the page does: every character, spaces included, one more for the end of each line, and one for the empty line the harness writes first. This gives 81 and 56 for the example above.</li>
+      <li>A job is 10 questions like this one, each of three links. The process crashes twice: just before question 4, and later just before question 8. How many passes does the job take step by step, without a checkpoint and with one? And plan first, without and with?</li>
+    </ol>
+    <details class="answer"><summary>Check your working</summary>
+      <ol class="worked">
+        <li>Step by step: <code>U what is 12 plus 30 times 4 minus 8?</code>, <code>C add 12 30</code>, <code>R 42</code>, <code>C mul 42 4</code>, <code>R 168</code>, <code>C sub 168 8</code>, <code>R 160</code>, <code>A 160.</code> Plan first: the same <code>U</code> line, then <code>P add 12 30, mul $1 4, sub $2 8</code>, and the harness runs it: 42, 168, 160.</li>
+        <li>Step by step: one pass per link and one for the answer, 4 passes. Characters: 1 + 38 + 12 + 5 + 11 + 6 + 12 + 6 + 7 = 98. Plan first: 1 pass, and 1 + 38 + 32 = 71 characters.</li>
+        <li>Step by step costs 4 passes a question. Without a checkpoint: questions 1 to 3 (12 passes), crash, all lost; questions 1 to 7 (28), crash, all lost; questions 1 to 10 (40). Total 12 + 28 + 40 = 80. With a checkpoint each question is done once: 10 × 4 = 40. Plan first costs 1 pass a question: 3 + 7 + 10 = 20 without a checkpoint, 10 with one.</li>
+      </ol>
+      <p>Without a checkpoint the two crashes doubled the work, and the second cost more than the first because more had been done by then. The two savings are separate: plan first without a checkpoint (20) is already cheaper than step by step with one (40), and with both the job takes 10 passes, an eighth of 80. The trained agent answered 160 both ways, and the program counted 98 and 71 characters.</p>
+    </details>
+  </section>
+
   <h2>At full size</h2>
   <ul>
     <li><strong>The step-by-step loop is the default.</strong> Coding agents call the model again after every tool result, because their tasks need to react to what they find.</li>

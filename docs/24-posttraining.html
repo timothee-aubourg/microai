@@ -98,6 +98,32 @@ a guess, and wrong                 A 19 plus 47 is 66.                given away
 
   <p>The script does 150 such updates on 32 answers each: 4,800 answers scored, and not one example shown. It takes about two minutes.</p>
 
+  <section class="yourturn" aria-label="Your turn, by hand">
+    <h3>Your turn, by hand</h3>
+    <p class="need">Paper and a pencil · about 5 minutes</p>
+    <p>The grader has scored four answers to sums. Find the weight of each answer, reward minus usual reward, for three different usual rewards, and see which answers each one pushes up and which down.</p>
+    <div class="scroll"><table class="mini">
+      <tr><th>Answer</th><th>How</th><th>Reward</th></tr>
+      <tr><td class="mono">1</td><td>calculator, right</td><td class="mono">1</td></tr>
+      <tr><td class="mono">2</td><td>guess, wrong</td><td class="mono">0</td></tr>
+      <tr><td class="mono">3</td><td>guess, right</td><td class="mono">1</td></tr>
+      <tr><td class="mono">4</td><td>guess, wrong</td><td class="mono">0</td></tr>
+    </table></div>
+    <ol>
+      <li>With a usual reward of 0.5, as in the example above, write the weight of each answer and add the four.</li>
+      <li>Do the same with a usual reward of 0, as if there were none.</li>
+      <li>Do it once more with 0.9, the usual reward of a model that is already right nine times in ten.</li>
+    </ol>
+    <details class="answer"><summary>Check your working</summary>
+      <ol class="worked">
+        <li>+0.5, &minus;0.5, +0.5, &minus;0.5, which add up to 0. Right answers are pushed up and wrong ones down by as much. Answer 3, a lucky guess, gets the same push as answer 1: the grader looks only at outcomes.</li>
+        <li>+1, 0, +1, 0, which add up to +2. The wrong answers get a weight of 0, so nothing makes them less likely. Every push is upward.</li>
+        <li>+0.1, &minus;0.9, +0.1, &minus;0.9, which add up to &minus;1.6. A right answer, now expected, barely moves the model. Each wrong one gets a strong push down.</li>
+      </ol>
+      <p>The usual reward decides what counts as news: the step is spent on what was better or worse than expected. That is why the script in <em>Build it</em> keeps a usual reward for each kind of question and updates it as training goes on.</p>
+    </details>
+  </section>
+
   <h2>What each stage did</h2>
   <div class="scroll"><table class="mini">
     <tr><th>Of 300 sampled answers</th><th>Pre-trained</th><th>+ 300 examples</th><th>+ 4,800 scored answers</th></tr>

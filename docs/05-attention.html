@@ -139,6 +139,33 @@
   <p>By hand: take the three scores 2, 0 and 1 again, and suppose the third token comes <em>after</em> the reading token. Its score is replaced by minus infinity, and e to that power is 0. The softmax is then taken over 7.39, 1.00 and 0: the shares are 0.88, 0.12 and 0. The later token contributes nothing.</p>
   <p>The mask is what lets one pass over a passage of 64 characters count as 64 honest predictions, each made from the characters before it and nothing else.</p>
 
+  <section class="yourturn" aria-label="Your turn, by hand">
+    <h3>Your turn, by hand</h3>
+    <p class="need">Paper and a pencil · about 15 minutes</p>
+    <p>Run a whole attention step for a text of three tokens: every position reads, with the mask and the division by √<i>d</i>. Queries and keys have <i>d</i> = 4 numbers, so √<i>d</i> = 2. To keep the work short, the values have only two numbers.</p>
+    <div class="scroll"><table class="mini">
+      <tr><th>Position</th><th>Query</th><th>Key</th><th>Value</th></tr>
+      <tr><td>1</td><td>(1, 1, 0, 0)</td><td>(2, 0, 2, 0)</td><td>(1, 0)</td></tr>
+      <tr><td>2</td><td>(0, 1, 0, 1)</td><td>(0, 2, 0, 0)</td><td>(0, 1)</td></tr>
+      <tr><td>3</td><td>(0, 0, 1, −1)</td><td>(1, 1, 1, 1)</td><td>(1, 1)</td></tr>
+    </table></div>
+    <ol>
+      <li>Fill a table of scores, query · key, with one row per reading position and one column per key. Then cross out every score whose key comes after the reading position, as the mask does. A position reads its own key too.</li>
+      <li>Divide the scores that are left by 2 and take the softmax of each row. Use e ≈ 2.72.</li>
+      <li>Compute what each position receives: the values averaged with its shares.</li>
+      <li>Do the softmax of rows 2 and 3 again without dividing by 2 (e² ≈ 7.39). What changes?</li>
+    </ol>
+    <details class="answer"><summary>Check your working</summary>
+      <ol class="worked">
+        <li>Row 1: 2, 2, 2. Row 2: 0, 2, 2. Row 3: 2, 0, 0. The mask crosses out the last two scores of row 1 and the last score of row 2. What is left: row 1 reads only key 1 (score 2), row 2 reads keys 1 and 2 (0 and 2), row 3 reads all three (2, 0 and 0).</li>
+        <li>Row 1: the score 1 is alone, so its share is 1. Row 2: scores 0 and 1 give 1 and 2.72, total 3.72, shares 0.27 and 0.73. Row 3: scores 1, 0 and 0 give 2.72, 1 and 1, total 4.72, shares 0.58, 0.21 and 0.21.</li>
+        <li>Position 1: 1 × (1, 0) = (1, 0). Position 2: 0.27 × (1, 0) + 0.73 × (0, 1) = (0.27, 0.73). Position 3: 0.58 × (1, 0) + 0.21 × (0, 1) + 0.21 × (1, 1) = (0.79, 0.42).</li>
+        <li>Row 2: scores 0 and 2 give 1 and 7.39, total 8.39, shares 0.12 and 0.88. Row 3: scores 2, 0 and 0 give 7.39, 1 and 1, total 9.39, shares 0.79, 0.11 and 0.11. The favourite gains in both rows. Row 1 still gives a share of 1 to its only key.</li>
+      </ol>
+      <p>The first position can only ever read itself, so it receives its own value whatever the scores are. Without the division the shares are sharper already at 4 numbers, and the gap grows with the width.</p>
+    </details>
+  </section>
+
   <h2>Several heads</h2>
   <p>One pattern of shares per position is limiting: a token may want its previous letter <em>and</em> the start of the line.</p>
   <div class="def"><span class="kind">Definition</span>

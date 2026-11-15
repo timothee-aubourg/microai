@@ -144,6 +144,41 @@ def rule(name, threshold=0.0):
   </section>
   <p><strong>What you should have seen.</strong> At 0 the agent never asks and 102 wrong calls run. Raising the threshold to 0.9 asks about 88 calls and lets 29 through. At 0.99, 146 asks and 13 through. Between 0.99 and 0.998 the asks climb fast: 220 at 0.995, with 4 wrong calls still through, and 504 at 0.998, where the last one is caught. The confident mistakes sit among the right calls, just below 1. In the live box, <code>what is 53 x 99?</code> gives a low confidence and a wrong call, and <code>what is 42 less 26?</code> gives <code>add 42 26</code> at a confidence close to 1.</p>
 
+  <section class="yourturn" aria-label="Your turn, by hand">
+    <h3>Your turn, by hand</h3>
+    <p class="need">Paper, a pencil and a calculator · about 10 minutes</p>
+    <p>Work out two confidences, then set a threshold for eight calls. The characters not shown below had a probability of 1.000, to three places.</p>
+    <div class="scroll"><table class="mini">
+      <tr><th>Request</th><th>Call written</th><th>Characters below 1.000</th></tr>
+      <tr><td class="mono">what is 28 without 74?</td><td class="mono">sub 29 36</td><td>s: 0.939, 2: 0.996, 9: 0.946, 3: 0.753, 6: 0.653</td></tr>
+      <tr><td class="mono">what is 66 tims 58?</td><td class="mono">mul 66 58</td><td>first 6: 0.999, second 6: 0.997, 5: 0.999, 8: 0.999</td></tr>
+    </table></div>
+    <div class="scroll"><table class="mini">
+      <tr><th></th><th>Request</th><th>Call</th><th>Confidence</th></tr>
+      <tr><td class="mono">1</td><td class="mono">what is 46 times 58?</td><td class="mono">mul 46 58</td><td class="mono">0.997</td></tr>
+      <tr><td class="mono">2</td><td class="mono">what is 66 tims 58?</td><td class="mono">mul 66 58</td><td>(step 1)</td></tr>
+      <tr><td class="mono">3</td><td class="mono">what is 30 minus 70?</td><td class="mono">sub 30 70</td><td class="mono">0.972</td></tr>
+      <tr><td class="mono">4</td><td class="mono">what is 48 x 14?</td><td class="mono">sub 48 84</td><td class="mono">0.096</td></tr>
+      <tr><td class="mono">5</td><td class="mono">what is 16 and 68?</td><td class="mono">sub 16 68</td><td class="mono">0.978</td></tr>
+      <tr><td class="mono">6</td><td class="mono">what is 42 less 26?</td><td class="mono">add 42 26</td><td class="mono">0.996</td></tr>
+      <tr><td class="mono">7</td><td class="mono">what 68 minus 14?</td><td class="mono">sub 68 14</td><td class="mono">0.670</td></tr>
+      <tr><td class="mono">8</td><td class="mono">what is 28 without 74?</td><td class="mono">sub 29 36</td><td>(step 1)</td></tr>
+    </table></div>
+    <ol>
+      <li>Multiply along each row of the table to get the confidence of each call. Is each call right?</li>
+      <li>Mark each of the eight calls right or wrong. Then, for "ask when confidence &lt; 0.9" and "ask when confidence &lt; 0.99", count how many calls the agent asks about and how many wrong calls it lets through.</li>
+      <li>What is the fewest calls a threshold can ask about and still let no wrong call through?</li>
+    </ol>
+    <details class="answer"><summary>Check your working</summary>
+      <ol class="worked">
+        <li>First call: 0.939 × 0.996 = 0.935, × 0.946 = 0.885, × 0.753 = 0.666, × 0.653 = 0.435. Wrong: <code>without</code> means minus, so the right call is <code>sub 28 74</code>. The model chose <code>sub</code> almost surely and went wrong on the numbers. Second call: 0.999 × 0.997 × 0.999 × 0.999 = 0.994, and right.</li>
+        <li>Right: 1, 2, 3 and 7. Wrong: 4 (<code>x</code> is times), 5 (<code>and</code> is plus), 6 (<code>less</code> is minus) and 8. Below 0.9: calls 4, 7 and 8, so 3 asks, and 2 wrong calls through, 5 at 0.978 and 6 at 0.996. Below 0.99: calls 3, 4, 5, 7 and 8, so 5 asks, and 1 wrong call through, 6.</li>
+        <li>The surest wrong call is 6, at 0.996. To ask about it the threshold must be above 0.996, which also catches call 2 at 0.994. Only call 1, at 0.997, can run unasked: 7 asks of 8.</li>
+      </ol>
+      <p>Stopping the last wrong call costs asking about every call but one, because the model was surer of <code>less</code> read as plus than of two right calls. These are eight of the 557 calls in the table above, with the confidences the program measured.</p>
+    </details>
+  </section>
+
   <h2>At full size</h2>
   <ul>
     <li><strong>Harnesses ask by kind of action first.</strong> Coding agents typically let reading run freely, ask before editing files or running commands, and let you allow specific commands for good. These are rules about what the action is, set by you: the first box of the figure.</li>

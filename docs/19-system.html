@@ -82,6 +82,26 @@ A 23 times 45 is 1035.        the model reports</pre>
   <p>Each line starts with a letter that says who is speaking. That is this system's chat template, and the model learned it the only way a model learns anything: by predicting the next character of thousands of examples. Nobody programmed "when you see a sum, write C". It is the likeliest continuation of the text it was shown.</p>
   <p>This is what "a model trained for tool calling" means at any size. The training data contains requests in an agreed layout at the moments where a tool helps. Note what the model does not learn: arithmetic. The line beginning with R was never its to write. During training it only saw results appear. In use, the harness writes that line.</p>
 
+  <section class="yourturn" aria-label="Your turn, by hand">
+    <h3>Your turn, by hand</h3>
+    <p class="need">Paper and a pencil · about 10 minutes</p>
+    <p>Write out, character by character, everything the model of this chapter processes for one question, and mark who wrote each character. Use ↵ for a line break and ␣ for a space. The harness starts the window with a line break, then <code>U␣</code>, the question and a line break.</p>
+    <pre class="code" data-lang="text">what is 7 minus 60?</pre>
+    <ol>
+      <li>Write the four lines in full, starting with the line break the harness puts first.</li>
+      <li>Underline what the model writes. The harness writes the start, the result line and the letters <code>A␣</code> that open the last line. Count the characters of each writer and the total, and compare it with the window of 96.</li>
+      <li>Circle every number and word in the model's characters that also appears earlier in the window. What is left that the model did not copy?</li>
+    </ol>
+    <details class="answer"><summary>Check your working</summary>
+      <ol class="worked">
+        <li><code>↵U␣what␣is␣7␣minus␣60?↵C␣sub␣7␣60↵R␣-53↵A␣7␣minus␣60␣is␣-53.↵</code></li>
+        <li>The harness writes <code>↵U␣what␣is␣7␣minus␣60?↵</code>, 23 characters, and <code>R␣-53↵A␣</code>, 8. The model writes <code>C␣</code>, 2, then <code>sub␣7␣60↵</code>, 9, then <code>7␣minus␣60␣is␣-53.↵</code>, 19. That is 31 for the harness and 30 for the model, 61 in all, well inside the window of 96.</li>
+        <li>In the request, 7 and 60 come from the question. In the answer, 7, minus and 60 come from the question and −53 from the result line. What the model did not copy: the choice of <code>C</code>, the word <code>sub</code> for minus, and the fixed words of its sentence, <code>is</code> and the full stop.</li>
+      </ol>
+      <p>Half of the window is the model's, and none of what it writes is computed: it picks a form, translates one word into a tool name and copies the rest. The subtraction happened in the harness.</p>
+    </details>
+  </section>
+
   <h2>Where the weights come from</h2>
   <p>A question that comes up: could a large model simply write out the weights of a small one? Not usefully. The weights of even this model are 108,032 numbers whose values only make sense together, and nobody, person or model, can write them down by thinking. They are found by training.</p>
   <p>What can be written is the program that finds them, and it is short. The training function in this chapter is twenty-five lines. Run it and five minutes later you hold a file of weights that works on any computer with Python, and in a browser on a phone. The recipe is the product. The weights are what the recipe leaves behind.</p>

@@ -131,6 +131,27 @@
   <p><strong>What you should have seen.</strong> The loss starts at 2.25. The slopes appear in the order of the by-hand table: −3 at <i>e</i>, −3 at <i>s</i>, −3 for <i>b</i>, and last −6 for <i>w</i>. After the step the sliders read 0.80 and 0.65, and the loss is 0.56.</p>
   <p>Only two rules were needed. Addition passes the incoming slope to both of its inputs unchanged. Multiplication passes it to each input scaled by the <em>other</em> input's value. Every operation in the model of chapters 4 to 6 has a rule of this kind, and the backward pass costs about as much as the forward pass, whether there are two parameters or two billion.</p>
 
+  <section class="yourturn" aria-label="Your turn, by hand">
+    <h3>Your turn, by hand</h3>
+    <p class="need">Paper and a pencil · about 10 minutes</p>
+    <p>Run forward, backward and one step for the line <i>prediction</i> = <i>w</i> × <i>x</i> + <i>b</i> on a new example, then try two learning rates. Start at <i>w</i> = 1 and <i>b</i> = 0. The example is <i>x</i> = 3, right answer <i>y</i> = 2.</p>
+    <ol>
+      <li>Forward: compute <i>p</i> = <i>w</i> × <i>x</i>, <i>s</i> = <i>p</i> + <i>b</i>, <i>e</i> = <i>s</i> − <i>y</i> and <i>L</i> = <i>e</i>², as in the table above.</li>
+      <li>Backward: find the slope of <i>L</i> at <i>e</i>, <i>s</i>, <i>b</i>, <i>p</i> and <i>w</i>, with the two rules for addition and multiplication.</li>
+      <li>Take one step with a learning rate of 0.1. Run forward again: what is the new loss?</li>
+      <li>Go back to <i>w</i> = 1, <i>b</i> = 0 and take the step with a learning rate of 0.05 instead. What is the new loss now?</li>
+    </ol>
+    <details class="answer"><summary>Check your working</summary>
+      <ol class="worked">
+        <li><i>p</i> = 1 × 3 = 3, <i>s</i> = 3 + 0 = 3, <i>e</i> = 3 − 2 = 1, <i>L</i> = 1² = 1.</li>
+        <li>At <i>e</i>: 2 × 1 = 2. At <i>s</i>: 2, since a nudge to <i>s</i> moves <i>e</i> by the same amount. At <i>b</i> and at <i>p</i>: 2, since addition passes the slope on unchanged. At <i>w</i>: 2 × 3 = 6, scaled by the other input, <i>x</i>. Both slopes are positive, so both parameters should go down.</li>
+        <li><i>w</i> ← 1 − 0.1 × 6 = 0.4 and <i>b</i> ← 0 − 0.1 × 2 = −0.2. Forward: <i>p</i> = 0.4 × 3 = 1.2, <i>s</i> = 1.2 − 0.2 = 1, <i>e</i> = 1 − 2 = −1, <i>L</i> = 1. The loss has not changed. The prediction went from 1 too high to 1 too low.</li>
+        <li><i>w</i> ← 1 − 0.05 × 6 = 0.7 and <i>b</i> ← 0 − 0.05 × 2 = −0.1. Forward: <i>p</i> = 0.7 × 3 = 2.1, <i>s</i> = 2.1 − 0.1 = 2, <i>e</i> = 0, <i>L</i> = 0.</li>
+      </ol>
+      <p>The slopes were the same both times; only the learning rate differed. At 0.1 the step jumped across the valley and landed as high on the other side, and at 0.05 it landed exactly at the bottom. A rate of 0.15 would have landed higher than it started, with a loss of 4: the overshoot of the widget above.</p>
+    </details>
+  </section>
+
   <h2>Build it</h2>
   <p>The engine below is what trains the model in this course. It needs one more word.</p>
   <div class="def"><span class="kind">Definition</span>

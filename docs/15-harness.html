@@ -99,6 +99,39 @@
   </ol>
   <p>Two details matter more than they look. Errors are returned to the model as text, because a model that sees "no such file" can try another path, while a crashed loop cannot. And results are clipped before they go in. One command that prints fifty thousand lines would otherwise fill the window by itself. Our <code>clip</code> keeps the start and the end, which is where commands put what matters.</p>
 
+  <section class="yourturn" aria-label="Your turn, by hand">
+    <h3>Your turn, by hand</h3>
+    <p class="need">Paper and a pencil · about 15 minutes</p>
+    <p>Play the harness. The task is to fix the mean in this file of 137 characters. The model sends three <code>edit</code> requests, one per call, in this order. Decide each by the harness's rule, write what goes back, and count what the model reads.</p>
+    <pre class="code" data-lang="text">def mean(xs):
+    return sum(xs) / (len(xs) - 1)
+
+def var(xs):
+    m = mean(xs)
+    return sum((x - m) ** 2 for x in xs) / (len(xs) - 1)</pre>
+    <div class="scroll"><table class="mini">
+      <tr><th>Request</th><th>Old text</th><th>New text</th></tr>
+      <tr><td>1</td><td class="mono">/ (len(xs) - 1)</td><td class="mono">/ len(xs)</td></tr>
+      <tr><td>2</td><td class="mono">len(x) - 1</td><td class="mono">len(xs)</td></tr>
+      <tr><td>3</td><td class="mono">return sum(xs) / (len(xs) - 1)</td><td class="mono">return sum(xs) / len(xs)</td></tr>
+    </table></div>
+    <ol>
+      <li>For each request, count how many times the old text occurs in the file. Which does the harness carry out?</li>
+      <li>Write the exact text the model gets back for each. A refusal reads <code>error: ValueError: the old text occurs N times in stats.py; it must occur once</code>. A success reads <code>wrote N characters to stats.py</code>, where N is the new length of the file.</li>
+      <li>The session has five requests: after the three edits come a test run and a final answer. The first request is 2,000 characters. The model's calls and their results add 200, 190, 210 and 150 characters, in that order. Write the size of each request, and the total the model reads.</li>
+      <li>How many of those characters were spent reading the two refused edits?</li>
+    </ol>
+    <details class="answer"><summary>Check your working</summary>
+      <ol class="worked">
+        <li>Request 1: twice, once in <code>mean</code> and once in <code>var</code>. Refused. Request 2: zero times, because the file says <code>len(xs)</code>, with an s. Refused. Request 3: once. Carried out.</li>
+        <li><code>error: ValueError: the old text occurs 2 times in stats.py; it must occur once</code>, then the same with 0 times, then <code>wrote 131 characters to stats.py</code>. The old text has 30 characters and the new one 24, so the file goes from 137 to 137 − 30 + 24 = 131.</li>
+        <li>2,000, then 2,000 + 200 = 2,200, then 2,390, then 2,600, then 2,750. In all 2,000 + 2,200 + 2,390 + 2,600 + 2,750 = 11,940 characters.</li>
+        <li>The first refusal, 200 characters, is in requests 2 to 5: 4 × 200 = 800. The second, 190 characters, is in requests 3 to 5: 3 × 190 = 570. Together 1,370, about 11% of the 11,940.</li>
+      </ol>
+      <p>The refusals did their job: each told the model exactly why, and the third request quoted enough to point at one place. But every mistake stays in the conversation and is read again on every later call, which is the cost chapter 16 sets out to cut.</p>
+    </details>
+  </section>
+
   <h2>What real harnesses add</h2>
   <p>Everything below is more of the same five things.</p>
   <p><strong>Instructions from the project.</strong> A file in the repository, named <code>CLAUDE.md</code> or <code>AGENTS.md</code> by convention, is read at the start and placed in the system prompt: how to run the tests, what not to touch.</p>

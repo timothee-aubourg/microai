@@ -139,6 +139,25 @@
     <tr><td class="mono">38.02</td><td class="mono">52.1 s</td><td class="mono">99.3 s</td><td class="mono">42.8 s</td><td class="mono">81.4 s</td></tr>
   </table></div>
 
+  <section class="yourturn" aria-label="Your turn, by hand">
+    <h3>Your turn, by hand</h3>
+    <p class="need">Paper and a pencil · about 10 minutes</p>
+    <p>Run the server of <code>serve</code> on paper. Three requests arrive at 0, 0.5 and 1.0 seconds, and each wants 3 tokens. A pass takes 1.0 s with one request in it, 1.2 s with two and 1.4 s with three: mostly reading the weights, like the large model.</p>
+    <ol>
+      <li>One place: write when each request finishes, and its latency, finish time minus arrival time.</li>
+      <li>Three places, continuous batching: before each pass, let in every request that has arrived. Write the clock after each pass and who is in it, then the three latencies.</li>
+      <li>Back to one place, with ten requests arriving one every 2 seconds, at 0, 2, 4 and so on. Find the latency of each. What happens to the tenth?</li>
+    </ol>
+    <details class="answer"><summary>Check your working</summary>
+      <ol class="worked">
+        <li>Request 1 runs from 0 to 3.0: latency 3.0 s. Request 2 waits until 3.0 and finishes at 6.0: latency 5.5 s. Request 3 finishes at 9.0: latency 8.0 s.</li>
+        <li>At 0 only request 1 is there: a pass alone, clock 1.0. Requests 2 and 3 have now arrived and join: a pass of three, clock 2.4, and another, clock 3.8. Request 1 has its 3 tokens and leaves, latency 3.8 s. The other two need one more token each: a pass of two, clock 5.0. Latencies 4.5 s and 4.0 s. Everything is done at 5.0 instead of 9.0.</li>
+        <li>Each request takes 3 seconds and a new one arrives every 2, so request n arrives at 2 &times; (n &minus; 1) and finishes at 3 &times; n. Latencies 3, 4, 5, … s: each waits one second longer than the one before. The tenth arrives at 18 and finishes at 30, a latency of 12 s.</li>
+      </ol>
+      <p>In step 2 the first person pays 0.8 s for sharing and the other two gain 1.0 and 4.0 s. Step 3 is a server past its capacity: half a request arrives per second and a third of one leaves, so the wait grows by a second with every request and has no limit, as in the table at 0.36 per second. With three places, the same ten requests all finish within 4.4 s of arriving.</p>
+    </details>
+  </section>
+
   <h2>What limits the batch</h2>
   <ul>
     <li><strong>Memory for the context.</strong> Every request in the batch has its own KV cache (chapter 22). Sixteen requests with long contexts can need more memory than the weights. This, more than arithmetic, is what caps the batch on a graphics card.</li>

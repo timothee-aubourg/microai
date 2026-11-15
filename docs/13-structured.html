@@ -104,6 +104,32 @@
 
   <p><strong>What you should have seen.</strong> Without the mask, 8 of 40 texts fit the format at 0.8, 5 of 40 at 0.3 and 6 of 40 at 1.5: the count changes from run to run and with the temperature, and stays low. With the mask it is 40 of 40 every time. Temperature divides the scores, and minus infinity divided by anything is still minus infinity.</p>
 
+  <section class="yourturn" aria-label="Your turn, by hand">
+    <h3>Your turn, by hand</h3>
+    <p class="need">Paper and a pencil · about 10 minutes</p>
+    <p>Play the machine. Step through a short text in this format, and list at every step the characters the mask allows.</p>
+    <pre class="code" data-lang="text">format   one word from:  ROMEO  ROSS  JULIET
+         then 1 colon
+         then 1 space
+         then 1 to 3 characters from:  o  h
+         then 1 character:  !
+
+text     ROSS: oh!</pre>
+    <ol>
+      <li>Before each of the nine characters, and once after the last, write the characters the mask allows. Use the rule of the machine: the characters of the current part while it can still grow, and also the first characters of the next part once the current one has reached its minimum.</li>
+      <li>At how many steps was exactly one character allowed?</li>
+      <li>At the step after <code>RO</code>, the model gives <code>M</code> a probability of 0.30 and <code>S</code> 0.06. The rest is on characters the format does not allow. What are the probabilities under the mask, and how much belief did the mask remove?</li>
+    </ol>
+    <details class="answer"><summary>Check your working</summary>
+      <ol class="worked">
+        <li>At the start: J, R. After <code>R</code>: O. After <code>RO</code>: M, S. After <code>ROS</code>: S. After <code>ROSS</code>: the colon. After <code>ROSS:</code>: the space. Writing ␣ for that space: after <code>ROSS:␣</code>: o, h. After <code>ROSS:␣o</code>: o, h, ! (the part has reached its minimum of one, so ! may begin). After <code>ROSS:␣oh</code>: o, h, !. After <code>ROSS:␣oh!</code>: nothing. The format is complete and the loop stops.</li>
+        <li>Four: the O after R, the second S, the colon and the space. Of nine characters, the model chose five; the format wrote the other four whatever the scores said. Had the text been <code>ohh</code>, a fourth h would not be allowed: after <code>ohh</code> only ! remains.</li>
+        <li>The allowed characters hold 0.30 + 0.06 = 0.36. Rescaled: M 0.30 / 0.36 = 0.83, S 0.06 / 0.36 = 0.17. The mask removed 1 − 0.36 = 0.64 of the model's belief at this step.</li>
+      </ol>
+      <p>Close to half of this text was decided by the format, not the model, and the stop as well: the model gets no vote on when the text ends.</p>
+    </details>
+  </section>
+
   <h2>On a real model</h2>
   <p>Three things change at full size, and the idea does not.</p>
   <p><strong>Tokens, not characters.</strong> A real model draws tokens of several characters (chapter 2). A token is allowed if its characters, taken one after another, are all allowed. The runtime of chapter 10 tests every token in the vocabulary against the machine at each step, and prepares a good deal in advance to keep that fast.</p>

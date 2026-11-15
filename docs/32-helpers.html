@@ -99,6 +99,26 @@
 
   <p><strong>What you should have seen.</strong> With the careless helper about half the one-part jobs are right, and almost none of the six-part jobs: each extra part halves the chance again. With the trained helper nearly every job is right at one part and a few fail at six. Look at the contexts printed under a job. Each helper's is short and separate, and the lead's line holds only numbers.</p>
 
+  <section class="yourturn" aria-label="Your turn, by hand">
+    <h3>Your turn, by hand</h3>
+    <p class="need">Paper, a pencil and a calculator · about 10 minutes</p>
+    <p>Split a job of four parts as in the table above, then work out how reliable each helper has to be when the job grows.</p>
+    <pre class="code" data-lang="text">add up: 12 plus 30, 7 times 8, 50 minus 6, 9 plus 9</pre>
+    <ol>
+      <li>Write what each of the four helpers sees and hands back, then what the lead's notes hold and what it answers.</li>
+      <li>The careless helper is right with probability 0.5 and the trained one with 0.985. For each, what is the chance that this job is right, and about how many of 200 such jobs would be?</li>
+      <li>A job has 20 parts and uses the trained helper. What is the chance it is right? Then try helpers right with probability 0.99 and 0.995. Which is the first to make a 20-part job right 9 times in 10?</li>
+    </ol>
+    <details class="answer"><summary>Check your working</summary>
+      <ol class="worked">
+        <li>Helper 1 sees <code>what is 12 plus 30?</code> and hands back 42. Helper 2, <code>what is 7 times 8?</code>, 56. Helper 3, <code>what is 50 minus 6?</code>, 44. Helper 4, <code>what is 9 plus 9?</code>, 18. The lead's notes hold the job and 42, 56, 44, 18, and it answers 42 + 56 + 44 + 18 = 160.</li>
+        <li>Careless: 0.5 &times; 0.5 &times; 0.5 &times; 0.5 = 0.0625, about 12 of 200 (the table above measured 11). Trained: 0.985<sup>4</sup> = 0.941, about 188 of 200.</li>
+        <li>0.985<sup>20</sup> = 0.739: about one job in four is wrong. 0.99<sup>20</sup> = 0.818, still short. 0.995<sup>20</sup> = 0.905: this is the first to reach 9 in 10.</li>
+      </ol>
+      <p>A helper right 99.5% of the time is wrong once in 200 parts, where the trained helper is wrong three times in 200. Making the job 5 times longer asked for a helper 3 times less often wrong.</p>
+    </details>
+  </section>
+
   <h2>What it costs</h2>
   <div class="scroll"><table class="mini">
     <tr><th>Parts</th><th>Tokens per job: careless</th><th>careless, checked</th><th>trained</th></tr>

@@ -103,6 +103,49 @@ What is the capital of France?&lt;|im_end|&gt;
 
   <p>Each model family has its own chat template, and it is stored inside the model file so the server can apply it for you. If the wrong template is used, the model still produces text, because it always can. It just produces worse text, since the document no longer looks like the ones it was trained on. When a local model behaves strangely, this is one of the first things to check.</p>
 
+  <section class="yourturn" aria-label="Your turn, by hand">
+    <h3>Your turn, by hand</h3>
+    <p class="need">Paper and a pencil · about 10 minutes</p>
+    <p>Here is a short conversation. Your program sent three requests: after <code>Hi</code>, after <code>2+2?</code> and after <code>And 3+3?</code>. Write out what the model receives, and count.</p>
+    <div class="scroll"><table class="mini">
+      <tr><th>Role</th><th>Text</th></tr>
+      <tr><td>system</td><td class="mono">Be brief.</td></tr>
+      <tr><td>user</td><td class="mono">Hi</td></tr>
+      <tr><td>assistant</td><td class="mono">Hello.</td></tr>
+      <tr><td>user</td><td class="mono">2+2?</td></tr>
+      <tr><td>assistant</td><td class="mono">4</td></tr>
+      <tr><td>user</td><td class="mono">And 3+3?</td></tr>
+    </table></div>
+    <ol>
+      <li>Write the document of the third request, line by line, in the template of the by-hand example.</li>
+      <li>Count its special tokens. Then count those of the first and the second request. What rule gives the count for request number n?</li>
+      <li>Count the characters of message text in each request: only the Text column, with spaces and punctuation, without special tokens or line breaks. Add the three. How many characters does the conversation itself hold?</li>
+    </ol>
+    <details class="answer"><summary>Check your working</summary>
+      <ol class="worked">
+        <li>
+          <pre class="code" data-lang="text">&lt;|im_start|&gt;system
+Be brief.&lt;|im_end|&gt;
+&lt;|im_start|&gt;user
+Hi&lt;|im_end|&gt;
+&lt;|im_start|&gt;assistant
+Hello.&lt;|im_end|&gt;
+&lt;|im_start|&gt;user
+2+2?&lt;|im_end|&gt;
+&lt;|im_start|&gt;assistant
+4&lt;|im_end|&gt;
+&lt;|im_start|&gt;user
+And 3+3?&lt;|im_end|&gt;
+&lt;|im_start|&gt;assistant
+</pre>
+          It ends just after <code>assistant</code>, where the answer is to begin.</li>
+        <li>13 special tokens. The first request has 5 and the second 9, as in the experiment above. Each question and its answer add 4: a start and an end for each. Request n has 4n + 1.</li>
+        <li>Request 1: 9 + 2 = 11. Request 2: 11 + 6 + 4 = 21. Request 3: 21 + 1 + 8 = 30. In all 11 + 21 + 30 = 62 characters, for a conversation of 30. <code>Be brief.</code> was read three times.</li>
+      </ol>
+      <p>The model receives the whole conversation on every request, so what it reads grows faster than the conversation does. A long chat pays again for its beginning at every turn.</p>
+    </details>
+  </section>
+
   <h2>Do it</h2>
   <p>The quickest route is Ollama, a free program that contains a runtime, a server and a tool to download model files. Pick a model whose size fits your memory by the arithmetic of chapter 9.</p>
   <pre class="code" data-lang="text"># 1. Install Ollama from ollama.com, then download a model and talk to it:

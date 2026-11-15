@@ -142,6 +142,28 @@
   </section>
   <p><strong>What you should have seen.</strong> With the tool failing one call in five, three runs of twenty questions gave 9 to 14 right when the harness stops, 19 or 20 with quiet retries, 16 to 19 when the model is told <code>error busy</code>, and 8 to 12 when it is told <code>failed</code>. Twenty is a small sample, so each run differs, but the order is the table's. With every call failing and the guard on, the agent is stopped at its third identical call. With the guard off it writes five calls and stops only when its window is full.</p>
 
+  <section class="yourturn" aria-label="Your turn, by hand">
+    <h3>Your turn, by hand</h3>
+    <p class="need">Paper and a pencil · about 15 minutes</p>
+    <p>The agent gets <code>what is 23 times 45 minus 17?</code>. The tool's outcomes, in the order they come, are fixed in advance: each try at the tool, by whoever makes it, takes the next one.</p>
+    <pre class="code" data-lang="text">ok, busy, busy, ok, ok, ok, …        (every try after the third is ok)</pre>
+    <ol>
+      <li><strong>Stop.</strong> Follow the job. What happens, and how many model passes does it take? Count, as the chapter does, one pass for every call the model writes.</li>
+      <li><strong>Retry quietly</strong>, up to three tries per call. How many tries at the tool, how many model passes, and what does the model read?</li>
+      <li><strong>Tell, clearly.</strong> Write the conversation the model reads, assuming it sends the same call again after <code>R error busy</code>, as it was trained to. Count the passes. Then switch on the loop guard of this chapter, the same call 3 times: what happens now?</li>
+      <li>Now each step writes its result to a ledger, and a failed step stops the job, with no retry. With the outcomes ok, then busy, what does the ledger hold after the job when writing as you go, at the end, and as you go with undo?</li>
+    </ol>
+    <details class="answer"><summary>Check your working</summary>
+      <ol class="worked">
+        <li><code>mul 23 45</code> takes ok: <code>R 1035</code>. <code>sub 1035 17</code> takes busy, and the harness stops. No answer, after 2 calls written: 2 passes.</li>
+        <li><code>mul</code>: ok on try 1. <code>sub</code>: busy, busy, ok on tries 2, 3 and 4, so <code>R 1018</code>. 4 tries at the tool, 3 model passes: 2 calls and the answer. The model reads exactly the conversation of chapter 39's example, 81 characters, and never sees an error.</li>
+        <li><code>U what is 23 times 45 minus 17?</code>, <code>C mul 23 45</code>, <code>R 1035</code>, <code>C sub 1035 17</code>, <code>R error busy</code>, <code>C sub 1035 17</code>, <code>R error busy</code>, <code>C sub 1035 17</code>, <code>R 1018</code>, <code>A 1018.</code> Four calls and the answer: 5 passes, and 135 of the 160 characters of the window. With the guard on, the third <code>sub 1035 17</code> is the same call for the third time in a row, and the harness stops before running it. No answer, after 4 calls written, and the call it stopped would have taken an ok.</li>
+        <li>As you go: step 1 writes 1035, step 2 fails, so the ledger holds 1035, half a job. At the end: 1035 was set aside and never added, so the ledger is empty. Undo: 1035 was written, then removed when the job failed, so it is empty too.</li>
+      </ol>
+      <p>The same outcomes give no answer, a right answer in 3 passes, or a right answer in 5, and only the harness differs. The guard that stops a dead tool also stopped a job one try short of finishing: "3 identical calls" is a guess about how long busy lasts. We ran these outcomes through the trained agent and the chapter's harness code, and it wrote exactly these lines.</p>
+    </details>
+  </section>
+
   <h2>At full size</h2>
   <ul>
     <li><strong>Retries wait.</strong> A real harness waits before trying again, longer each time (one second, two, four), so that a busy service gets room to recover. This is called backoff.</li>

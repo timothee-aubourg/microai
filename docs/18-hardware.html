@@ -108,6 +108,27 @@
 
   <p><strong>What you should have seen.</strong> At 8 billion weights the model is 5.0 GB, it fits, and the ceiling is 202 tokens per second, with 101 to 151 to expect in practice. At 20 billion it is 12.5 GB and the ceiling falls to 81: a larger model is slower on the same machine. At 40 billion it is 25.0 GB and does not fit in 24 GB, and the widget says the ceiling no longer applies. At 3 bits per weight the same 40 billion weights take 15.0 GB, fit again, and have a ceiling of 67.</p>
 
+  <section class="yourturn" aria-label="Your turn, by hand">
+    <h3>Your turn, by hand</h3>
+    <p class="need">Paper and a pencil · about 10 minutes</p>
+    <p>A machine has two limits: its memory delivers 100 GB per second, and its processor does 2,000 billion multiply-adds per second. Find which limit decides the speed of an 8-billion-weight model at 4 bits per weight, first when it writes and then when it reads.</p>
+    <ol>
+      <li>How many gigabytes is the model? How many multiply-adds does one token cost?</li>
+      <li>Writing, one token at a time: what is the ceiling set by memory, and the ceiling set by arithmetic? Which one is lower?</li>
+      <li>Reading a prompt of 2,000 tokens, all positions together, so that the weights travel from memory only once: how long does the memory take, and how long the arithmetic? How many tokens per second is that?</li>
+      <li>A server writes for several users at once and reads the weights once per step for all of them. How many users can it serve before arithmetic, not memory, becomes the limit?</li>
+    </ol>
+    <details class="answer"><summary>Check your working</summary>
+      <ol class="worked">
+        <li>8 billion × 4 bits ÷ 8 = 4 billion bytes, 4 GB. One multiply-add per weight: 8 billion per token.</li>
+        <li>Memory: 100 ÷ 4 = 25 tokens per second. Arithmetic: 2,000 billion ÷ 8 billion = 250 tokens per second. Memory is lower, by a factor of 10, so it decides: at most 25.</li>
+        <li>Memory: 4 GB once, 4 ÷ 100 = 0.04 seconds. Arithmetic: 2,000 × 8 billion = 16,000 billion multiply-adds, which take 16,000 ÷ 2,000 = 8 seconds. Arithmetic decides: 2,000 tokens in 8 seconds is 250 tokens per second.</li>
+        <li>One step reads 4 GB in 0.04 seconds. Each user's token needs 8 billion multiply-adds, 0.004 seconds. Ten users fill the 0.04 seconds exactly: 10 users at 25 tokens per second each, 250 in all. An eleventh user makes the step longer.</li>
+      </ol>
+      <p>The same machine reads a prompt ten times faster per token than it writes, and it can write for ten users almost as fast as for one. Writing a single stream wastes nine tenths of the arithmetic, waiting for memory.</p>
+    </details>
+  </section>
+
   <h2>It has to fit</h2>
   <p>The second number on a graphics card is the size of its memory. The weights, plus the KV cache of chapter 8, must fit in it. If they do not, part of the model stays in ordinary RAM and is computed by the CPU, and the speed falls toward the slower of the two. A card with less memory is not a slightly slower card. For a model that does not fit, it is a different class of machine.</p>
   <p>Apple's recent computers make the opposite trade. Their memory is one pool shared by CPU and GPU: slower than a graphics card's own memory, and much larger. They run big models at moderate speed, where a single graphics card cannot load them at all. Chapter 22 goes through these kinds of memory one by one.</p>

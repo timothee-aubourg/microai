@@ -78,6 +78,33 @@
   <p>The saving is the ratio 2<i>r</i>/<i>d</i>, so it improves with width. One more detail matters. <i>B</i> starts as all zeros, so the product <i>A</i> × <i>B</i> starts as all zeros: before the first training step the adapted model is exactly the original, and training moves away from it gradually.</p>
   <p>Why should such a restricted correction be enough? The bet is that the change needed for one new habit is simple, in the sense that a few directions cover it, even though the model as a whole is not simple. This has been found to hold widely in practice. It is not a proven fact. When a task needs a larger change, a higher rank or full fine-tuning does better.</p>
 
+  <section class="yourturn" aria-label="Your turn, by hand">
+    <h3>Your turn, by hand</h3>
+    <p class="need">Paper and a pencil · about 10 minutes</p>
+    <p>Merge a correction of rank 1 into a small matrix. Then find out which corrections rank 1 can make, and at what rank an adapter stops saving anything.</p>
+    <pre class="code" data-lang="text">W  =  0.5   0     0.1
+      0     0.4   0
+      0.2   0     0.3
+
+A (column) = 0.1, −0.2, 0.3        B (row) = 2, 1, 0</pre>
+    <ol>
+      <li>Compute the correction A × B, then merge it: W + A × B. Which column of W did not change, and why?</li>
+      <li>Someone would like one of these two corrections. Which one can a correction of rank 1 produce? For that one, find an A and a B.
+        <pre class="code" data-lang="text">D1 =  2  4  6        D2 =  1  0  0
+      1  2  3              0  1  0
+      0  0  0              0  0  0</pre></li>
+      <li>For a d × d matrix, at what rank r does the adapter train as many numbers as the matrix holds? Check it for d = 3 and for d = 96.</li>
+    </ol>
+    <details class="answer"><summary>Check your working</summary>
+      <ol class="worked">
+        <li>The rows of A × B are 0.1 × (2, 1, 0) = (0.2, 0.1, 0), −0.2 × (2, 1, 0) = (−0.4, −0.2, 0) and 0.3 × (2, 1, 0) = (0.6, 0.3, 0). Merged, the rows of W + A × B are (0.7, 0.1, 0.1), (−0.4, 0.2, 0) and (0.8, 0.3, 0.3). The last column is unchanged: the third number of B is 0, so that column of the correction is a number of A times 0, three times over.</li>
+        <li>D1: every row is a multiple of (1, 2, 3), by 2, by 1 and by 0. So A = (2, 1, 0) and B = (1, 2, 3). D2: its rows (1, 0, 0) and (0, 1, 0) are not multiples of one row, so rank 1 cannot make it. It needs rank 2: two corrections of rank 1 added together, one for each row.</li>
+        <li>The adapter trains 2 × d × r numbers and the matrix holds d². They are equal when r = d / 2. For d = 3: rank 1 trains 6 numbers against 9, rank 2 already trains 12, more than the matrix. For d = 96: rank 48 trains 2 × 96 × 48 = 9,216 = 96 × 96. The rank 4 of our adapter is far below that.</li>
+      </ol>
+      <p>An adapter saves numbers only when its rank is well under half the width, and it pays for that by reaching only r directions. That trade is worth it for wide matrices and small ranks, as with 4,096 and 16.</p>
+    </details>
+  </section>
+
   <h2>A real adapter, on our model</h2>
   <p>To make the effect impossible to miss, the adapter in this repository teaches a deliberately silly habit: WRITE IN CAPITALS. The model of chapter 7 has seen capital letters mostly in speakers' names and at the start of lines. The script <code>code/ch12_lora.py</code> freezes it, attaches corrections of rank 4 to the matrices of its attention and its MLPs, and trains only those for 600 steps on the same text put in capitals.</p>
 

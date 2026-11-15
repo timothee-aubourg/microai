@@ -69,6 +69,25 @@
 
   <p><strong>What you should have seen.</strong> With one try the answer is right about every other time. With five tries the vote is usually right, and now and then a tie between a right answer and a guess goes the wrong way. With fifteen tries the right answer wins every time, with about half of the votes against a scatter of guesses that mostly got one vote each. The model did not change between your presses. You paid fifteen times the tokens.</p>
 
+  <section class="yourturn" aria-label="Your turn, by hand">
+    <h3>Your turn, by hand</h3>
+    <p class="need">Paper, a pencil and a calculator · about 10 minutes</p>
+    <p>Work out how often a vote of five tries is right, from how often one try is right. Assume, as in the table above, that wrong answers never agree with each other. Then drop that assumption.</p>
+    <ol>
+      <li>Each try is right with probability 0.5, as for this model. With wrong answers all different, the right answer wins for certain as soon as two tries give it. Find the chance that no try is right, 0.5<sup>5</sup>, and that exactly one is, 5 &times; 0.5<sup>5</sup>. Subtract both from 1.</li>
+      <li>Do the same for a model that is right with probability 0.4: no try right is 0.6<sup>5</sup>, exactly one is 5 &times; 0.4 &times; 0.6<sup>4</sup>.</li>
+      <li>Now suppose this second model's wrong answers all agree: it gives the same wrong number every time it is wrong. The right answer now needs three votes of five. Its chance is 10 &times; 0.4<sup>3</sup> &times; 0.6<sup>2</sup> + 5 &times; 0.4<sup>4</sup> &times; 0.6 + 0.4<sup>5</sup>. Compare it with one try.</li>
+    </ol>
+    <details class="answer"><summary>Check your working</summary>
+      <ol class="worked">
+        <li>0.5<sup>5</sup> = 1/32 = 0.031. 5 &times; 1/32 = 0.156. 1 &minus; 0.031 &minus; 0.156 = 0.81. A single right answer can also win a tie of five different answers, so the true chance is a little higher. The script measured 244 of 300, which is 0.81.</li>
+        <li>0.6<sup>5</sup> = 0.078. 5 &times; 0.4 &times; 0.1296 = 0.259. 1 &minus; 0.078 &minus; 0.259 = 0.66, against 0.4 for one try.</li>
+        <li>10 &times; 0.064 &times; 0.36 = 0.230, 5 &times; 0.0256 &times; 0.6 = 0.077, 0.4<sup>5</sup> = 0.010. Together 0.32, less than the 0.4 of a single try.</li>
+      </ol>
+      <p>Voting works because wrong answers scatter. When a model is wrong the same way most of the time, five votes make it more reliably wrong than one try, and the count of votes gives no sign that anything is amiss.</p>
+    </details>
+  </section>
+
   <h2>Check, and ask again</h2>
   <p>Voting treats every answer alike. Often the harness can tell a good answer from a bad one without knowing the right answer. Here there is a simple test: did the number come from the calculator, or from nowhere?</p>
   <div class="def"><span class="kind">Definition</span>

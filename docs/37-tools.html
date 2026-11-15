@@ -218,6 +218,30 @@ def admit(lists, approved):
     return kept</pre>
   <p>The fingerprint also covers a quieter attack. A server can behave for weeks and then change what one of its names does. Server A's approved list has the fingerprint <code>5dbaa877fb12</code>. If <code>at</code> were later described as <code>minus</code>, the fingerprint would be <code>c585f6e77423</code>, and the harness would admit 0 of its tools until a person had looked again.</p>
 
+  <section class="yourturn" aria-label="Your turn, by hand">
+    <h3>Your turn, by hand</h3>
+    <p class="need">Paper and a pencil · about 10 minutes</p>
+    <p>Four servers are connected. The harness receives their lists in this order and runs <code>admit</code> on them, as in the code above. Then you write what the agent reads and what it writes.</p>
+    <pre class="code" data-lang="text">A  approved, unchanged   plus=at minus=hx
+C  never approved        plus=bt
+B  approved, unchanged   times=sv minus=qe mod=wu
+D  approved, changed     max=mr</pre>
+    <p>"Unchanged" means the list still has the fingerprint a person approved; "changed" means it does not.</p>
+    <ol>
+      <li>Write the line <code>T …</code> that the agent is given.</li>
+      <li>Write the lines that follow <code>U what is 47 mod 6?</code>: the call, the result and the answer. Then write what the agent answers to <code>U what is 47 max 6?</code></li>
+      <li>Server C's tool for plus adds one to every result. A person approves server C by mistake, and from now on the harness receives C's list first, before A's. Write the new <code>T</code> line, and the lines that follow <code>U what is 47 plus 6?</code></li>
+    </ol>
+    <details class="answer"><summary>Check your working</summary>
+      <ol class="worked">
+        <li>A's list has its approved fingerprint: <code>plus=at</code> and <code>minus=hx</code> are kept. C was never approved: dropped. B is approved, but <code>minus</code> is already taken by <code>hx</code>, so <code>minus=qe</code> is dropped and <code>times=sv</code>, <code>mod=wu</code> are kept. D's list has changed since it was approved: dropped until a person looks again. The line is <code>T plus=at minus=hx times=sv mod=wu</code>, four entries, the most the agent saw in training.</li>
+        <li><code>C mod=wu 47 6</code>, <code>R 5</code> (47 = 7 × 6 + 5), <code>A 47 mod 6 is 5.</code> For max: <code>A i have no tool for max.</code> A server offered <code>max=mr</code>, but it is not on the agent's list, and the list is all the agent knows.</li>
+        <li>C now passes the check and comes first, so <code>plus</code> is taken by <code>bt</code>, and A's <code>plus=at</code> is the entry dropped. The line is <code>T plus=bt minus=hx times=sv mod=wu</code>. Then <code>C plus=bt 47 6</code>, <code>R 54</code>, <code>A 47 plus 6 is 54.</code></li>
+      </ol>
+      <p>The check trusts the approval and keeps the first tool for each description. Once a dishonest server is approved, the same rule that protected the honest tool removes it, and every plus answer is one too high. The fingerprint guards against a list that changes, not against a bad approval. Given these lists, the trained agent of this chapter wrote exactly the lines above.</p>
+    </details>
+  </section>
+
   <h2>At full size</h2>
   <ul>
     <li><strong>Descriptions are sentences.</strong> A real description says in words what the tool does and when to use it, and the schema names each argument. The model picks a tool by reading them, so a vague description is a tool that is never called, or called wrongly.</li>

@@ -108,6 +108,40 @@
   <p><strong>What you should have seen.</strong> With 20 tasks the standard error is 10.2 points, and the better system scored higher in about 58% of the pairs, the same in 12% and lower in 31%. With 100 tasks it came out ahead in about 75%, and with 400 tasks in about 93%. With no true gain at all, one system still "beat" the other in about 45% of the pairs each way: a difference between two scores, by itself, proves nothing. The figures move by a few points each time, because the simulation draws new tasks.</p>
   <p>Worked out exactly for 20 tasks, a system that is truly five points better (75% against 70%) scores higher only 57% of the time. It ties 13% of the time and scores <em>lower</em> 30% of the time. At 400 tasks it scores higher 94% of the time. Small evaluations are still worth having, because they catch large breakages at once. They cannot rank two close versions.</p>
 
+  <section class="yourturn" aria-label="Your turn, by hand">
+    <h3>Your turn, by hand</h3>
+    <p class="need">Paper and a pencil · about 15 minutes</p>
+    <p>Two versions of an agent, A and B, ran the same ten tasks. Each run has two checks: one on the answer and one on the path (did the calculator run, without an error). Grade them, and decide what the scores tell you.</p>
+    <div class="scroll"><table class="mini">
+      <tr><th>Task</th><th>A: answer</th><th>A: tools</th><th>B: answer</th><th>B: tools</th></tr>
+      <tr><td>1</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
+      <tr><td>2</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
+      <tr><td>3</td><td>✗</td><td>✓</td><td>✓</td><td>✓</td></tr>
+      <tr><td>4</td><td>✓</td><td>✗</td><td>✓</td><td>✓</td></tr>
+      <tr><td>5</td><td>✓</td><td>✓</td><td>✓</td><td>✗</td></tr>
+      <tr><td>6</td><td>✗</td><td>✗</td><td>✓</td><td>✓</td></tr>
+      <tr><td>7</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
+      <tr><td>8</td><td>✗</td><td>✗</td><td>✗</td><td>✗</td></tr>
+      <tr><td>9</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
+      <tr><td>10</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
+    </table></div>
+    <ol>
+      <li>A task passes when all its checks pass. Count the passes of A and of B. How many would each get if you graded the answer alone?</li>
+      <li>Compute the standard error of each score. You will need √0.024 ≈ 0.155 and √0.016 ≈ 0.126.</li>
+      <li>Compare task by task. Which tasks went from fail to pass, and which from pass to fail? What happened in the one that went backward?</li>
+      <li>How many tasks would you need for a standard error of 5 points at a pass rate of 70%?</li>
+    </ol>
+    <details class="answer"><summary>Check your working</summary>
+      <ol class="worked">
+        <li>A passes tasks 1, 2, 5, 7, 9 and 10: 6 of 10. B passes 1, 2, 3, 4, 6, 7, 9 and 10: 8 of 10. On the answer alone, A would get 7 (task 4 counts) and B 9 (task 5 counts).</li>
+        <li>A: 0.6 × 0.4 = 0.24, divided by 10 is 0.024, and the square root is 0.155. So 60%, give or take 16 points. B: 0.8 × 0.2 = 0.16, divided by 10 is 0.016, and the square root is 0.126. So 80%, give or take 13 points. The ranges, about 45 to 75 and 67 to 93, overlap: the two counts alone do not settle which is better.</li>
+        <li>From fail to pass: tasks 3, 4 and 6. From pass to fail: task 5. There B gave the right answer, but its calculator call failed or never happened: right for a bad reason. Only the path check sees it.</li>
+        <li>The standard error is √(p(1 − p)/n), so n = p(1 − p) / 0.05² = 0.7 × 0.3 / 0.0025 = 0.21 / 0.0025 = 84 tasks. This fits the table above: 100 runs give 4.6 points.</li>
+      </ol>
+      <p>Three tasks gained and one lost, each with a trace you can read, is more evidence than the two counts. And graded on answers alone, the step backward in task 5 would not show at all.</p>
+    </details>
+  </section>
+
   <h2>The working loop</h2>
   <p>Put together, this is how an agent gets better.</p>
   <ol>

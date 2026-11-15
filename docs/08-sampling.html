@@ -81,6 +81,32 @@
 
   <p><strong>What you should have seen.</strong> At 0.8 the next character is open: <code>I</code> 14.4%, <code>T</code> 14.1%, <code>W</code> 13.4%, <code>A</code> 11.5%, and many more. At temperature 0 the bars show <code>I</code> at 100% and the text soon loops: "the state of the state, That will strike an an of the state", again and again. At 2.0 the favourites fall to about 7% each, nearly level with unlikely characters, and the text falls apart into strings like <code>gawfry</code> and <code>dogmunAble</code>. At 0.8 it reads as Shakespeare-like lines with speakers' names. With top-p at 0.90 the tail of the list is cut and the survivors rise a little, <code>I</code> to 15.7%.</p>
 
+  <section class="yourturn" aria-label="Your turn, by hand">
+    <h3>Your turn, by hand</h3>
+    <p class="need">Paper and a pencil · about 10 minutes</p>
+    <p>Apply top-k and top-p to two predictions: one after a text where the model is sure what comes next, one where it is not.</p>
+    <div class="scroll"><table class="mini">
+      <tr><th>Token</th><th>Sure</th><th>Unsure</th></tr>
+      <tr><td><code>e</code></td><td>0.80</td><td>0.30</td></tr>
+      <tr><td><code>a</code></td><td>0.10</td><td>0.26</td></tr>
+      <tr><td><code>o</code></td><td>0.06</td><td>0.24</td></tr>
+      <tr><td><code>i</code></td><td>0.04</td><td>0.20</td></tr>
+    </table></div>
+    <ol>
+      <li>Apply top-k = 2 to each prediction and rescale what is kept so it adds up to 1.</li>
+      <li>Apply top-p = 0.75 to each prediction and rescale.</li>
+      <li>Count how many tokens each setting kept, in each case, and how much probability it cut.</li>
+    </ol>
+    <details class="answer"><summary>Check your working</summary>
+      <ol class="worked">
+        <li>Sure: <code>e</code> and <code>a</code> are kept, total 0.90: 0.80 / 0.90 = 0.89 and 0.10 / 0.90 = 0.11. Unsure: <code>e</code> and <code>a</code> are kept, total 0.56: 0.30 / 0.56 = 0.54 and 0.26 / 0.56 = 0.46.</li>
+        <li>Sure: 0.80 alone already reaches 0.75, so <code>e</code> is kept alone, with probability 1. Unsure: 0.30, then 0.30 + 0.26 = 0.56, then 0.56 + 0.24 = 0.80, which reaches 0.75. Three tokens are kept: 0.30 / 0.80 = 0.375, 0.26 / 0.80 = 0.325 and 0.24 / 0.80 = 0.30.</li>
+        <li>Top-k kept 2 both times. It cut 0.10 when the model was sure, and 0.44 when it was unsure, nearly half of what the model believed. Top-p kept 1 when sure and 3 when unsure, and cut 0.20 both times.</li>
+      </ol>
+      <p>Top-k keeps the same number of tokens whatever the model believes. Top-p cuts about the same share of probability, so the number of tokens it keeps follows the model's certainty.</p>
+    </details>
+  </section>
+
   <h2>Generation is a loop, and the loop is wasteful</h2>
   <p>To write 200 characters the model runs 200 times, each time on the text so far plus one more character. Done the plain way, step 200 computes again everything it computed for the first 199 characters at step 199. Almost all of that work is repeated.</p>
   <p>The causal mask of chapter 5 makes the waste avoidable. An earlier position never reads later ones, so nothing computed for it can change when the text grows. In particular its attention keys and values are fixed for good.</p>
