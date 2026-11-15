@@ -745,6 +745,8 @@
       main.appendChild(pager);
       lesson(ch, main, pager);
       yourTurn(ch, main);
+      stick(ch, main);
+      remember(ch, main);
       glance(ch, main);
       pathBar(ch, main, pager);
     }
@@ -890,6 +892,93 @@
       ans.addEventListener('toggle', () => { M.$('summary', ans).textContent = ans.open ? 'Your working, step by step' : 'Check step 1'; });
       show();
     }
+  }
+
+  /* ---------- make it stick: rebuild the mechanism from memory ----------
+     Remember: before a chapter, recall the one you read before it, without looking.
+     Draw it from memory: redraw the chapter's key figure blank, then compare.
+     Explain it back: answer the chapter's question in your own words, with a few given terms.
+     Act it out: where the page has one, a short way to play the mechanism with people or objects.
+     A page asks for the block with <div class="stick" data-draw="figure id" data-explain="glossary keys">. */
+  function remember(ch, main) {
+    let seen = {};
+    try { seen = JSON.parse(localStorage.getItem('microai.seen') || '{}') || {}; } catch (e) { seen = {}; }
+    const P = M.paths.find((p) => p.key === M.readPath()), i = P ? P.ch.indexOf(ch) : -1;
+    const before = i > 0 ? P.ch[i - 1] : ch - 1, L = M.lesson[before];
+    if (before < 1 || !L || !seen[before]) return;               // only a chapter this reader has opened
+    const C = M.chapters[before - 1];
+    const keep = M.el('p', { class: 'recall-a', hidden: '' }, M.el('b', { text: 'Chapter ' + before + ': ' }), M.el('span', { text: L.keep + ' ' }), M.el('a', { href: C[0], text: 'Reread it' }));
+    const show = M.button('Show it', () => { keep.hidden = false; show.remove(); });
+    const box = M.el('aside', { class: 'recall', 'aria-label': 'Remember first' },
+      M.el('p', { class: 'tag' }, M.icon('keep'), 'Remember first · twenty seconds'),
+      M.el('p', { text: 'Without looking: what was the one idea of chapter ' + before + ', "' + C[1] + '"? Say it, or write it, in one sentence.' }), show, keep);
+    const at = M.$('.question', main);
+    if (at) at.parentNode.insertBefore(box, at);
+  }
+
+  function sketchpad() {                                         // a finger-drawing pad, for readers without paper
+    const cv = M.el('canvas', { class: 'pad touch', height: '520', width: '680', 'aria-label': 'Drawing pad' });
+    const g = cv.getContext('2d');
+    let down = false, last = null;
+    const at = (e) => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) * cv.width / r.width, (e.clientY - r.top) * cv.height / r.height]; };
+    cv.addEventListener('pointerdown', (e) => { down = true; last = at(e); cv.setPointerCapture(e.pointerId); });
+    cv.addEventListener('pointermove', (e) => {
+      if (!down) return;
+      const p = at(e);
+      g.strokeStyle = M.css('--ink'); g.lineWidth = 3; g.lineCap = 'round';
+      g.beginPath(); g.moveTo(last[0], last[1]); g.lineTo(p[0], p[1]); g.stroke(); last = p;
+    });
+    ['pointerup', 'pointercancel'].forEach((t) => cv.addEventListener(t, () => { down = false; }));
+    return M.el('div', null, cv, M.row(M.button('Clear', () => g.clearRect(0, 0, cv.width, cv.height))));
+  }
+
+  function stick(ch, main) {
+    const mark = M.$('.stick', main);
+    if (!mark) return;
+    const sec = M.el('section', { class: 'stick-box', 'aria-label': 'Make it stick' });
+    const h = M.el('h2', { id: 'make-it-stick', text: 'Make it stick' });
+    sec.appendChild(M.el('p', { class: 'stick-why', text: 'Reading an idea is not the same as having it. These take five minutes, and each one makes you rebuild the mechanism yourself.' }));
+    // draw it from memory
+    const fig = document.getElementById(mark.getAttribute('data-draw') || '') || M.$('figure.fig', main);
+    if (fig) {
+      const cap = M.$('figcaption b', fig), art = M.$('svg, img', fig);
+      const name = cap ? cap.textContent.replace(/\.$/, '') : 'the main figure';
+      const holder = M.el('div', { class: 'stick-fig fig' }), pad = M.el('div');
+      const showFig = M.button('Show the figure', () => {
+        if (!holder.firstChild && art) { const c = art.cloneNode(true); c.removeAttribute('aria-labelledby'); c.setAttribute('aria-label', 'The figure, to compare with your drawing'); holder.appendChild(c); }
+        showFig.remove();
+      }, 'go');
+      const drawHere = M.button('Or draw here', () => { pad.appendChild(sketchpad()); drawHere.remove(); });
+      sec.appendChild(M.el('div', { class: 'stick-part' }, M.el('h3', null, M.icon('pencil'), 'Draw it from memory'),
+        M.el('p', { html: 'On paper, redraw the figure <b>' + name.replace(/</g, '&lt;') + '</b> without scrolling back: every box, arrow and label you can. Then compare. What you left out is what to reread.' }),
+        M.row(showFig, drawHere), pad, holder));
+    }
+    // explain it back
+    const G = window.MICRO_GLOSSARY || {}, keys = (mark.getAttribute('data-explain') || '').split(',').map((k) => k.trim()).filter((k) => G[k]);
+    const q = M.$('.question', main), recap = M.$('.recap ul', main);
+    if (q) {
+      const note = M.el('textarea', { rows: '4', 'aria-label': 'Your explanation', placeholder: 'In three or four sentences of your own…' });
+      const store = 'microai.explain.' + ch;
+      try { note.value = localStorage.getItem(store) || ''; } catch (e) { /* no storage */ }
+      note.addEventListener('input', () => { try { localStorage.setItem(store, note.value); } catch (e) { /* no storage */ } });
+      const cmp = M.el('div', { class: 'stick-cmp', hidden: '' });
+      if (recap) cmp.appendChild(recap.cloneNode(true));
+      const showCmp = M.button('Compare with the chapter\'s summary', () => { cmp.hidden = false; showCmp.remove(); });
+      const terms = keys.length ? M.el('p', { class: 'stick-terms' }, M.el('span', { text: 'Use these words: ' }),
+        ...keys.map((k, i) => M.el('span', null, M.el('a', { class: 'term', href: 'glossary.html#' + k, text: G[k].term.toLowerCase() }), M.el('span', { text: i < keys.length - 1 ? ', ' : '.' })))) : null;
+      sec.appendChild(M.el('div', { class: 'stick-part' }, M.el('h3', null, M.icon('recap'), 'Explain it back'),
+        M.el('p', { html: 'Answer the question this chapter opened with, as if to a friend: <em>' + q.textContent.replace(/</g, '&lt;') + '</em>' }), terms, note,
+        M.el('p', { class: 'caption', text: 'What you type stays in this browser.' }), showCmp, cmp));
+    }
+    // act it out, if the page has one
+    const act = M.$('.actout', main);
+    if (act) {
+      act.classList.add('stick-part');
+      const t = M.$('h3', act);
+      if (t && !t.querySelector('.ic')) t.insertBefore(M.icon('try'), t.firstChild);
+      sec.appendChild(act);
+    }
+    mark.replaceWith(h, sec);
   }
 
   /* A reader who chose a path on the map gets its next chapter above the pager, wherever they are in it. */

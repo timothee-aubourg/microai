@@ -545,3 +545,26 @@ h2 .anchor:hover, h2 .anchor:focus-visible { opacity: 1; color: var(--fwd); }
   .yourturn button, .yourturn .more, .yourturn .selfcheck, .yourturn details.hint { display: none !important; }
 }
 .yourturn [hidden] { display: none !important; }
+
+/* ---------- make it stick ---------- */
+.recall { font-family: var(--sans); font-size: 15.5px; line-height: 1.45; border: 1px dashed var(--border); border-radius: var(--cut-s); padding: 10px 14px 4px; margin: 14px auto 0; }
+.recall p { margin: 0 0 8px; }
+.recall .tag { margin-bottom: 6px; }
+.recall button { min-height: 36px; padding: 0; margin-bottom: 8px; }
+.recall .recall-a { border-left: 3px solid var(--fwd); padding-left: 10px; }
+.stick-why { font-size: 16.5px; color: var(--muted); }
+.stick-part { background: var(--panel); border: 1px solid var(--line); border-radius: var(--cut); padding: 12px 16px 6px; margin: 16px auto; font-size: 16.5px; line-height: 1.55; }
+.stick-part h3 { display: flex; align-items: center; gap: 6px; font-size: 17px; margin-bottom: 6px; }
+.stick-part h3 .ic { width: 1.9em; height: 1.9em; }
+.stick-part textarea { font-family: var(--serif); font-size: 16px; }
+.stick-terms { font-family: var(--sans); font-size: 15px; }
+.stick-fig svg { display: block; width: 100%; height: auto; font-family: var(--sans); margin: 8px 0 10px; }
+.stick-cmp { border-left: 3px solid var(--fwd); padding-left: 10px; margin: 8px 0 10px; font-size: 15.5px; }
+canvas.pad { width: 100%; height: auto; aspect-ratio: 680 / 520; background: var(--paper); border: 1px solid var(--line); border-radius: var(--cut-s); margin-top: 8px; touch-action: none; }
+.stick-part [hidden], .recall [hidden] { display: none !important; }
+@media print { .stick-part button, .stick-part canvas, .stick-part textarea, .recall button { display: none !important; } }
+.yourturn .predict { border-left: 3px solid var(--prob); padding-left: 10px; font-size: 16px; }
+.actout ol { margin-bottom: 10px; }
+.stick-fig { overflow-x: auto; }
+@media (max-width: 640px) { .stick-fig svg { min-width: 640px; } }
+.actout .need { font-family: var(--sans); font-size: 13.5px; color: var(--muted); margin: 0 0 10px; }
