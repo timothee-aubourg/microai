@@ -48,6 +48,24 @@ of each chapter. The map, the paths and the reading times all come from
 `docs/assets/micro.js` (`M.map`, `M.paths`, `M.minutes`); `tools/build_site.py`
 recounts the minutes.
 
+Every chapter is written to be opened from a shared link, on a phone, by
+someone who has not seen the rest. A first visit gets one line saying what the
+course is. Each chapter opens with an "at a glance" box: its reading time, its
+sections as a short table of contents with the minutes of each, the short answer
+(shown once the reader has guessed), and the chapters it refers back to. Every
+section heading can be linked to (`15-harness.html#the-loop`), a thin bar under
+the header shows how far down the reader is, and the chapter remembers the last
+section read. "Share this chapter" and "Share this line" open the phone's share
+sheet, or offer "Post on X" and "Copy the link".
+
+When a page is posted on X or elsewhere, its link preview shows a card drawn
+for that chapter (`docs/cards/`, 1200 × 630, about 50 KB each): the title, the
+opening question, the part and the reading time. `node tools/build_cards.js`
+draws the cards; `python tools/build_site.py` writes the preview tags into every
+page. The tags need the public address of the site, set with `MICROAI_SITE`
+(default `https://timothee-aubourg.github.io/microai/`, the GitHub Pages address
+of this repository), and the previews appear only once that address is live.
+
 On a phone, open the site and use the browser's "Add to Home Screen": it
 installs like an app. "Keep the whole course on this device", on the contents
 page, saves every chapter (about 4 MB) for reading without a network. Code

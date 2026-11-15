@@ -59,3 +59,63 @@ if out == src and 'M.minutes = [' not in src:
 with open(js, 'w', encoding='utf-8') as f:
     f.write(out)
 print(f'counted reading time for {len(minutes)} chapters, {sum(minutes)} minutes in all')
+
+
+# ---------- link previews: what X, Mastodon or a chat app shows when a page is shared ----------
+# The manifest, icon and theme colour are added by micro.js, which knows the reader's light or dark theme.
+# Each page gets a description, a canonical address and an Open Graph / X card pointing at its image in
+# docs/cards/ (drawn by tools/build_cards.js). The address of the published site comes from MICROAI_SITE.
+SITE = os.environ.get('MICROAI_SITE', 'https://timothee-aubourg.github.io/microai/').rstrip('/') + '/'
+with open(js, encoding='utf-8') as f:
+    src = f.read()
+src = re.sub(r"(// \[site\]\n).*?(\n[ \t]*// \[/site\])", lambda m: f"{m.group(1)}  M.site = '{SITE}';{m.group(2)}", src, flags=re.S)
+with open(js, 'w', encoding='utf-8') as f:
+    f.write(src)
+
+blurbs = [b.replace("\\'", "'") for b in re.findall(r"^    '((?:[^'\\]|\\.)*)',?$", src[src.find('M.blurbs = ['):src.find('];', src.find('M.blurbs = ['))], re.M)]
+assert len(blurbs) == len(chapters), (len(blurbs), len(chapters))
+OTHER = {'index.html': ('microAI: a language model you can hold in your head', 'Build and understand a language model and the agent around it, from first principles: 38 short interactive chapters that run on your phone.', 'index'),
+         'map.html': ('The map of an agent · microAI', 'What an agent is made of, on one page: a live agent in your browser, every part with its chapters, and three ways through.', 'map'),
+         'glossary.html': ('Glossary · microAI', 'Every technical term of the microAI course in plain words, with the chapter that introduces it.', 'index')}
+
+
+def social(page):
+    name = os.path.basename(page)
+    with open(page, encoding='utf-8') as f:
+        src = f.read()
+    if name in OTHER:
+        title, desc, card = OTHER[name]
+    else:
+        n = int(name[:2])
+        title = re.search(r'<title>(.*?) \| microAI</title>', src).group(1) + ' · microAI'
+        desc, card = blurbs[n - 1], f'{n:02d}'
+    e = lambda t: html.escape(t, quote=True)
+    url = SITE + ('' if name == 'index.html' else name)
+    block = '\n'.join([
+        '<!-- [social] written by tools/build_site.py -->',
+        f'<meta name="description" content="{e(desc)}">',
+        f'<link rel="canonical" href="{url}">',
+        '<meta property="og:site_name" content="microAI">',
+        f'<meta property="og:type" content="{"website" if name in OTHER else "article"}">',
+        f'<meta property="og:title" content="{e(title)}">',
+        f'<meta property="og:description" content="{e(desc)}">',
+        f'<meta property="og:url" content="{url}">',
+        f'<meta property="og:image" content="{SITE}cards/{card}.jpg">',
+        '<meta property="og:image:width" content="1200">',
+        '<meta property="og:image:height" content="630">',
+        f'<meta property="og:image:alt" content="{e(title)}">',
+        '<meta name="twitter:card" content="summary_large_image">',
+        '<!-- [/social] -->'])
+    out = re.sub(r'<meta name="description"[^>]*>\n', '', src)
+    if '<!-- [social]' in out:
+        out = re.sub(r'<!-- \[social\].*?<!-- \[/social\] -->', lambda m: block, out, flags=re.S)
+    else:
+        out = re.sub(r'(<title>.*?</title>\n)', lambda m: m.group(1) + block + '\n', out, count=1)
+    if out != src:
+        with open(page, 'w', encoding='utf-8') as f:
+            f.write(out)
+
+
+for page in sorted(glob.glob(os.path.join(ROOT, 'docs', '*.html'))):
+    social(page)
+print(f'wrote link previews for {SITE}')
