@@ -38,6 +38,16 @@ you know what each component of a full-size one is doing.
 Open `docs/index.html` in a browser. It needs no server and no internet
 connection.
 
+New readers start at `docs/map.html`, the map: an agent running live in the
+browser, every part of an agent on one page (the loop, tools, context,
+retrieval and memory, control, several agents, safety, evaluation, then the
+model and the machine), each part with its chapters and what is not covered
+yet, and three reading paths: *Build an agent*, *Understand the model* and
+*Run it yourself*. A reader who picks a path gets its next chapter at the end
+of each chapter. The map, the paths and the reading times all come from
+`docs/assets/micro.js` (`M.map`, `M.paths`, `M.minutes`); `tools/build_site.py`
+recounts the minutes.
+
 On a phone, open the site and use the browser's "Add to Home Screen": it
 installs like an app. "Keep the whole course on this device", on the contents
 page, saves every chapter (about 4 MB) for reading without a network. Code

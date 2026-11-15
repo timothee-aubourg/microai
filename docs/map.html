@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The map | microAI</title>
+<meta name="description" content="Start here: a working agent in your browser, the whole course on one map, and three ways through it.">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-ch="0">
+<main>
+  <p class="where">Start here · 10 min</p>
+  <h1>The map</h1>
+  <p class="question">What is an agent made of, and which part do you need today?</p>
+
+  <p>This page gives you the whole picture before any detail. First a real agent to try. Then every part of it on one map, with the chapters for each part. Then three orders to read them in, depending on what you want to do.</p>
+
+  <h2>An agent, live</h2>
+  <p>Below, an agent runs in this tab. It has a model of 108,032 numbers, trained from scratch in chapter 19, and three tools: <code>add</code>, <code>sub</code> and <code>mul</code>. Ask it a sum, then something it does not know.</p>
+  <div class="bench" id="w-agent">
+    <p class="try"><b>Try:</b> ask a multiplication, then "hello", then a question about France. Watch which lines the model writes and which the program writes.</p>
+  </div>
+  <p>The lines marked <b>C</b> and <b>A</b> are the only things the model writes. The model does not do the sum. It writes a request, <code>mul 23 45</code>. A plain program reads that request, runs the tool, and writes the result into the text (<b>R</b>). Then the model continues. That is an agent:</p>
+  <div class="def"><span class="kind">The whole idea</span>
+    <p>An <dfn>agent</dfn> is a <b>model</b> that writes text, inside a <b>loop</b>: a program reads what the model wrote, carries out any request in it, adds the result to the text, and calls the model again. It stops when the model writes an answer instead of a request.</p>
+  </div>
+  <p>Claude Code, a research assistant and this toy all work this way. They differ in the size of the model, the tools on offer, and how carefully the program handles everything around the loop. The map below names each of those parts.</p>
+
+  <h2>The whole thing on one page</h2>
+  <p>There are three layers. The <b>agent</b> is ordinary software, and nothing in it is learned. It calls the <b>model</b>, which is one learned function. The model is <b>made</b> by training and <b>runs</b> on a machine. Tap a part to see what it does, when you need it, and where the course covers it.</p>
+  <div id="map" class="map wide"></div>
+  <noscript><p>The map is built from <code>assets/micro.js</code> and needs JavaScript. The <a href="index.html">contents page</a> lists every chapter.</p></noscript>
+
+  <h2 id="paths">Three ways through</h2>
+  <p>The chapters are numbered in the order they build on each other, from the first counting model up. You do not have to read them in that order. Each path below is a selection, in an order that makes sense for one goal. Pick one and the end of each chapter offers the next on your path.</p>
+  <div id="pathlist" class="paths"></div>
+
+  <h2>Five lines to carry</h2>
+  <div class="recap"><h3>If you read nothing else</h3><ol>
+    <li>A model only predicts the next token. Everything else an agent does is done by the program around it. <a href="15-harness.html">Chapter 15</a></li>
+    <li>An agent is a loop: the model writes, the program acts, the result goes back into the text. <a href="11-system.html">Chapter 11</a></li>
+    <li>All the model knows at a step is in its context window, and every token in it is paid for at every step. <a href="16-context.html">Chapter 16</a></li>
+    <li>Text the agent reads can give it orders. Bound what it can do, because you cannot filter everything it reads. <a href="17-security.html">Chapter 17</a></li>
+    <li>You know a change helped only if you ran the same tests before and after, and read the traces. <a href="14-evaluation.html">Chapter 14</a></li>
+  </ol></div>
+
+  <h2>Not here yet</h2>
+  <p>The map marks, for each part, what the course does not cover yet. The largest gaps for someone building agents are planning and long tasks, fixed workflows compared with agents, memory that lasts across sessions, and asking a person before acting. They are listed under the parts they belong to, so you know where to look elsewhere.</p>
+</main>
+
+<script src="assets/agent.js"></script>
+<script src="assets/micro.js"></script>
+<script>
+M.ready(function () {
+  var seen = {};
+  try { seen = JSON.parse(localStorage.getItem('microai.seen') || '{}') || {}; } catch (e) { seen = {}; }
+  var mins = function (n) { return n < 60 ? n + ' min' : Math.floor(n / 60) + ' h ' + (n % 60 ? (n % 60) + ' min' : ''); };
+  var chLink = function (c) {
+    var C = M.chapters[c - 1];
+    return M.el('a', { href: C[0] }, M.el('b', { text: c + '. ' + C[1] }), M.el('span', { text: (M.minutes[c - 1] || '?') + ' min' + (seen[c] ? ' · opened' : '') }));
+  };
+
+  /* ---- the map ---- */
+  var map = M.$('#map'), open = null;
+  var JOIN = { model: 'calls ↓', making: 'is made by, and runs on ↓' };
+  M.layers.forEach(function (L) {
+    if (JOIN[L[0]]) map.appendChild(M.el('p', { class: 'join', 'aria-hidden': 'true', text: JOIN[L[0]] }));
+    var band = M.el('section', { class: 'layer layer-' + L[0], 'aria-label': L[1] });
+    band.appendChild(M.el('p', { class: 'tag' }, M.el('b', { text: L[1] }), M.el('span', { text: ' · ' + L[2] })));
+    var grid = M.el('div', { class: 'nodes' }), panel = M.el('div', { class: 'node-panel', 'aria-live': 'polite' });
+    M.map.filter(function (n) { return n.layer === L[0]; }).forEach(function (n) {
+      var done = n.ch.filter(function (c) { return seen[c]; }).length;
+      var b = M.el('button', { type: 'button', id: 'n-' + n.key, 'aria-expanded': 'false', 'aria-controls': 'p-' + L[0] },
+        M.el('b', { text: n.name }), M.el('small', { text: n.ch.length + (n.ch.length > 1 ? ' chapters' : ' chapter') + ' · ' + mins(M.mins(n.ch)) + (done ? ' · ' + done + ' opened' : '') }));
+      b.addEventListener('click', function () { show(n, b, panel, true); });
+      n.btn = b; n.panel = panel;
+      grid.appendChild(b);
+    });
+    panel.id = 'p-' + L[0];
+    band.appendChild(grid); band.appendChild(panel);
+    map.appendChild(band);
+  });
+  function show(n, b, panel, user) {
+    var again = open === n;
+    M.map.forEach(function (m) { m.btn.setAttribute('aria-expanded', 'false'); m.btn.classList.remove('on'); });
+    document.querySelectorAll('.node-panel').forEach(function (p) { p.textContent = ''; p.classList.remove('full'); });
+    open = null;
+    if (again && user) { history.replaceState(null, '', '#'); return; }
+    open = n; b.classList.add('on'); b.setAttribute('aria-expanded', 'true'); panel.classList.add('full');
+    panel.appendChild(M.el('h3', { text: n.name }));
+    panel.appendChild(M.el('p', { text: n.what }));
+    panel.appendChild(M.el('p', { class: 'need' }, M.el('b', { text: 'You need it ' }), M.el('span', { text: n.need.charAt(0).toLowerCase() + n.need.slice(1) })));
+    var list = M.el('ol', { class: 'chs' });
+    n.ch.forEach(function (c, i) { var li = M.el('li', null, chLink(c)); if (i === 0) li.classList.add('first'); list.appendChild(li); });
+    panel.appendChild(M.el('p', { class: 'sub', text: 'Start with the first:' }));
+    panel.appendChild(list);
+    if (n.gaps.length) {
+      panel.appendChild(M.el('p', { class: 'sub', text: 'Not covered yet:' }));
+      var g = M.el('ul', { class: 'gaps' });
+      n.gaps.forEach(function (t) { g.appendChild(M.el('li', { text: t })); });
+      panel.appendChild(g);
+    }
+    if (user) history.replaceState(null, '', '#' + n.key);
+  }
+  function fromHash() {
+    var k = location.hash.slice(1), n = M.map.find(function (m) { return m.key === k; });
+    if (n) { show(n, n.btn, n.panel, false); n.btn.scrollIntoView({ block: 'start', behavior: M.reduced() ? 'auto' : 'smooth' }); }
+  }
+  fromHash();
+  window.addEventListener('hashchange', fromHash);
+
+  /* ---- the paths ---- */
+  var box = M.$('#pathlist');
+  function paths() {
+    box.textContent = '';
+    var mine = M.readPath();
+    M.paths.forEach(function (P) {
+      var read = P.ch.filter(function (c) { return seen[c]; }).length, nextCh = P.ch.find(function (c) { return !seen[c]; }) || P.ch[0];
+      var card = M.el('section', { class: 'path' + (mine === P.key ? ' mine' : ''), 'aria-label': P.name });
+      card.appendChild(M.el('h3', { text: P.name }));
+      card.appendChild(M.el('p', { text: P.who }));
+      card.appendChild(M.el('p', { class: 'readout', html: '<b>' + P.ch.length + '</b> chapters · about <b>' + mins(M.mins(P.ch)) + '</b>' + (read ? ' · ' + read + ' opened' : '') }));
+      var list = M.el('ol', { class: 'chs' });
+      P.ch.forEach(function (c) { list.appendChild(M.el('li', null, chLink(c))); });
+      card.appendChild(M.el('details', null, M.el('summary', { text: 'The chapters, in order' }), list));
+      var C = M.chapters[nextCh - 1];
+      card.appendChild(M.el('a', { class: 'btn go', href: C[0], onclick: function () { M.readPath(P.key); },
+        text: (mine === P.key && read ? 'Continue: ' : read ? 'Start, at ' : 'Start: ') + nextCh + '. ' + C[1] }));
+      box.appendChild(card);
+    });
+  }
+  paths();
+
+  /* ---- the live agent: the model of chapter 19, its format machine and three tools ---- */
+  var abox = M.$('#w-agent');
+  if (!window.MICRO_AGENT) { abox.appendChild(M.el('p', { text: 'The trained agent did not load, so this experiment is unavailable.' })); return; }
+  var m = M.loadWeights(window.MICRO_AGENT), timer = 0;
+  var TOOLS = { add: function (a, b) { return a + b; }, sub: function (a, b) { return a - b; }, mul: function (a, b) { return a * b; } };
+  var D = '0123456789', CALL = [{ words: ['add', 'sub', 'mul'] }, [' ', 1, 1], [D, 1, 2], [' ', 1, 1], [D, 1, 2], ['\n', 1, 1]], ROLE = [{ words: ['C ', 'A '] }];
+  function moves(fmt, st) {
+    var i = st[0], s = st[1], out = {}, mayEnd;
+    while (i < fmt.length) {
+      var part = fmt[i];
+      if (part.words) {
+        part.words.forEach(function (w) { if (w.indexOf(s) === 0 && w.length > s.length && !(w[s.length] in out)) out[w[s.length]] = [i, s + w[s.length]]; });
+        mayEnd = part.words.indexOf(s) >= 0;
+      } else {
+        if (s.length < part[2]) for (var k = 0; k < part[0].length; k++) if (!(part[0][k] in out)) out[part[0][k]] = [i, s + part[0][k]];
+        mayEnd = s.length >= part[1];
+      }
+      if (!mayEnd) break;
+      i++; s = '';
+    }
+    return out;
+  }
+  function writeLine(wr, used, fmt, limit) {
+    var line = '', st = [0, ''];
+    while (line.slice(-1) !== '\n' && line.length < limit && used.n < m.cfg.block) {
+      var z = wr.logits(), best = -1, legal = null;
+      if (fmt) { legal = moves(fmt, st); if (!Object.keys(legal).length) break; }
+      for (var i = 0; i < z.length; i++) if ((!legal || m.chars[i] in legal) && (best < 0 || z[i] > z[best])) best = i;
+      var ch = m.chars[best];
+      if (fmt) st = legal[ch];
+      line += ch; wr.add(best); used.n++;
+    }
+    return line;
+  }
+  function feed(wr, used, text) { for (var i = 0; i < text.length; i++) { wr.add(m.stoi[text[i]]); used.n++; } }
+  function ask(question) {
+    var prompt = '\nU ' + question + '\n', wr = M.writer(m, prompt), used = { n: prompt.length }, lines = [['U', question, 'user', 'you']];
+    var role = writeLine(wr, used, ROLE, 2);
+    if (role === 'C ') {
+      var call = writeLine(wr, used, CALL, 14), p = call.trim().split(' ');
+      lines.push(['C', call.trim(), 'model', 'the model asks for a tool']);
+      var result = TOOLS[p[0]](+p[1], +p[2]);
+      lines.push(['R', String(result), 'tool', 'the program ran ' + p[0] + '(' + p[1] + ', ' + p[2] + ') and wrote the result']);
+      feed(wr, used, 'R ' + result + '\nA ');
+      lines.push(['A', writeLine(wr, used, null, 60).trim(), 'model', 'the model answers, using the result']);
+    } else lines.push(['A', writeLine(wr, used, null, 60).trim(), 'model', 'the model answers directly, with no tool']);
+    return lines;
+  }
+  var input = M.el('input', { type: 'text', value: 'what is 23 times 45?', maxlength: '30', 'aria-label': 'Your question', autocapitalize: 'off', autocomplete: 'off', spellcheck: 'false' });
+  var out = M.el('div', { 'aria-live': 'polite' });
+  var COLOR = { user: '--ink', model: '--fwd', tool: '--prob-fill' };
+  function go() {
+    clearInterval(timer);
+    var q = input.value.toLowerCase().split('').filter(function (c) { return c in m.stoi && c !== '\n'; }).join('').slice(0, 30);
+    if (!q) return;
+    var lines = ask(q), k = 0;
+    out.textContent = '';
+    function line() {
+      var l = lines[k++];
+      out.appendChild(M.el('div', { style: 'border-left:4px solid ' + M.css(COLOR[l[2]]) + ';padding:4px 0 4px 10px;margin:6px 0' },
+        M.el('div', { style: 'font-family:var(--mono);font-size:15px;overflow-wrap:anywhere', text: l[0] + ' ' + l[1] }), M.el('div', { class: 'caption', style: 'margin:0', text: l[3] })));
+      if (k >= lines.length) clearInterval(timer);
+    }
+    if (M.reduced()) { while (k < lines.length) line(); } else { line(); timer = setInterval(line, 450); }
+  }
+  input.addEventListener('keydown', function (e) { if (e.key === 'Enter') go(); });
+  var chips = M.el('div', { class: 'row' });
+  ['what is 23 times 45?', 'what is 7 minus 60?', 'hello', 'what is the capital of france?'].forEach(function (e) {
+    chips.appendChild(M.button(e, function () { input.value = e; go(); }));
+  });
+  abox.appendChild(input);
+  abox.appendChild(M.row(M.button('Ask', go, 'go')));
+  abox.appendChild(out); abox.appendChild(chips);
+  abox.appendChild(M.el('p', { class: 'see', html: '<b>What to notice.</b> On "the capital of france" the model does not say it does not know. It asks for a sum that has nothing to do with the question and reports the result with confidence. It has only ever seen sums, so it writes the shape of a sum. Nothing in the loop checks it. Checking answers is a separate part of the map: <a href="#evaluation">evaluation</a> and <a href="#control">control</a>.' }));
+  abox.appendChild(M.el('p', { class: 'caption', text: 'Dark: you. Blue: written by the model, one character at a time. Amber: written by the program after running a tool. The model knows lowercase letters, digits and a few marks.' }));
+  go();
+});
+</script>
+</body>
+</html>
