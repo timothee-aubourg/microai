@@ -67,7 +67,7 @@
   <h3>By hand: is 293 worse than 297?</h3>
   <p>"Same" got 293 sums right of 300 where production got 297. It is the same model, so the difference of 4 is pure chance: the answers are drawn, and the two tests drew differently. A gate has to know this. The noise of a difference between two counts out of <em>n</em> is</p>
   <div class="eq">&radic;( p<sub>1</sub>(1 &minus; p<sub>1</sub>)/n + p<sub>2</sub>(1 &minus; p<sub>2</sub>)/n ) = &radic;( 0.977 &times; 0.023 / 300 + 0.990 &times; 0.010 / 300 ) = 0.010</div>
-  <p>That is 1.0 points. The rule used here: blocked if worse by more than twice the noise, 2.1 points, which is 6 sums of 300. A drop of 4 passes.</p>
+  <p>That is 1.0 points. The rule used here: blocked if worse by more than twice the noise, 2.1 points, which is 6.3 sums of 300: a drop of 6 passes, 7 is blocked. A drop of 4 passes.</p>
   <pre class="code" data-src="ch36_release.py#gate">def worse(k_new, k_old, n):
     """Is the candidate's count lower than production's by more than chance explains?"""
     p_new, p_old = k_new / n, k_old / n

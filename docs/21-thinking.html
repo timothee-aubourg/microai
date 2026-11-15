@@ -93,6 +93,7 @@ A odd                          T 110111010011      one mark per bit
     <tr><td>Asked directly</td><td class="mono">224 (56%)</td><td class="mono">6</td></tr>
     <tr><td>Writes its steps first</td><td class="mono">400 (100%)</td><td class="mono">20 or 21</td></tr>
   </table></div>
+  <p class="src">The script grades 400 of the 410 held-out rows. The sentences below, about answering "even" and writing the right marks, hold for all 410.</p>
   <p>The first row is not a model that is sometimes wrong. It is a model that learned nothing about the question. It answered "even" to all 410 held-out rows, and 56% of those happen to be even. On rows it had trained on it got 193 of 400: it had not even memorised them. In 3,000 steps, gradient descent found no way to fit twelve flips into two blocks.</p>
   <p>The second model wrote the correct row of marks for all 410 held-out rows. It did not memorise them either: it had never seen them. It learned the rule for one step, and the answer follows.</p>
 

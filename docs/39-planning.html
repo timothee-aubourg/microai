@@ -155,6 +155,7 @@ P mul 23 45, sub $1 17
     <tr><td>3</td><td class="mono">199</td><td class="mono">103</td><td class="mono">4</td><td class="mono">200</td><td class="mono">74</td><td class="mono">1</td></tr>
     <tr><td>4</td><td class="mono">198</td><td class="mono">131</td><td class="mono">5</td><td class="mono">200</td><td class="mono">93</td><td class="mono">1</td></tr>
   </table></div>
+  <p class="src">Characters read: everything in the context when the agent is done, including the line break the harness writes first.</p>
   <ul>
     <li><strong>Both ways are almost always right:</strong> 797 and 799 of 800. The agent learned both shapes equally well, so on these jobs the difference is cost, not accuracy.</li>
     <li><strong>Passes.</strong> Step by step needs one pass per link and one for the answer: five for a chain of four. Plan first always needs one. At full size each pass is a request to the model, with its wait and its price.</li>

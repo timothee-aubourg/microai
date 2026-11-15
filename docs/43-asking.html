@@ -44,7 +44,7 @@
     <tr><td class="mono">what is 53 x 99?</td><td class="mono">sub 53 99</td><td>5: 0.51, first 9: 0.77, second 9: 0.86</td><td class="mono">0.34</td></tr>
     <tr><td class="mono">what is 42 less 26?</td><td class="mono">add 42 26</td><td>none</td><td class="mono">1.00</td></tr>
   </table></div>
-  <p>Multiply along a row. For the second request, 0.51 × 0.998 × 0.77 × 0.86 ≈ 0.34. The model never saw <code>x</code> written for times. It was unsure, and right to be: it chose <code>sub</code>, which is wrong. Its doubt was not where the mistake was, though. It gave <code>sub</code> a probability of 1.00 and hesitated over the digits.</p>
+  <p>Multiply every character's probability; the ones not listed are 0.99 or more, and count too. For the second request, 0.51 × 0.998 (the 3 of 53) × 0.77 × 0.86 ≈ 0.34. The model never saw <code>x</code> written for times. It was unsure, and right to be: it chose <code>sub</code>, which is wrong. Its doubt was not where the mistake was, though. It gave <code>sub</code> a probability of 1.00 and hesitated over the digits.</p>
   <p>The third row is the dangerous one. <code>less</code> means minus, the model wrote <code>add</code>, and it was sure. Only a threshold that makes the agent ask about nearly every call would stop it.</p>
 
   <figure class="fig" id="fig-ask">

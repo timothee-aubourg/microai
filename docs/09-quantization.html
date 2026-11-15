@@ -153,7 +153,7 @@ block 2:   0.09   −0.15   1.20   0.03</pre>
         q = np.clip(np.round(blocks / scale), -qmax, qmax)   # what gets stored: small ints
         deq = q * scale                                      # what the runtime computes with
     return deq.reshape(-1)[:len(flat)].reshape(w.shape).astype(np.float32)</pre>
-  <p class="src">From <code>code/ch09_quantize.py</code>. Its output on our model, measured on 1,024 held-out characters (the same ones the experiment above uses):</p>
+  <p class="src">From <code>code/ch09_quantize.py</code>. Its output on our model, measured on 1,024 held-out characters (the same ones the experiment above uses). The two differ in the third decimal, 1.568 here against 1.567 above, because the browser does the same arithmetic in its own order and rounding:</p>
   <div class="scroll" id="qtable"><table>
     <tr><th>Stored as</th><th>Bits per weight</th><th>Size</th><th>Held-out loss</th><th>Change</th></tr>
     <tr><td>float32</td><td>32</td><td>1,344 KB</td><td>1.568</td><td></td></tr>
