@@ -744,6 +744,7 @@
       pager.appendChild(next ? M.el('a', { class: 'next', href: next[0], html: '<small>Next</small>' + next[1] }) : M.el('a', { class: 'next', href: 'index.html', html: '<small>Back to</small>Contents' }));
       main.appendChild(pager);
       lesson(ch, main, pager);
+      yourTurn(ch, main);
       glance(ch, main);
       pathBar(ch, main, pager);
     }
@@ -808,6 +809,13 @@
     const list = M.el('ol', { class: 'secs' });
     secs.forEach((s) => list.appendChild(M.el('li', { class: s.h.id === last ? 'last' : '' }, M.el('a', { href: '#' + s.h.id }, M.el('span', { text: s.h.textContent }), M.el('small', { text: s.min + ' min' + (s.h.id === last ? ' · you were here' : '') })))));
     box.appendChild(list);
+    const turn = M.$('.yourturn', main);
+    if (turn) {
+      const mins = ((M.$('.need', turn) || {}).textContent || '').match(/(\d+) minutes/);
+      const done = M.byHand()[ch];
+      box.appendChild(M.el('p', { class: 'turnlink' }, M.icon('pencil'), M.el('a', { href: '#yourturn', text: 'Your turn, by hand' }),
+        M.el('small', { text: (mins ? ' · ' + mins[1] + ' min' : '') + (done === 1 ? ' · done' : '') })));
+    }
     if (L) {
       const ans = M.el('p', { class: 'answer', hidden: '' }, M.el('b', { text: 'The short answer: ' }), M.el('span', { text: L.keep }));
       const reveal = M.button('Show the short answer', () => { ans.hidden = false; reveal.remove(); });
@@ -834,6 +842,53 @@
         try { const at = JSON.parse(localStorage.getItem('microai.at') || '{}') || {}; at[ch] = e.target.id; localStorage.setItem('microai.at', JSON.stringify(at)); } catch (err) { /* no storage */ }
       }), { rootMargin: '0px 0px -70% 0px' });
       heads.forEach((h) => seen.observe(h));
+    }
+  }
+
+  /* ---------- your turn, by hand ----------
+     The answer is checked one step at a time, a hint only if the page gives one, a plain record of
+     "I got it" kept in this browser, and a button that prints the exercise alone, without the answer. */
+  M.byHand = function (set) {
+    let s = {};
+    try { s = JSON.parse(localStorage.getItem('microai.byhand') || '{}') || {}; } catch (e) { s = {}; }
+    if (set) { Object.assign(s, set); try { localStorage.setItem('microai.byhand', JSON.stringify(s)); } catch (e) { /* no storage */ } }
+    return s;
+  };
+  function yourTurn(ch, main) {
+    const box = M.$('.yourturn', main);
+    if (!box) return;
+    box.id = box.id || 'yourturn';
+    const need = M.$('.need', box);
+    if (need && window.print) need.appendChild(M.button('Print this exercise', () => {
+      document.body.classList.add('print-one'); box.classList.add('printing');
+      const done = () => { document.body.classList.remove('print-one'); box.classList.remove('printing'); window.removeEventListener('afterprint', done); };
+      window.addEventListener('afterprint', done);
+      window.print();
+    }));
+    const ans = M.$('details.answer', box), worked = ans && M.$('ol.worked', ans);
+    if (ans) {                                                  // a plain record, in this browser only
+      const say = M.el('span', { class: 'readout' });
+      const mark = (v) => { M.byHand({ [ch]: v }); say.textContent = v ? ' Marked as done, in this browser only.' : ' Fine: try it again later, or reread the section before it.'; };
+      const row = M.el('p', { class: 'selfcheck' }, M.el('span', { text: 'Did you get it? ' }), M.button('I got it', () => mark(1)), M.button('Not yet', () => mark(0)), say);
+      if (M.byHand()[ch] === 1) say.textContent = ' You marked this as done.';
+      ans.appendChild(row);
+    }
+    if (worked && worked.children.length > 1) {                 // one step at a time
+      const items = Array.from(worked.children), more = M.el('p', { class: 'more' });
+      let shown = 1;
+      const show = () => {
+        items.forEach((li, i) => { li.hidden = i >= shown; });
+        Array.from(ans.children).forEach((el) => { if (el !== worked && el.tagName !== 'SUMMARY' && el !== more) el.hidden = shown < items.length; });   // the closing lines and "did you get it?" wait for the last step
+        more.textContent = '';
+        if (shown < items.length) {
+          more.appendChild(M.button('Check step ' + (shown + 1), () => { shown++; show(); }, 'go'));
+          more.appendChild(M.button('Show all', () => { shown = items.length; show(); }));
+        }
+      };
+      worked.after(more);
+      M.$('summary', ans).textContent = 'Check step 1';
+      ans.addEventListener('toggle', () => { M.$('summary', ans).textContent = ans.open ? 'Your working, step by step' : 'Check step 1'; });
+      show();
     }
   }
 
