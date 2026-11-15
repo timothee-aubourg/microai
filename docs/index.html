@@ -4,7 +4,20 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>microAI</title>
-<meta name="description" content="Build and understand a local language model and the agent around it, from first principles: thirty-eight interactive chapters with a real GPT running in your browser.">
+<!-- [social] written by tools/build_site.py -->
+<meta name="description" content="Build and understand a language model and the agent around it, from first principles: 38 short interactive chapters that run on your phone.">
+<link rel="canonical" href="https://timothee-aubourg.github.io/microai/">
+<meta property="og:site_name" content="microAI">
+<meta property="og:type" content="website">
+<meta property="og:title" content="microAI: a language model you can hold in your head">
+<meta property="og:description" content="Build and understand a language model and the agent around it, from first principles: 38 short interactive chapters that run on your phone.">
+<meta property="og:url" content="https://timothee-aubourg.github.io/microai/">
+<meta property="og:image" content="https://timothee-aubourg.github.io/microai/cards/index.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="microAI: a language model you can hold in your head">
+<meta name="twitter:card" content="summary_large_image">
+<!-- [/social] -->
 <link rel="stylesheet" href="assets/style.css">
 </head>
 <body data-ch="0">
@@ -20,6 +33,12 @@
 
   <p>It is bad Shakespeare. But it is the same kind of machine as the multi-gigabyte model you can run on a laptop, and the same kind as the assistants you use every day. Only the numbers are fewer. This course takes that machine apart and puts it back together, one idea per chapter, until you can build each piece yourself and then run a real model on your own computer.</p>
 
+  <h2>Start here</h2>
+  <p>New to this? Spend ten minutes on the map first. It runs a real agent in your browser, shows every part of an agent on one page, and gives three ways through the course, so you can read only what you need.</p>
+  <div class="start" id="start">
+    <a class="first" href="map.html"><b>The map</b><span>The whole course on one page · 10 min</span></a>
+  </div>
+
   <h2>How each chapter works</h2>
   <p>Every chapter follows the same three moves.</p>
   <ul>
@@ -29,8 +48,8 @@
   </ul>
   <p>Three colours mean the same thing on every page: <span class="fwd">blue for values flowing forward</span> through the model, <span class="grad">raspberry for gradients and error flowing backward</span>, <span class="prob">amber for probabilities</span>.</p>
 
-  <h2>The path</h2>
-  <p>Text goes in on the left; a guess about the next token comes out on the right. Chapters 1 to 6 build that pipeline. Chapters 7 to 9 make it learn, write and shrink. Chapters 10 to 12 turn it into a system on your machine. Chapters 13 and 14 make that system dependable. Chapters 15 to 17 open up the harness that turns a model into an agent. Chapters 18 and 19 go down to the hardware and then put every part together in one system you train yourself. Chapters 20 and 21 show two ideas that full-size models add: experts, and room to think. Chapters 22 and 23 fit the model to the machine: where the weights live, and how small a working model can be made. Chapter 24 covers what comes after pre-training: how examples and rewards turn a model that imitates text into one that behaves. Chapter 25 leaves the weights alone and improves the answers at the moment of asking. Chapters 26 and 27 are about speed and scale: writing several tokens per pass, and serving many people with one model. Chapters 28 and 29 are about small models that work for a large one: a classifier that guards it, and a student that learns from it. Chapters 30 and 31 look inside current models: how they now mark position, and how a picture gets in. Chapters 32 to 34 take the agent further: it hands parts of a job to helpers, learns from its own answers, and is then rebuilt whole with every part added since chapter 19. Chapters 35 and 36 ask whether that system is safe to release: it is attacked, repaired and attacked again, then released in steps and watched. Chapters 37 and 38 plug things into the agent: tools it was never trained on, offered by other programs, and a catalogue too large for its context, loaded a piece at a time.</p>
+  <h2>All chapters</h2>
+  <p>The chapters are numbered in the order they build on each other: the model first, then the system around it, then what full-size models add. When a chapter leans on an earlier one, it names it, so you can also start in the middle. The <a href="map.html">map</a> groups them by what they are for.</p>
   <p class="readout" id="guess-score"></p>
   <p id="offline"></p>
 
@@ -83,49 +102,16 @@ python code/ch08_sample.py --prompt "ROMEO:"</pre>
 <script src="assets/micro.js"></script>
 <script>
 M.ready(function () {
-  var blurbs = [
-    'A language model answers one question. Start with the dumbest possible answer: counting.',
-    'Why models read neither letters nor words, and the greedy algorithm that finds the pieces in between.',
-    'How to tune hundreds of thousands of numbers at once: the gradient, and the chain rule that computes it.',
-    'Turning token IDs into vectors, so that similar things point in similar directions.',
-    'Queries, keys, values, a softmax and a square root. Each one is there to fix a specific problem.',
-    'Residual stream, MLP, normalisation: the full GPT in a hundred lines, and how to count its parameters.',
-    'The training loop, minute by minute, on the real loss curve of this model.',
-    'Temperature, top-k, top-p, and the cache that makes generation fast.',
-    'Why 4 bits per weight is nearly as good as 16, and how to predict whether a model fits and how fast it runs.',
-    'What is inside the file you download, what the runtime does, and why a chat is still next-token prediction.',
-    'Context as working memory, retrieval as an open book, tools as hands: the loop behind every agent.',
-    'Changing a frozen model with a small low-rank add-on, and where the road goes from here.',
-    'A mask on the scores that makes a broken format impossible, and what that guarantee does not cover.',
-    'Traces to see where an agent went wrong, evaluations to know whether a change helped, and how far to trust a score.',
-    'What Claude Code or Pi are made of: four tools, a system prompt, a loop, and the one text the model actually receives.',
-    'Why every agent step re-reads the conversation, how a prefix cache avoids it, and what to do when the window fills up.',
-    'Prompt injection: planted text that steers an agent, a gate that stops some of it, and the sandbox that bounds the rest.',
-    'CPU and GPU, why this arithmetic wants one of them, and how memory speed sets your tokens per second.',
-    'Every engine of the course in one file: train a tiny model from random numbers and run it as an agent with tools.',
-    'Mixture of experts: a router sends each token to a few small networks, so a model can own far more weights than it uses.',
-    'Why models write their working out before they answer: two equal models, one allowed to think, tested on what neither has seen.',
-    'Cache, RAM, VRAM and unified memory: what each holds, how fast it delivers, and what happens when a model does not fit.',
-    'The agent of chapter 19 trained with three-valued weights and packed into 20 kilobytes, graded on every held-out question.',
-    'Pre-training, fine-tuning on written examples and reinforcement from rewards, run on one small model and measured after each stage.',
-    'Voting, checking, steering and filtering: what can be gained at inference with the weights fixed, and what it costs.',
-    'A small model drafts and the large one checks several tokens in one pass: the same text, from fewer passes.',
-    'Batches, queues and continuous batching: why one model can serve many people, measured and simulated.',
-    'A rule, a small classifier and a probe on the model\'s own activations, tested on wordings none of them saw.',
-    'A small model taught by a large one\'s probabilities instead of by the text, with plenty of text and with very little.',
-    'Rotary positions: attention that depends on how far apart two tokens are, trained and compared with the table of chapter 4.',
-    'The agent reads a number from a picture: patches of pixels become vectors, and the rest of the model does not change.',
-    'A lead splits a job and hands each part to a helper with its own short context: what that saves, and how errors multiply.',
-    'A model trained on its own answers, four rounds, under three rules for which answers to keep. One rule works.',
-    'The system of chapter 19 rebuilt with the parts added since, switched on one at a time and measured on 600 requests.',
-    'Red-teaming: a fixed list, a blind attacker and one that keeps what works, then three rounds of repair and fresh attack.',
-    'A release gate, a canary on a share of the traffic, and counters from traces that catch a change in the requests.',
-    'An agent that reads its tools from a list, a small tool server speaking the Model Context Protocol, and a dishonest entry in the list.',
-    'Six tools and room for four: list everything, let the harness pick, or let the agent say what it lacks. Skills and progressive disclosure.'
-  ];
   M.chapters.forEach(function (c, i) {
     var list = M.$(i < 6 ? '#toc1' : i < 9 ? '#toc2' : i < 12 ? '#toc3' : i < 14 ? '#toc4' : i < 17 ? '#toc5' : i < 19 ? '#toc6' : i < 21 ? '#toc7' : i < 23 ? '#toc8' : i < 25 ? '#toc9' : i < 27 ? '#toc10' : i < 29 ? '#toc11' : i < 31 ? '#toc12' : i < 34 ? '#toc13' : i < 36 ? '#toc14' : '#toc15');
-    list.appendChild(M.el('li', null, M.el('a', { href: c[0] }, M.el('b', { text: c[1] }), M.el('span', { text: blurbs[i] }))));
+    list.appendChild(M.el('li', null, M.el('a', { href: c[0] }, M.el('b', { text: c[1] }), M.el('span', { text: M.blurbs[i] }), M.el('span', { class: 'min', text: (M.minutes[i] || '?') + ' min' }))));
+  });
+  var start = M.$('#start'), mine = M.readPath();               // the three paths of the map, as ways in
+  M.paths.forEach(function (P) {
+    var first = M.chapters[P.ch[0] - 1], min = M.mins(P.ch);
+    start.appendChild(M.el('a', { href: mine === P.key ? 'map.html#paths' : first[0], onclick: function () { if (mine !== P.key) M.readPath(P.key); } },
+      M.el('b', { text: P.name + (mine === P.key ? ' · your path' : '') }),
+      M.el('span', { text: P.ch.length + ' chapters · about ' + Math.round(min / 60 * 2) / 2 + ' h · starts with ' + P.ch[0] + '. ' + first[1] })));
   });
 
   var m = M.loadModel(), hero = M.$('#hero'), stat = M.$('#herostat'), timer = 0, seed = 7;

@@ -46,6 +46,48 @@
     ['38-skills.html', 'Loaded when needed', 'load'],
   ];
 
+  /* One sentence per chapter: the contents page, link previews and share cards. */
+  M.blurbs = [
+    'A language model answers one question. Start with the dumbest possible answer: counting.',
+    'Why models read neither letters nor words, and the greedy algorithm that finds the pieces in between.',
+    'How to tune hundreds of thousands of numbers at once: the gradient, and the chain rule that computes it.',
+    'Turning token IDs into vectors, so that similar things point in similar directions.',
+    'Queries, keys, values, a softmax and a square root. Each one is there to fix a specific problem.',
+    'Residual stream, MLP, normalisation: the full GPT in a hundred lines, and how to count its parameters.',
+    'The training loop, minute by minute, on the real loss curve of this model.',
+    'Temperature, top-k, top-p, and the cache that makes generation fast.',
+    'Why 4 bits per weight is nearly as good as 16, and how to predict whether a model fits and how fast it runs.',
+    'What is inside the file you download, what the runtime does, and why a chat is still next-token prediction.',
+    'Context as working memory, retrieval as an open book, tools as hands: the loop behind every agent.',
+    'Changing a frozen model with a small low-rank add-on, and where the road goes from here.',
+    'A mask on the scores that makes a broken format impossible, and what that guarantee does not cover.',
+    'Traces to see where an agent went wrong, evaluations to know whether a change helped, and how far to trust a score.',
+    'What Claude Code or Pi are made of: four tools, a system prompt, a loop, and the one text the model actually receives.',
+    'Why every agent step re-reads the conversation, how a prefix cache avoids it, and what to do when the window fills up.',
+    'Prompt injection: planted text that steers an agent, a gate that stops some of it, and the sandbox that bounds the rest.',
+    'CPU and GPU, why this arithmetic wants one of them, and how memory speed sets your tokens per second.',
+    'Every engine of the course in one file: train a tiny model from random numbers and run it as an agent with tools.',
+    'Mixture of experts: a router sends each token to a few small networks, so a model can own far more weights than it uses.',
+    'Why models write their working out before they answer: two equal models, one allowed to think, tested on what neither has seen.',
+    'Cache, RAM, VRAM and unified memory: what each holds, how fast it delivers, and what happens when a model does not fit.',
+    'The agent of chapter 19 trained with three-valued weights and packed into 20 kilobytes, graded on every held-out question.',
+    'Pre-training, fine-tuning on written examples and reinforcement from rewards, run on one small model and measured after each stage.',
+    'Voting, checking, steering and filtering: what can be gained at inference with the weights fixed, and what it costs.',
+    'A small model drafts and the large one checks several tokens in one pass: the same text, from fewer passes.',
+    'Batches, queues and continuous batching: why one model can serve many people, measured and simulated.',
+    'A rule, a small classifier and a probe on the model\'s own activations, tested on wordings none of them saw.',
+    'A small model taught by a large one\'s probabilities instead of by the text, with plenty of text and with very little.',
+    'Rotary positions: attention that depends on how far apart two tokens are, trained and compared with the table of chapter 4.',
+    'The agent reads a number from a picture: patches of pixels become vectors, and the rest of the model does not change.',
+    'A lead splits a job and hands each part to a helper with its own short context: what that saves, and how errors multiply.',
+    'A model trained on its own answers, four rounds, under three rules for which answers to keep. One rule works.',
+    'The system of chapter 19 rebuilt with the parts added since, switched on one at a time and measured on 600 requests.',
+    'Red-teaming: a fixed list, a blind attacker and one that keeps what works, then three rounds of repair and fresh attack.',
+    'A release gate, a canary on a share of the traffic, and counters from traces that catch a change in the requests.',
+    'An agent that reads its tools from a list, a small tool server speaking the Model Context Protocol, and a dishonest entry in the list.',
+    'Six tools and room for four: list everything, let the harness pick, or let the agent say what it lacks. Skills and progressive disclosure.'
+  ];
+
   // ---------- DOM helpers ----------
   M.$ = (s, r) => (r || document).querySelector(s);
   M.el = function (tag, props) {
@@ -594,7 +636,7 @@
     if (!online || !window.caches) { slot.textContent = 'Opened from a folder, the course already works without a network.'; return; }
     const say = M.el('span', { text: ' ' });
     slot.appendChild(M.button('Keep the whole course on this device', () => {
-      const pages = ['index.html', 'glossary.html'].concat(M.chapters.map((c) => c[0]));
+      const pages = ['index.html', 'map.html', 'glossary.html'].concat(M.chapters.map((c) => c[0]));
       let done = 0, bytes = 0;
       say.textContent = ' Saving…';
       caches.open('microai-v1').then((cache) => {
@@ -625,9 +667,19 @@
       if (i + 1 === ch) a.setAttribute('aria-current', 'page');
       trail.appendChild(a);
     });
+    const bar = M.el('div', { class: 'progress', 'aria-hidden': 'true' }, M.el('i'));
     const top = M.el('header', { class: 'top' }, M.el('div', { class: 'top-in' }, M.el('a', { class: 'brand', href: 'index.html', html: 'micro<span>AI</span>' }), trail,
-      M.el('a', { class: 'gl', href: 'glossary.html', text: 'Glossary' })));
+      M.el('a', { class: 'gl', href: 'map.html', text: 'Map' }), M.el('a', { class: 'gl', href: 'glossary.html', text: 'Glossary' })));
     document.body.insertBefore(top, document.body.firstChild);
+    if (ch) {                                          // how far down the chapter the reader is
+      top.appendChild(bar);
+      const fill = bar.firstChild, mainEl = M.$('main');
+      const move = () => {
+        const r = mainEl.getBoundingClientRect(), span = r.height - window.innerHeight;
+        fill.style.transform = 'scaleX(' + Math.max(0, Math.min(1, span > 0 ? -r.top / span : 1)) + ')';
+      };
+      window.addEventListener('scroll', move, { passive: true }); move();
+    }
     const here = trail.querySelector('.here');       // on a narrow screen the trail scrolls: bring the current chapter into view
     if (here) trail.scrollLeft = here.offsetLeft - trail.offsetLeft - (trail.clientWidth - here.clientWidth) / 2;
     const main = M.$('main');
@@ -638,13 +690,23 @@
         where.textContent = 'Chapter ' + ch + ' of ' + M.chapters.length + ' · ';
         where.appendChild(M.partIcon(k));
         where.appendChild(document.createTextNode(M.parts[k][0] + ': ' + M.parts[k][1]));
+        if (M.minutes[ch - 1]) where.appendChild(document.createTextNode(' · ' + M.minutes[ch - 1] + ' min'));
+        const nodes = M.mapOf(ch);                     // where this chapter sits on the map
+        if (nodes.length) {
+          const on = M.el('p', { class: 'onmap' }, M.el('span', { text: 'On the map:' }));
+          nodes.forEach((n) => on.appendChild(M.el('a', { href: 'map.html#' + n.key, text: n.name })));
+          where.parentNode.insertBefore(on, where.nextSibling);
+        }
       }
+      try { const seen = JSON.parse(localStorage.getItem('microai.seen') || '{}'); if (!Object.keys(seen).length) welcome(ch, main); seen[ch] = 1; localStorage.setItem('microai.seen', JSON.stringify(seen)); } catch (e) { /* no storage */ }
       const prev = M.chapters[ch - 2], next = M.chapters[ch];
       const pager = M.el('nav', { class: 'pager', 'aria-label': 'Previous and next chapter' });
       pager.appendChild(prev ? M.el('a', { href: prev[0], html: '<small>Previous</small>' + prev[1] }) : M.el('a', { href: 'index.html', html: '<small>Back to</small>Contents' }));
       pager.appendChild(next ? M.el('a', { class: 'next', href: next[0], html: '<small>Next</small>' + next[1] }) : M.el('a', { class: 'next', href: 'index.html', html: '<small>Back to</small>Contents' }));
       main.appendChild(pager);
       lesson(ch, main, pager);
+      glance(ch, main);
+      pathBar(ch, main, pager);
     }
     const tally = M.$('#guess-score');                 // the contents page shows the running score
     if (tally) { const t = scoreLine(guesses()); if (t) tally.textContent = t + ' Each chapter opens with one.'; }
@@ -654,6 +716,103 @@
     figures();
     installable();
     termTips();
+  }
+
+  /* ---------- for a reader who arrives by a shared link, on a phone, with a few minutes ---------- */
+  M.slug = (t) => t.toLowerCase().replace(/<[^>]+>/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 48);
+  M.url = function (page, hash) {                      // the public address of a page, even when read from a folder
+    const here = /^https?:$/.test(location.protocol) ? location.href.split('#')[0].replace(/[^/]*$/, '') : M.site;
+    return (here || '') + page + (hash ? '#' + hash : '');
+  };
+  M.share = function (o) {                             // the phone's own share sheet, or a small menu
+    if (navigator.share) { navigator.share(o).catch(() => {}); return; }
+    const old = M.$('.sharemenu'); if (old) old.remove();
+    const say = M.el('span', { class: 'readout' });
+    const menu = M.el('div', { class: 'sharemenu', role: 'dialog', 'aria-label': 'Share' },
+      M.el('a', { class: 'btn', target: '_blank', rel: 'noopener', href: 'https://twitter.com/intent/tweet?text=' + encodeURIComponent(o.text) + '&url=' + encodeURIComponent(o.url), text: 'Post on X' }),
+      M.button('Copy the link', () => {
+        const done = () => { say.textContent = ' Copied.'; };
+        if (navigator.clipboard) navigator.clipboard.writeText(o.url).then(done, () => { say.textContent = ' ' + o.url; }); else say.textContent = ' ' + o.url;
+      }),
+      M.button('Close', () => menu.remove()), say);
+    (o.near || M.$('main')).appendChild(menu);
+  };
+  M.shareButton = (label, o) => M.button(label, () => M.share(o));
+
+  function welcome(ch, main) {                         // the first page of the course this browser opens
+    const box = M.el('aside', { class: 'welcome', 'aria-label': 'About this course' },
+      M.el('p', { html: '<b>New here?</b> This is chapter ' + ch + ' of <b>microAI</b>, a free course that builds a language model and an agent from scratch, with experiments that run on your phone. This chapter can be read on its own. ' }),
+      M.el('p', null, M.el('a', { href: 'map.html', text: 'See the whole course on one page' }), M.el('span', { text: '  ' }), M.button('Just read this one', () => box.remove())));
+    const h1 = M.$('h1', main);
+    if (h1) main.insertBefore(box, M.$('.where', main) || h1);
+  }
+
+  /* The chapter at a glance: time, the sections as a table of contents, what it leans on, the short answer. */
+  function glance(ch, main) {
+    const C = M.chapters[ch - 1], L = M.lesson[ch], heads = Array.from(main.querySelectorAll(':scope > h2'));
+    const words = (el) => (el.innerText || el.textContent || '').split(/\s+/).filter(Boolean).length;
+    const secs = heads.map((h, k) => {
+      if (!h.id) h.id = M.slug(h.textContent);
+      let n = 0;
+      for (let e = h.nextElementSibling; e && e !== heads[k + 1] && !e.matches('.keep, .pathbar, .pager'); e = e.nextElementSibling)
+        if (!e.matches('script, figure')) n += e.matches('.bench') ? 120 : words(e);
+      return { h: h, min: Math.max(1, Math.round(n / 220)) };
+    });
+    const back = {};                                   // chapters this one refers back to, by how often
+    (main.textContent.match(/[Cc]hapters? (\d+)/g) || []).forEach((t) => { const c = +t.match(/\d+/)[0]; if (c < ch && c >= 1) back[c] = (back[c] || 0) + 1; });
+    const leans = Object.keys(back).sort((a, b) => back[b] - back[a]).slice(0, 3).map(Number).sort((a, b) => a - b);
+    let last = '';
+    try { last = (JSON.parse(localStorage.getItem('microai.at') || '{}') || {})[ch] || ''; } catch (e) { /* no storage */ }
+
+    const box = M.el('section', { class: 'glance', 'aria-label': 'This chapter at a glance' });
+    box.appendChild(M.el('p', { class: 'tag', text: 'At a glance · ' + (M.minutes[ch - 1] || '?') + ' min · ' + secs.length + ' short sections' }));
+    const list = M.el('ol', { class: 'secs' });
+    secs.forEach((s) => list.appendChild(M.el('li', { class: s.h.id === last ? 'last' : '' }, M.el('a', { href: '#' + s.h.id }, M.el('span', { text: s.h.textContent }), M.el('small', { text: s.min + ' min' + (s.h.id === last ? ' · you were here' : '') })))));
+    box.appendChild(list);
+    if (L) {
+      const ans = M.el('p', { class: 'answer', hidden: '' }, M.el('b', { text: 'The short answer: ' }), M.el('span', { text: L.keep }));
+      const reveal = M.button('Show the short answer', () => { ans.hidden = false; reveal.remove(); });
+      box.appendChild(ans); box.appendChild(reveal);
+      if (typeof guesses()[ch] === 'number') { ans.hidden = false; reveal.remove(); }
+      M.$('.guess .opts') && M.$('.guess .opts').addEventListener('click', () => { ans.hidden = false; if (reveal.parentNode) reveal.remove(); });
+    }
+    const foot = M.el('p', { class: 'foot' });
+    if (leans.length) {
+      foot.appendChild(M.el('span', { text: 'Refers back to ' }));
+      leans.forEach((c, k) => { if (k) foot.appendChild(M.el('span', { text: ', ' })); foot.appendChild(M.el('a', { href: M.chapters[c - 1][0], title: M.chapters[c - 1][1], text: 'chapter ' + c })); });
+      foot.appendChild(M.el('span', { text: '. You can read on without them. ' }));
+    }
+    foot.appendChild(M.shareButton('Share this chapter', { title: C[1] + ' · microAI', text: C[1] + ': ' + M.blurbs[ch - 1], url: M.url(C[0]), near: box }));
+    box.appendChild(foot);
+    const after = M.$('.guess', main) || M.$('.question', main);
+    if (after) after.parentNode.insertBefore(box, after.nextSibling);
+
+    // every section heading can be linked to; remember the last section read
+    heads.forEach((h) => h.appendChild(M.el('a', { class: 'anchor', href: '#' + h.id, 'aria-label': 'Link to this section', text: '#' })));
+    if ('IntersectionObserver' in window) {
+      const seen = new IntersectionObserver((es) => es.forEach((e) => {
+        if (!e.isIntersecting) return;
+        try { const at = JSON.parse(localStorage.getItem('microai.at') || '{}') || {}; at[ch] = e.target.id; localStorage.setItem('microai.at', JSON.stringify(at)); } catch (err) { /* no storage */ }
+      }), { rootMargin: '0px 0px -70% 0px' });
+      heads.forEach((h) => seen.observe(h));
+    }
+  }
+
+  /* A reader who chose a path on the map gets its next chapter above the pager, wherever they are in it. */
+  function pathBar(ch, main, pager) {
+    const P = M.paths.find((p) => p.key === M.readPath());
+    if (!P) return;
+    const i = P.ch.indexOf(ch);
+    if (i < 0) return;
+    const next = P.ch[i + 1], bar = M.el('nav', { class: 'pathbar', 'aria-label': 'Your reading path' });
+    bar.appendChild(M.el('p', { class: 'tag' }, M.el('span', { text: 'Your path: ' }), M.el('a', { href: 'map.html#paths', text: P.name }), M.el('span', { text: ' · ' + (i + 1) + ' of ' + P.ch.length })));
+    const dots = M.el('div', { class: 'dots', 'aria-hidden': 'true' });
+    P.ch.forEach((c, k) => dots.appendChild(M.el('a', { href: M.chapters[c - 1][0], title: c + '. ' + M.chapters[c - 1][1], class: k < i ? 'done' : k === i ? 'here' : '', tabindex: '-1' })));
+    bar.appendChild(dots);
+    bar.appendChild(next ? M.el('a', { class: 'go', href: M.chapters[next - 1][0], html: '<small>Next on your path · ' + M.minutes[next - 1] + ' min</small>' + next + '. ' + M.chapters[next - 1][1] })
+                         : M.el('a', { class: 'go', href: 'map.html#paths', html: '<small>Path finished</small>Back to the map' }));
+    bar.appendChild(M.button('Leave this path', () => { M.readPath(null); bar.remove(); }));
+    main.insertBefore(bar, pager);
   }
 
   /* ---------- painted icons: a flat dab and one ink gesture ----------
@@ -706,6 +865,72 @@
     ['Part thirteen', 'the agent, further', 32, '#96806a'], ['Part fourteen', 'safe to release', 35, '#3f6b5c'],
     ['Part fifteen', 'plugging things in', 37, '#7f8a8f']
   ];
+  /* ---------- the map: the course by what an agent is made of, not by the order of the chapters ----------
+     Three layers: what the agent does, the model inside it, and what makes the model.
+     Each node: key, name, layer, what it is, when you need it, its chapters (the first is the one to start with),
+     and what the course does not cover yet. A chapter may sit on more than one node. */
+  M.layers = [
+    ['agent', 'The agent', 'The program around the model: it runs the loop, the tools and the rules.'],
+    ['model', 'The model', 'A function from the text so far to a probability for each next token.'],
+    ['making', 'Making and running it', 'How the model gets its weights, and the machine it runs on.']
+  ];
+  M.map = [
+    { key: 'loop', name: 'The loop', layer: 'agent', what: 'The model writes a request, the harness runs it, the result goes back into the text, and the model is called again.',
+      need: 'Always. This is what turns a text predictor into an agent.', ch: [15, 11, 19, 34], gaps: [] },
+    { key: 'tools', name: 'Tools', layer: 'agent', what: 'The actions the model may ask for, described as text, and the format its requests must take.',
+      need: 'When the agent has to act on something: files, a calculator, an API.', ch: [11, 13, 37, 38],
+      gaps: ['Designing tool descriptions and error messages for a model to read', 'Using a browser or a screen'] },
+    { key: 'context', name: 'Context', layer: 'agent', what: 'Everything the model can see at one step. It is a budget: every token in it costs room and time at every step.',
+      need: 'As soon as tasks take more than a few steps, or the window fills up.', ch: [16, 38, 32],
+      gaps: ['Writing the system prompt as a piece of design'] },
+    { key: 'knowledge', name: 'Retrieval and memory', layer: 'agent', what: 'Knowledge kept outside the window and brought in when needed: search over documents, notes the agent keeps.',
+      need: 'When the agent must know facts the model was not trained on, or remember across sessions.', ch: [11, 16],
+      gaps: ['Memory that lasts across sessions: what to write down, when to forget', 'Embedding search at scale'] },
+    { key: 'control', name: 'Control', layer: 'agent', what: 'Ways to get a better answer from the same model: room to think, several tries, a check before answering.',
+      need: 'When one pass is not reliable enough and you can spend more time per answer.', ch: [25, 21, 13],
+      gaps: ['Planning, re-planning and long tasks with checkpoints', 'Recovering from errors: retries, rollbacks, getting stuck'] },
+    { key: 'composition', name: 'Several agents', layer: 'agent', what: 'Splitting a job between a lead and helpers, each with its own short context.',
+      need: 'When one context cannot hold the whole job, or parts can run side by side.', ch: [32, 34],
+      gaps: ['Fixed workflows (chains, routing, parallel steps) versus agents', 'A lead that is itself a model and plans the split'] },
+    { key: 'safety', name: 'Safety', layer: 'agent', what: 'Text the agent reads can give it orders. Bound what it can do: gates, sandboxes, a guard model, attacks you run yourself.',
+      need: 'Before the agent reads anything you did not write, or can do anything you cannot undo.', ch: [17, 28, 35],
+      gaps: ['Asking a person: permission prompts and when to hand over'] },
+    { key: 'evaluation', name: 'Evaluation', layer: 'agent', what: 'Traces to see what happened, fixed tests to know whether a change helped, and a gate before release.',
+      need: 'Before you change anything you want to keep. Without a test, you are guessing.', ch: [14, 36],
+      gaps: ['Cost and speed per task in production', 'Judging open-ended answers'] },
+    { key: 'model', name: 'Inside the model', layer: 'model', what: 'Tokens, vectors, attention and the stack of blocks that turns the text so far into the next token.',
+      need: 'When you want to know why the agent behaves as it does, or to choose and read a model.', ch: [1, 2, 4, 5, 6, 8, 20, 30, 31],
+      gaps: ['Other architectures (state-space models)', 'Models that write by denoising'] },
+    { key: 'learning', name: 'Training and shaping', layer: 'making', what: 'Gradients and the training loop, then fine-tuning, rewards, distillation and learning from its own answers.',
+      need: 'When prompting is not enough and you want to change the model itself.', ch: [3, 7, 12, 24, 29, 33],
+      gaps: ['Reward models trained on human rankings', 'Data collection and cleaning, scaling laws'] },
+    { key: 'machine', name: 'The machine', layer: 'making', what: 'Files, quantization, memory, processors, and the tricks that make answers fast and cheap for many users.',
+      need: 'When you run a model yourself and care about memory, speed or cost.', ch: [10, 9, 18, 22, 23, 26, 27],
+      gaps: ['Several servers, routing, cost per token', 'Neural processing units'] }
+  ];
+  M.mapOf = (ch) => M.map.filter((n) => n.ch.indexOf(ch) >= 0);
+  /* Three ways through the course. The chapters stay as they are; a path is an order to read them in. */
+  M.paths = [
+    { key: 'build', name: 'Build an agent', who: 'You want a working agent and to know why it fails. The model stays a black box until you ask why.',
+      ch: [15, 11, 13, 37, 16, 38, 14, 25, 32, 17, 28, 35, 36, 19, 34] },
+    { key: 'understand', name: 'Understand the model', who: 'You want to know what happens between the text going in and the next token coming out, and how it learns.',
+      ch: [1, 2, 3, 4, 5, 6, 7, 8, 21, 24, 20, 30, 31] },
+    { key: 'run', name: 'Run it yourself', who: 'You want a model on your own machine, fast enough and small enough, and to know what limits it.',
+      ch: [10, 9, 18, 22, 23, 26, 27, 12, 29] }
+  ];
+  /* Where the course is published, for links that are shared. Written by tools/build_site.py. */
+  // [site]
+  M.site = 'https://timothee-aubourg.github.io/microai/';
+  // [/site]
+  /* Minutes to read each chapter, counted from the pages by tools/build_site.py. */
+  // [minutes]
+  M.minutes = [15,12,12,12,12,11,10,10,10,9,11,9,12,13,11,10,11,10,11,10,9,15,14,14,10,9,9,11,8,8,7,8,8,7,10,13,13,8];
+  // [/minutes]
+  M.mins = (chs) => chs.reduce((s, c) => s + (M.minutes[c - 1] || 0), 0);
+  M.readPath = function (key) {
+    try { if (key === undefined) return localStorage.getItem('microai.path') || ''; if (key) localStorage.setItem('microai.path', key); else localStorage.removeItem('microai.path'); } catch (e) { /* no storage: paths still work as lists */ }
+    return key || '';
+  };
   M.partOf = (ch) => { let k = 0; M.parts.forEach((p, i) => { if (ch >= p[2]) k = i; }); return k; };
   M.partIcon = function (k) {
     const name = M.parts[k][1], R = seeded(name), kind = Math.floor(R() * 5), n = 2 + Math.floor(R() * 3), amp = 4 + R() * 5;
@@ -892,7 +1117,9 @@
       const before = guesses()[ch];
       if (typeof before === 'number' && before >= 0 && before < L.o.length) pick(before, false);
     }
-    main.insertBefore(M.el('div', { class: 'keep' }, M.el('p', { class: 'tag' }, M.icon('keep'), 'One line to keep'), M.el('p', { text: L.keep })), pager);
+    const keep = M.el('div', { class: 'keep' }, M.el('p', { class: 'tag' }, M.icon('keep'), 'One line to keep'), M.el('p', { text: L.keep }));
+    keep.appendChild(M.el('p', { class: 'keep-share' }, M.shareButton('Share this line', { title: M.chapters[ch - 1][1] + ' · microAI', text: '\u201C' + L.keep + '\u201D', url: M.url(M.chapters[ch - 1][0]), near: keep })));
+    main.insertBefore(keep, pager);
   }
 
   /* Glossary terms: <a class="term" href="glossary.html#loss">loss</a>.
