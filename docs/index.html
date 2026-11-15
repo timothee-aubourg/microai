@@ -5,12 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>microAI</title>
 <!-- [social] written by tools/build_site.py -->
-<meta name="description" content="Build and understand a language model and the agent around it, from first principles: 38 short interactive chapters that run on your phone.">
+<meta name="description" content="Build and understand a language model and the agent around it, from first principles: 43 short interactive chapters that run on your phone.">
 <link rel="canonical" href="https://timothee-aubourg.github.io/microai/">
 <meta property="og:site_name" content="microAI">
 <meta property="og:type" content="website">
 <meta property="og:title" content="microAI: a language model you can hold in your head">
-<meta property="og:description" content="Build and understand a language model and the agent around it, from first principles: 38 short interactive chapters that run on your phone.">
+<meta property="og:description" content="Build and understand a language model and the agent around it, from first principles: 43 short interactive chapters that run on your phone.">
 <meta property="og:url" content="https://timothee-aubourg.github.io/microai/">
 <meta property="og:image" content="https://timothee-aubourg.github.io/microai/cards/index.jpg">
 <meta property="og:image:width" content="1200">
@@ -83,6 +83,8 @@
   <ol class="toc" id="toc14" style="counter-reset: ch 34"></ol>
   <p class="part">Part fifteen: plugging things in</p>
   <ol class="toc" id="toc15" style="counter-reset: ch 36"></ol>
+  <p class="part">Part sixteen: the agent at work</p>
+  <ol class="toc" id="toc16" style="counter-reset: ch 38"></ol>
 
   <h2>Run the code yourself</h2>
   <p>The only dependency is numpy. Training takes roughly a quarter of an hour on a laptop CPU.</p>
@@ -103,7 +105,7 @@ python code/ch08_sample.py --prompt "ROMEO:"</pre>
 <script>
 M.ready(function () {
   M.chapters.forEach(function (c, i) {
-    var list = M.$(i < 6 ? '#toc1' : i < 9 ? '#toc2' : i < 12 ? '#toc3' : i < 14 ? '#toc4' : i < 17 ? '#toc5' : i < 19 ? '#toc6' : i < 21 ? '#toc7' : i < 23 ? '#toc8' : i < 25 ? '#toc9' : i < 27 ? '#toc10' : i < 29 ? '#toc11' : i < 31 ? '#toc12' : i < 34 ? '#toc13' : i < 36 ? '#toc14' : '#toc15');
+    var list = M.$(i < 6 ? '#toc1' : i < 9 ? '#toc2' : i < 12 ? '#toc3' : i < 14 ? '#toc4' : i < 17 ? '#toc5' : i < 19 ? '#toc6' : i < 21 ? '#toc7' : i < 23 ? '#toc8' : i < 25 ? '#toc9' : i < 27 ? '#toc10' : i < 29 ? '#toc11' : i < 31 ? '#toc12' : i < 34 ? '#toc13' : i < 36 ? '#toc14' : i < 38 ? '#toc15' : '#toc16');
     list.appendChild(M.el('li', null, M.el('a', { href: c[0] }, M.el('b', { text: c[1] }), M.el('span', { text: M.blurbs[i] }), M.el('span', { class: 'min', text: (M.minutes[i] || '?') + ' min' }))));
   });
   var start = M.$('#start'), mine = M.readPath();               // the three paths of the map, as ways in

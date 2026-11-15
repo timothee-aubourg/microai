@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>When a step fails | microAI</title>
+<!-- [social] written by tools/build_site.py -->
+<meta name="description" content="A tool that fails one call in five: stop, retry quietly, or tell the model. A dead tool and a loop guard, and the writes a half-done job leaves behind.">
+<link rel="canonical" href="https://timothee-aubourg.github.io/microai/40-recovery.html">
+<meta property="og:site_name" content="microAI">
+<meta property="og:type" content="article">
+<meta property="og:title" content="When a step fails · microAI">
+<meta property="og:description" content="A tool that fails one call in five: stop, retry quietly, or tell the model. A dead tool and a loop guard, and the writes a half-done job leaves behind.">
+<meta property="og:url" content="https://timothee-aubourg.github.io/microai/40-recovery.html">
+<meta property="og:image" content="https://timothee-aubourg.github.io/microai/cards/40.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="When a step fails · microAI">
+<meta name="twitter:card" content="summary_large_image">
+<!-- [/social] -->
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-ch="40">
+<main>
+  <p class="where">Chapter 40</p>
+  <h1>When a step fails</h1>
+  <p class="question">A tool call fails half-way through a job. Should the agent stop, try again, or be told what went wrong?</p>
+
+  <p>Tools fail. A network times out, a service is busy, a file is locked. In a job of several steps, one failure ruins the whole job unless something handles it. Two things can: the harness, which is code, and the model, which can read an error the way it reads a result.</p>
+
+  <div class="def"><span class="kind">Definitions</span>
+    <p>A <dfn>transient error</dfn> is a failure that goes away if you try again: the service was busy, the connection dropped.</p>
+    <p>A <dfn>loop guard</dfn> is a rule in the harness that stops an agent repeating itself, for example when it sends the same call several times in a row.</p>
+    <p>An action is <dfn>idempotent</dfn> when doing it twice has the same effect as doing it once. Reading a file is. Appending a line to it is not.</p>
+    <p>A <dfn>rollback</dfn> undoes the effects of a job that failed part-way, so that nothing is left half done.</p>
+  </div>
+
+  <h3>By hand: how often a job survives</h3>
+  <p>The agent of chapter 39 answers chains like <code>what is 23 times 45 minus 17?</code>, one call per link. Make its calculator fail one call in five, at random. A chain of two links needs two calls to succeed: 0.8 × 0.8 = 0.64. Three links: 0.8³ ≈ 0.51. So if the harness stops at the first error, between a third and a half of the jobs are lost to a tool that works 80% of the time.</p>
+  <p>Now let the harness try a failed call again, up to three times in all. A call is lost only if all three tries fail: 0.2³ = 0.008. A chain of three links then survives with probability (1 − 0.008)³ ≈ 0.98.</p>
+
+  <figure class="fig">
+    <svg viewBox="0 0 760 270" role="img" aria-labelledby="f40a">
+      <title id="f40a">The same failed call handled four ways. Stop: the harness gives up on the whole job. Retry quietly: the harness calls the tool again and the model never knows. Tell clearly: the error is written into the context as "R error busy", a wording seen in training, and the model sends the call again. Tell vaguely: the error is written as "R failed", a wording it never saw.</title>
+      <g class="t-small">
+      <text x="16" y="34" class="t-muted">the model writes</text><rect x="150" y="16" width="150" height="28" rx="6" class="bx-fwd"/><text x="225" y="35" text-anchor="middle" class="t-mono">C mul 23 45</text>
+      <text x="320" y="35" class="t-grad">the tool fails</text>
+      <text x="16" y="88" class="t-muted">stop</text><rect x="150" y="70" width="230" height="28" rx="6" class="bx-grad"/><text x="265" y="89" text-anchor="middle">the job ends, no answer</text>
+      <text x="16" y="138" class="t-muted">retry quietly</text><rect x="150" y="120" width="230" height="28" rx="6" class="bx-soft"/><text x="265" y="139" text-anchor="middle">harness calls again, up to 3 times</text><rect x="396" y="120" width="120" height="28" rx="6" class="bx"/><text x="456" y="139" text-anchor="middle" class="t-mono">R 1035</text>
+      <text x="16" y="188" class="t-muted">tell, clearly</text><rect x="150" y="170" width="150" height="28" rx="6" class="bx"/><text x="225" y="189" text-anchor="middle" class="t-mono">R error busy</text><rect x="316" y="170" width="150" height="28" rx="6" class="bx-fwd"/><text x="391" y="189" text-anchor="middle" class="t-mono">C mul 23 45</text><text x="480" y="189" class="t-muted">the model decides to try again</text>
+      <text x="16" y="238" class="t-muted">tell, vaguely</text><rect x="150" y="220" width="150" height="28" rx="6" class="bx"/><text x="225" y="239" text-anchor="middle" class="t-mono">R failed</text><rect x="316" y="220" width="150" height="28" rx="6" class="bx-fwd"/><text x="391" y="239" text-anchor="middle">?</text><text x="480" y="239" class="t-muted">a wording it never saw</text>
+      </g>
+    </svg>
+    <figcaption><b>Who handles the failure.</b> In the first two rows the harness does, and the model never sees an error. In the last two the model reads the error and chooses what to do.</figcaption>
+  </figure>
+
+  <h2>200 questions, a tool that fails one call in five</h2>
+  <p><code>code/ch40_recover.py</code> asks 200 chains of two and three links, with number pairs the agent never saw in training. With a reliable tool, it gets <b>199</b> right. Then the tool fails each call with probability 0.2, and the harness handles failures in one of four ways.</p>
+  <pre class="code" data-src="ch40_recover.py#ways">def tool_for(way, rng, fail=0.2):
+    """What the harness does when the model sends a call, for each way of handling a failure."""
+    def call(name, a, b):
+        tries = 3 if way == 'retry quietly' else 1
+        for _ in range(tries):
+            if rng.random() &gt;= fail:
+                return str(w.TOOLS[name](a, b))               # the call worked
+        if way == 'stop':
+            raise GiveUp()                                    # the whole question fails
+        if way == 'retry quietly':
+            raise GiveUp()                                    # three failures in a row: give up too
+        return w.BUSY if way == 'tell, clearly' else 'failed' # the model reads the error and decides
+    return call</pre>
+  <div class="scroll"><table class="mini">
+    <tr><th>Way</th><th>Right, of 200</th><th>Model passes per question</th></tr>
+    <tr><td>No failures at all</td><td class="mono">199</td><td class="mono">—</td></tr>
+    <tr><td>Stop</td><td class="mono">115</td><td class="mono">2.65</td></tr>
+    <tr><td>Retry quietly</td><td class="mono">194</td><td class="mono">3.45</td></tr>
+    <tr><td>Tell, clearly</td><td class="mono">175</td><td class="mono">4.13</td></tr>
+    <tr><td>Tell, vaguely</td><td class="mono">130</td><td class="mono">3.92</td></tr>
+  </table></div>
+  <ul>
+    <li><strong>Stop: 115.</strong> As the arithmetic predicted: about 57% of the 199 questions it gets right with a reliable tool.</li>
+    <li><strong>Retry quietly: 194.</strong> The harness absorbed nearly every failure, and the model never saw one. The extra cost is tool calls, not passes of the model. Retrying blindly is safe here because a sum is <a class="term" href="glossary.html#idempotent">idempotent</a>: asking twice changes nothing.</li>
+    <li><strong>Tell, clearly: 175.</strong> The model learned to send the same call again after <code>R error busy</code>, and it does. But each retry costs a pass and about 24 characters of context. Of the 25 questions it lost, 23 ended with no answer because its 160-character window was full, at about 148 characters, after five calls. It was doing the right thing and ran out of room.</li>
+    <li><strong>Tell, vaguely: 130.</strong> Only 15 better than stopping. <code>R failed</code> means the same thing, but the model never saw that wording, so it has no learned response to it. An error message is part of the interface the model reads, like a tool description (chapter 37).</li>
+  </ul>
+
+  <h2>When the tool is down for good</h2>
+  <p>A busy tool comes back. A broken one does not. Make every call fail and keep telling the model <code>R error busy</code>. It was trained to try again after that error, so it tries again, and again. Something has to stop it.</p>
+  <pre class="code" data-src="ch40_recover.py#guard">def guarded(call, repeats=3):
+    """A loop guard: stop when the model sends the same call `repeats` times in a row."""
+    last = []
+    def wrapped(name, a, b):
+        last.append((name, a, b))
+        if len(last) &gt;= repeats and len(set(last[-repeats:])) == 1:
+            raise GiveUp()                                    # it is going round in circles
+        return call(name, a, b)
+    return wrapped</pre>
+  <div class="scroll"><table class="mini">
+    <tr><th>What stops it</th><th>Calls written before it stops, on average</th><th>At most</th></tr>
+    <tr><td>Nothing but the window</td><td class="mono">4.50</td><td class="mono">5</td></tr>
+    <tr><td>A limit of 8 calls</td><td class="mono">4.50</td><td class="mono">5</td></tr>
+    <tr><td>A loop guard: the same call 3 times</td><td class="mono">3.00</td><td class="mono">3</td></tr>
+  </table></div>
+  <p>Our agent never reaches the limit of 8 calls. Its window fills after at most 5, and the harness stops when there is no room left, so "nothing" and "a limit of 8" give the same result here. A large model's window holds hundreds of thousands of tokens, so without a limit it would keep trying for a long time, and pay for every pass. The loop guard stopped ours after 3 calls every time, as soon as the pattern was clear.</p>
+
+  <h2>Half a job</h2>
+  <p>So far a failed job just gave no answer. Many real steps also change something: a file written, a row added, a message sent. Give each step of our job an effect: it writes its result to a ledger. If a step fails, the job stops. What is left in the ledger?</p>
+  <pre class="code" data-src="ch40_recover.py#ledger">def job_with_ledger(run, nums, ops, values, rng, fail, mode):
+    """Each step of the job writes its result to a ledger. Returns what the ledger holds afterwards.
+    'as you go' writes at once; 'at the end' keeps the writes aside and adds them only if the job finished;
+    'undo' writes at once and removes its own writes if the job fails."""
+    ledger, pending = [], []
+    def call(name, a, b):
+        if rng.random() &lt; fail:
+            raise GiveUp()                                    # this step fails, and so does the job
+        r = w.TOOLS[name](a, b)
+        (ledger if mode != 'at the end' else pending).append(r)
+        return str(r)
+    start = len(ledger)
+    try:
+        got, _, _ = w.run_steps(run, w.prompt_for(nums, ops), on_result=call)
+        ok = got == values[-1]
+    except GiveUp:
+        ok = False
+    if mode == 'at the end' and ok:
+        ledger += pending                                     # commit: all or nothing
+    if mode == 'undo' and not ok:
+        del ledger[start:]                                    # roll back what this job wrote
+    return ledger, ok</pre>
+  <div class="scroll"><table class="mini">
+    <tr><th>When to write</th><th>Jobs finished, of 200</th><th>Failed jobs that left writes behind</th></tr>
+    <tr><td>As you go</td><td class="mono">157</td><td class="mono">20</td></tr>
+    <tr><td>At the end, all or nothing</td><td class="mono">157</td><td class="mono">0</td></tr>
+    <tr><td>As you go, undone on failure</td><td class="mono">157</td><td class="mono">0</td></tr>
+  </table></div>
+  <p>Each step now fails one time in ten, so 157 of the 200 jobs finished. When each step wrote at once, 20 of the 43 failed jobs left writes behind: half a job, in a ledger that now looks as though work was done. The other 23 failed before writing anything. Writing only at the end, all or nothing, or undoing the writes of a failed job, left none. "At the end" means nothing is visible until the job is done. "Undo" means every step needs an inverse, and some actions, such as a sent message, have none.</p>
+
+  <section class="bench" id="w-fail">
+    <h3>A tool that fails</h3>
+    <p class="try"><b>Try this.</b> Set the tool to fail one call in five, pick a way, and run one question to read the transcript. Then run twenty and compare the ways. Last, set the tool to fail every call and switch the loop guard on and off.</p>
+  </section>
+  <p><strong>What you should have seen.</strong> With the tool failing one call in five, three runs of twenty questions gave 9 to 14 right when the harness stops, 19 or 20 with quiet retries, 16 to 19 when the model is told <code>error busy</code>, and 8 to 12 when it is told <code>failed</code>. Twenty is a small sample, so each run differs, but the order is the table's. With every call failing and the guard on, the agent is stopped at its third identical call. With the guard off it writes five calls and stops only when its window is full.</p>
+
+  <h2>At full size</h2>
+  <ul>
+    <li><strong>Retries wait.</strong> A real harness waits before trying again, longer each time (one second, two, four), so that a busy service gets room to recover. This is called backoff.</li>
+    <li><strong>Only idempotent calls are retried blindly.</strong> Reading again is safe. Paying again is not. Services that take payments accept a key with each request, so that the same request sent twice is carried out once.</li>
+    <li><strong>Error messages are written for the model.</strong> An error that says what went wrong and what to do ("file not found: did you mean src/app.py?") lets the model recover. "Error" alone does not. The difference between our clear and vague errors is the small version of this.</li>
+    <li><strong>Harnesses cap the loop.</strong> A maximum number of turns per task, and limits on time and cost, are standard settings. Some also notice when the same tool is called with the same arguments again and again.</li>
+    <li><strong>Rollback uses what is already there.</strong> Coding agents keep the files in version control, so a bad change can be undone. Databases have transactions. A harness can also take a snapshot before a risky step, the checkpoint of chapter 39.</li>
+  </ul>
+
+  <h2>Build it</h2>
+  <pre class="code" data-lang="text">python code/ch40_recover.py    # failures, a dead tool and a ledger, about 2 minutes; needs  python code/ch39_plan.py --train</pre>
+
+  <div class="note">
+    <h3>What this chapter glossed over</h3>
+    <p><strong>Failures here are independent coin flips.</strong> Real failures come in bursts: a service that is down stays down for a while, which is why retries wait.</p>
+    <p><strong>Only one kind of error.</strong> The agent was trained on one error, "busy", whose answer is always to try again. Errors that call for a different action, such as a wrong argument, need training or instructions of their own.</p>
+    <p><strong>The ledger is a list in memory.</strong> Undoing real effects, such as a sent email, is often impossible, which is the case for asking first (chapter 43).</p>
+    <p><strong>One run, no sampling,</strong> 200 questions per way.</p>
+  </div>
+
+  <div class="recap">
+    <h3>In short</h3>
+    <ul>
+      <li>A tool that fails one call in five lost 42% of the jobs when the harness stopped at the first error: 115 right of the 199 it got with a reliable tool.</li>
+      <li>Three quiet retries in the harness brought it back to 194, without the model knowing. That is safe for <a class="term" href="glossary.html#idempotent">idempotent</a> calls only.</li>
+      <li>Telling the model, in the error wording it was trained on, gave 175, at the cost of passes and context. A wording it never saw gave 130. Error messages are part of the interface.</li>
+      <li>Something must stop an agent that keeps calling a dead tool: a step limit, the window, or a <a class="term" href="glossary.html#loop-guard">loop guard</a>, which stopped ours after three calls.</li>
+      <li>A job that fails part-way leaves half its effects unless writes wait for the end or are undone: 20 half-done jobs against 0. That is <a class="term" href="glossary.html#rollback">rollback</a>.</li>
+    </ul>
+  </div>
+
+  <h2>Check yourself</h2>
+  <details class="check"><summary>A tool fails one call in ten. A job needs five calls. If the harness stops at the first error, how often does the job finish?</summary><p>0.9⁵ ≈ 0.59, so about six jobs in ten. With three tries per call, each call fails with probability 0.001, and the job finishes about 99.5% of the time.</p></details>
+  <details class="check"><summary>Why can a harness retry a read without asking, but not a payment?</summary><p>A read is idempotent: doing it twice changes nothing. A payment made twice is two payments. Retrying it needs a key that lets the service recognise the second request as the same one.</p></details>
+  <details class="check"><summary>The model was told "R failed" and did worse than when told "R error busy". Both mean the call did not work. Why the difference?</summary><p>The model learned what to do after one wording, the one in its training. The other is new text, and it has no learned response to it. Error messages are part of the interface the model reads, like tool descriptions.</p></details>
+  <details class="check"><summary>An agent keeps calling a broken tool. Name two ways the harness can stop it, and what each costs.</summary><p>A limit on the number of calls: simple, but it may also stop a long job that was going well. A loop guard on repeated identical calls: it stops a stuck agent early, but an agent that varies its call a little gets past it.</p></details>
+</main>
+
+<script src="assets/work.js"></script>
+<script src="assets/glossary.js"></script>
+<script src="assets/micro.js"></script>
+<script src="assets/workrun.js"></script>
+<script>
+M.ready(function () {
+  var box = M.$('#w-fail');
+  if (!window.MICRO_WORK || !M.Work) { box.appendChild(M.el('p', { text: 'The trained agent did not load, so this experiment is unavailable.' })); return; }
+  var W = new M.Work(M.loadWeights(window.MICRO_WORK)), way = 'tell, clearly', fail = 0.2, guard = true, presses = 0;
+  var WAYS = [['stop', 'Stop at the first error'], ['retry quietly', 'Retry quietly, up to 3 tries'], ['tell, clearly', 'Tell the model: "error busy"'], ['tell, vaguely', 'Tell the model: "failed"']];
+  function stop(why) { var e = new Error(why); e.stop = why; return e; }
+  function caller(rnd) {
+    return function (name, a, b, calls) {
+      if (guard && calls.length >= 2 && calls.slice(-2).every(function (c) { return c[0] === name + ' ' + a + ' ' + b; })) throw stop('the loop guard stopped it: the same call 3 times');
+      var tries = way === 'retry quietly' ? 3 : 1;
+      for (var i = 0; i < tries; i++) if (rnd() >= fail) return String(M.Work.TOOLS[name](a, b));
+      if (way === 'stop' || way === 'retry quietly') throw stop('the harness gave up: the tool failed');
+      return way === 'tell, clearly' ? 'error busy' : 'failed';
+    };
+  }
+  function one(seed) {
+    var rnd = M.rng(seed), c = M.Work.chain(rnd, 2 + Math.floor(rnd() * 2));
+    var r = W.steps('\nU ' + c.q + '\n', caller(rnd), 30);
+    r.want = c.values[c.values.length - 1]; r.q = c.q;
+    return r;
+  }
+  var out = M.el('div', { style: 'font-family:var(--mono);font-size:14.5px;white-space:pre-wrap;overflow-wrap:anywhere;border-left:4px solid var(--line);padding-left:10px;margin:10px 0' });
+  var stat = M.el('p', { class: 'readout' }), bars = M.el('div'), many = M.el('p', { class: 'readout', text: 'Nothing run yet.' });
+  function show() {
+    var r = one(31 * (presses++) + 1);
+    out.textContent = r.text.replace(/^\n/, '');
+    stat.innerHTML = (r.answer === r.want ? '<b>Right.</b> ' : r.answer === null ? '<b>No answer.</b> ' : '<b>Wrong.</b> ') + r.calls.length + ' calls written' + (r.stopped ? '; ' + r.stopped : '') + '. The right answer is ' + r.want + '.';
+  }
+  function run20() {
+    var ok = 0, calls = 0;
+    for (var i = 0; i < 20; i++) { var r = one(1000 + 20 * presses + i); ok += r.answer === r.want; calls += r.calls.length; }
+    presses++;
+    M.bars(bars, [{ label: 'right', p: ok / 20, text: ok + ' of 20', hl: true }], 1);
+    many.textContent = 'Twenty questions: ' + (calls / 20).toFixed(1) + ' calls written per question.';
+  }
+  var wS = M.select('When a call fails', WAYS, function (v) { way = v; show(); });
+  wS.sel.value = way;
+  var fS = M.slider({ label: 'The tool fails', min: 0, max: 100, step: 10, value: 20, fmt: function (v) { return v === 100 ? 'every call' : v + '% of calls'; }, oninput: function (v) { fail = v / 100; show(); } });
+  var g = M.el('input', { type: 'checkbox', id: 'fail-guard', checked: 'checked' });
+  g.addEventListener('change', function () { guard = g.checked; show(); });
+  box.appendChild(M.row(wS)); box.appendChild(M.row(fS));
+  box.appendChild(M.row(M.el('label', { class: 'ctl', 'for': 'fail-guard', style: 'flex:0 1 auto;min-width:0' }, g, ' Loop guard: stop at the same call 3 times')));
+  box.appendChild(M.row(M.button('Another question', show, 'go'), M.button('Run twenty', run20)));
+  box.appendChild(out); box.appendChild(stat); box.appendChild(bars); box.appendChild(many);
+  box.appendChild(M.el('p', { class: 'caption', text: 'The agent of chapter 39 runs in your browser. Every line after the question is written either by the model (C, A) or by the harness (R). Without the loop guard, the agent stops only when its window of 160 characters is full.' }));
+  show();
+});
+</script>
+</body>
+</html>

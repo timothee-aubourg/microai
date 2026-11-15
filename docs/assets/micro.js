@@ -44,6 +44,11 @@
     ['36-release.html', 'Releasing it, and watching it', 'release'],
     ['37-tools.html', 'Tools from outside', 'plug'],
     ['38-skills.html', 'Loaded when needed', 'load'],
+    ['39-planning.html', 'A plan, then the steps', 'plan'],
+    ['40-recovery.html', 'When a step fails', 'recover'],
+    ['41-workflows.html', 'A workflow or an agent?', 'route'],
+    ['42-notes.html', 'Memory that lasts', 'remember'],
+    ['43-asking.html', 'Asking first', 'ask'],
   ];
 
   /* One sentence per chapter: the contents page, link previews and share cards. */
@@ -85,7 +90,12 @@
     'Red-teaming: a fixed list, a blind attacker and one that keeps what works, then three rounds of repair and fresh attack.',
     'A release gate, a canary on a share of the traffic, and counters from traces that catch a change in the requests.',
     'An agent that reads its tools from a list, a small tool server speaking the Model Context Protocol, and a dishonest entry in the list.',
-    'Six tools and room for four: list everything, let the harness pick, or let the agent say what it lacks. Skills and progressive disclosure.'
+    'Six tools and room for four: list everything, let the harness pick, or let the agent say what it lacks. Skills and progressive disclosure.',
+    'One agent trained for chains of tool calls: one step at a time, or a plan written first. Measured by length, with checkpoints for long jobs that crash.',
+    'A tool that fails one call in five: stop, retry quietly, or tell the model. A dead tool and a loop guard, and the writes a half-done job leaves behind.',
+    'A parser, a one-pass workflow, an agent and a route on the same 300 requests: right answers, model passes and time.',
+    'Notes kept between sessions, four ways: none, every note, the latest of each, the latest the question names. What goes stale, and what distracts.',
+    'When to stop and ask a person: the model\'s own confidence in a call, measured on 600 requests, and the mistakes it is sure of.'
   ];
 
   // ---------- DOM helpers ----------
@@ -863,7 +873,7 @@
     ['Part nine', 'shaping behaviour', 24, '#5c6b7a'], ['Part ten', 'faster, and for many', 26, '#9a5a7d'],
     ['Part eleven', 'models that help models', 28, '#6a7f3a'], ['Part twelve', 'inside current models', 30, '#7a6fae'],
     ['Part thirteen', 'the agent, further', 32, '#96806a'], ['Part fourteen', 'safe to release', 35, '#3f6b5c'],
-    ['Part fifteen', 'plugging things in', 37, '#7f8a8f']
+    ['Part fifteen', 'plugging things in', 37, '#7f8a8f'], ['Part sixteen', 'the agent at work', 39, '#c27c4e']
   ];
   /* ---------- the map: the course by what an agent is made of, not by the order of the chapters ----------
      Three layers: what the agent does, the model inside it, and what makes the model.
@@ -884,17 +894,17 @@
       need: 'As soon as tasks take more than a few steps, or the window fills up.', ch: [16, 38, 32],
       gaps: ['Writing the system prompt as a piece of design'] },
     { key: 'knowledge', name: 'Retrieval and memory', layer: 'agent', what: 'Knowledge kept outside the window and brought in when needed: search over documents, notes the agent keeps.',
-      need: 'When the agent must know facts the model was not trained on, or remember across sessions.', ch: [11, 16],
-      gaps: ['Memory that lasts across sessions: what to write down, when to forget', 'Embedding search at scale'] },
-    { key: 'control', name: 'Control', layer: 'agent', what: 'Ways to get a better answer from the same model: room to think, several tries, a check before answering.',
-      need: 'When one pass is not reliable enough and you can spend more time per answer.', ch: [25, 21, 13],
-      gaps: ['Planning, re-planning and long tasks with checkpoints', 'Recovering from errors: retries, rollbacks, getting stuck'] },
-    { key: 'composition', name: 'Several agents', layer: 'agent', what: 'Splitting a job between a lead and helpers, each with its own short context.',
-      need: 'When one context cannot hold the whole job, or parts can run side by side.', ch: [32, 34],
-      gaps: ['Fixed workflows (chains, routing, parallel steps) versus agents', 'A lead that is itself a model and plans the split'] },
+      need: 'When the agent must know facts the model was not trained on, or remember across sessions.', ch: [11, 42, 16],
+      gaps: ['Notes written by the model itself (here the harness writes them)', 'Embedding search at scale'] },
+    { key: 'control', name: 'Control', layer: 'agent', what: 'Getting a job of many steps done: a plan or one step at a time, checks, retries when a step fails, and room to think.',
+      need: 'When a task takes more than one step, when a step can fail, or when one pass is not reliable enough.', ch: [39, 40, 25, 21, 13],
+      gaps: ['Re-planning when a result changes what should come next', 'Planning learned by reinforcement rather than from examples'] },
+    { key: 'composition', name: 'Workflows and several agents', layer: 'agent', what: 'Fixed paths written in code, routing between them, and jobs split between a lead and helpers with their own contexts.',
+      need: 'When you decide how much of the path the model chooses, or one context cannot hold the whole job.', ch: [41, 32, 34],
+      gaps: ['A lead that is itself a model and plans the split'] },
     { key: 'safety', name: 'Safety', layer: 'agent', what: 'Text the agent reads can give it orders. Bound what it can do: gates, sandboxes, a guard model, attacks you run yourself.',
-      need: 'Before the agent reads anything you did not write, or can do anything you cannot undo.', ch: [17, 28, 35],
-      gaps: ['Asking a person: permission prompts and when to hand over'] },
+      need: 'Before the agent reads anything you did not write, or can do anything you cannot undo.', ch: [17, 43, 28, 35],
+      gaps: ['Permissions at full size: scoped credentials, a sandbox per tool'] },
     { key: 'evaluation', name: 'Evaluation', layer: 'agent', what: 'Traces to see what happened, fixed tests to know whether a change helped, and a gate before release.',
       need: 'Before you change anything you want to keep. Without a test, you are guessing.', ch: [14, 36],
       gaps: ['Cost and speed per task in production', 'Judging open-ended answers'] },
@@ -912,7 +922,7 @@
   /* Three ways through the course. The chapters stay as they are; a path is an order to read them in. */
   M.paths = [
     { key: 'build', name: 'Build an agent', who: 'You want a working agent and to know why it fails. The model stays a black box until you ask why.',
-      ch: [15, 11, 13, 37, 16, 38, 14, 25, 32, 17, 28, 35, 36, 19, 34] },
+      ch: [15, 11, 13, 37, 16, 38, 14, 39, 40, 41, 42, 25, 32, 17, 43, 28, 35, 36, 19] },
     { key: 'understand', name: 'Understand the model', who: 'You want to know what happens between the text going in and the next token coming out, and how it learns.',
       ch: [1, 2, 3, 4, 5, 6, 7, 8, 21, 24, 20, 30, 31] },
     { key: 'run', name: 'Run it yourself', who: 'You want a model on your own machine, fast enough and small enough, and to know what limits it.',
@@ -924,7 +934,7 @@
   // [/site]
   /* Minutes to read each chapter, counted from the pages by tools/build_site.py. */
   // [minutes]
-  M.minutes = [15,12,12,12,12,11,10,10,10,9,11,9,12,13,11,10,11,10,11,10,9,15,14,14,10,9,9,11,8,8,7,8,8,7,10,13,13,8];
+  M.minutes = [15,12,12,12,12,11,10,10,10,9,11,9,12,13,11,10,11,10,11,10,9,15,14,14,10,9,9,11,8,8,7,8,8,7,10,13,13,8,11,9,8,8,9];
   // [/minutes]
   M.mins = (chs) => chs.reduce((s, c) => s + (M.minutes[c - 1] || 0), 0);
   M.readPath = function (key) {
@@ -1075,7 +1085,22 @@
           keep: 'A tool description is text in the context. An agent that reads a list can use any tool the list offers, and it will also use any tool a dishonest list offers. The check belongs in the harness.' },
     38: { q: 'A catalogue has six tools and the context has room for four. The harness lists the first four on every request. Of 300 questions spread over the six tools, how many are answered right?', o: ['300: four tools is plenty.', '210.', 'About 100.'], a: 1,
           why: 'The 90 questions about the two tools past the cut got "i have no tool", although both tools existed. Listing only the one tool a question needs gave 300 of 300, with less to read.',
-          keep: 'Keep a short note in the context and load the full text when a task needs it. The cost of a catalogue then stops growing with its size. The price is an extra pass.' }
+          keep: 'Keep a short note in the context and load the full text when a task needs it. The cost of a catalogue then stops growing with its size. The price is an extra pass.' },
+    39: { q: 'An agent answers chains of four tool calls. Step by step, that takes five passes of the model. Plan first, how many?', o: ['One.', 'Four.', 'Five, each a little shorter.'], a: 0,
+          why: 'One pass writes the whole plan, and code runs it. On 200 chains of four links both ways were right 198 and 200 times, and the plan read 93 characters instead of 131.',
+          keep: 'A plan saves passes and context when the steps are known in advance. The loop is needed when the next step depends on a result.' },
+    40: { q: 'A tool fails one call in five. The harness retries each failed call up to three times, without telling the model. Of 200 questions (199 right with a perfect tool), how many come out right?', o: ['About 115.', 'About 155.', '194.'], a: 2,
+          why: 'A call is lost only if all three tries fail: 0.2 cubed is 0.008. Stopping at the first error gave 115. Telling the model gave 175, because retries filled its window.',
+          keep: 'Retry what is safe to repeat in the harness, write errors the model can act on, cap the loop, and make half-done jobs undo themselves.' },
+    41: { q: 'A service gets 300 requests, 240 of them in a shape a parser can read. Sending those to code and the rest to an agent, compared with an agent for everything, gives…', o: ['fewer right answers.', 'the same right answers, for about a sixth of the model passes.', 'more passes: the parser adds a step.'], a: 1,
+          why: 'Both got 265 right. The route used 0.45 model passes per request against 2.65, and a fifth of the time.',
+          keep: 'Use code where the shape is known, a fixed workflow where the steps are, and an agent only where the next step depends on a result.' },
+    42: { q: 'A harness shows the agent every note it ever wrote, old values included. With two names per person, how often is the agent right?', o: ['Almost always: everything it needs is there.', 'About one time in four.', 'Never.'], a: 1,
+          why: '75 of 283. Old values sat next to new ones, and the extra notes distracted it. Showing only the latest note for the name asked about: 277 of 283.',
+          keep: 'Memory is notes the harness keeps and shows: replace old values, and show only what the question needs.' },
+    43: { q: 'The agent asks you first whenever it is less than 99% sure of a call. Of 102 wrong calls, how many does that stop?', o: ['All 102.', 'About 90.', 'About 20.'], a: 1,
+          why: '89, by asking about one call in four. The 13 it let through were misreadings it was sure of, such as "less" read as plus at 0.996.',
+          keep: 'Ask before an action for two reasons: it cannot be undone, or the model is unsure. Its doubt catches most mistakes, but not the ones it is sure of.' }
   };
   function guesses(set) {
     let s = {};

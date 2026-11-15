@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Asking first | microAI</title>
+<!-- [social] written by tools/build_site.py -->
+<meta name="description" content="When to stop and ask a person: the model&#x27;s own confidence in a call, measured on 600 requests, and the mistakes it is sure of.">
+<link rel="canonical" href="https://timothee-aubourg.github.io/microai/43-asking.html">
+<meta property="og:site_name" content="microAI">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Asking first · microAI">
+<meta property="og:description" content="When to stop and ask a person: the model&#x27;s own confidence in a call, measured on 600 requests, and the mistakes it is sure of.">
+<meta property="og:url" content="https://timothee-aubourg.github.io/microai/43-asking.html">
+<meta property="og:image" content="https://timothee-aubourg.github.io/microai/cards/43.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Asking first · microAI">
+<meta name="twitter:card" content="summary_large_image">
+<!-- [/social] -->
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-ch="43">
+<main>
+  <p class="where">Chapter 43</p>
+  <h1>Asking first</h1>
+  <p class="question">An agent is about to run a command. When should it stop and ask you first?</p>
+
+  <p>Coding agents stop and ask before they run some commands. Ask too rarely and a wrong command runs. Ask too often and people approve without reading. This chapter measures that trade on our own agent.</p>
+  <p>There are two separate reasons to ask. The first is the action itself: deleting a file or sending money cannot be undone, whoever wrote the request. That is a rule you write in the harness, and chapter 17 built one, a gate that checks each command against a list. The second reason is the model: it may have misread the request. Only the model can tell us how unsure it was, through the probabilities it gave its own tokens.</p>
+
+  <div class="def"><span class="kind">Definitions</span>
+    <p><dfn>Human in the loop</dfn> means that a person approves some of the agent's actions before they run. The harness pauses, shows the action, and waits for a yes or a no.</p>
+    <p>The <dfn>confidence</dfn> of a call is the probability the model gave to it: the probabilities of each of its characters, multiplied together.</p>
+    <p>A confidence is <dfn>calibrated</dfn> when it matches how often the model is right. Of the calls it is 90% sure of, about 90 in 100 are right.</p>
+  </div>
+
+  <h3>By hand: three calls and how sure the model was</h3>
+  <p>Our agent is the one of chapter 19: it reads <code>what is 53 times 99?</code> and writes the call <code>mul 53 99</code> one character at a time. At each character, the format mask of chapter 13 leaves a few allowed choices, and the model gives each one a probability. Here are the probabilities of the characters it chose, for three requests:</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Request</th><th>Call written</th><th>Characters below 0.99</th><th>Confidence</th></tr>
+    <tr><td class="mono">what is 53 times 99?</td><td class="mono">mul 53 99</td><td>the 3 of 53: 0.994</td><td class="mono">0.99</td></tr>
+    <tr><td class="mono">what is 53 x 99?</td><td class="mono">sub 53 99</td><td>5: 0.51, first 9: 0.77, second 9: 0.86</td><td class="mono">0.34</td></tr>
+    <tr><td class="mono">what is 42 less 26?</td><td class="mono">add 42 26</td><td>none</td><td class="mono">1.00</td></tr>
+  </table></div>
+  <p>Multiply along a row. For the second request, 0.51 × 0.998 × 0.77 × 0.86 ≈ 0.34. The model never saw <code>x</code> written for times. It was unsure, and right to be: it chose <code>sub</code>, which is wrong. Its doubt was not where the mistake was, though. It gave <code>sub</code> a probability of 1.00 and hesitated over the digits.</p>
+  <p>The third row is the dangerous one. <code>less</code> means minus, the model wrote <code>add</code>, and it was sure. Only a threshold that makes the agent ask about nearly every call would stop it.</p>
+
+  <figure class="fig">
+    <svg viewBox="0 0 760 250" role="img" aria-labelledby="f43a">
+      <title id="f43a">A call goes through two questions before it runs. First, a rule written by people: can this action be undone? If not, ask the person. Second, a number from the model: was it sure of this call? If its confidence is below a threshold, ask the person. Otherwise the call runs. The person approves a right call and stops a wrong one.</title>
+      <defs><marker id="c43a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
+      <g class="t-small">
+      <rect x="16" y="70" width="130" height="60" rx="8" class="bx-fwd"/><text x="81" y="96" text-anchor="middle" class="t-big">the call</text><text x="81" y="116" text-anchor="middle" class="t-mono">mul 53 99</text>
+      <rect x="186" y="62" width="180" height="76" rx="8" class="bx"/><text x="276" y="88" text-anchor="middle" class="t-big">can it be undone?</text><text x="276" y="110" text-anchor="middle" class="t-muted">a rule you write</text><text x="276" y="127" text-anchor="middle" class="t-muted">(chapter 17)</text>
+      <rect x="406" y="62" width="180" height="76" rx="8" class="bx-prob"/><text x="496" y="88" text-anchor="middle" class="t-big">was the model sure?</text><text x="496" y="110" text-anchor="middle" class="t-muted">a number from the model</text><text x="496" y="127" text-anchor="middle" class="t-muted">(this chapter)</text>
+      <rect x="626" y="70" width="118" height="60" rx="8" class="bx-soft"/><text x="685" y="105" text-anchor="middle" class="t-big">run it</text>
+      <rect x="340" y="186" width="200" height="50" rx="8" class="bx-grad"/><text x="440" y="216" text-anchor="middle" class="t-big">ask the person</text>
+      <text x="380" y="92" class="t-muted">yes</text><text x="600" y="92" class="t-muted">yes</text>
+      <text x="236" y="170" class="t-muted">no</text><text x="512" y="170" class="t-muted">no</text>
+      </g>
+      <g class="ln"><line x1="148" y1="100" x2="182" y2="100" marker-end="url(#c43a)"/><line x1="368" y1="100" x2="402" y2="100" marker-end="url(#c43a)"/><line x1="588" y1="100" x2="622" y2="100" marker-end="url(#c43a)"/>
+      <path d="M276 140 L276 210 L336 210" fill="none" marker-end="url(#c43a)"/><path d="M496 140 L496 182" fill="none" marker-end="url(#c43a)"/></g>
+    </svg>
+    <figcaption><b>Two reasons to ask.</b> The first depends on the action and is known in advance. The second depends on the model and changes with every request.</figcaption>
+  </figure>
+
+  <h2>600 requests, half with slips</h2>
+  <p><code>code/ch43_ask.py</code> gives the agent 600 requests with number pairs it never saw in training. Half are worded exactly as in training. The other half carry the slips people make: <code>tims</code> or <code>multiplied by</code> for times, <code>less</code> or <code>take away</code> for minus, <code>and</code> for plus, or a word left out. For each request it records the call the model wants to make and the confidence of that call.</p>
+  <pre class="code" data-src="ch43_ask.py#sure">def call_and_confidence(run, question):
+    """The call the model would make, and the probability it gave to that call, character by character.
+    Returns (None, p) if it would answer without a tool; p is then its probability for not calling."""
+    cache = run.new_cache()
+    logits = one.feed(run, cache, '\nU ' + question + '\n')
+    p, line, state, fmt = 1.0, '', START, [['C ', 'A ']] + one.CALL
+    while True:
+        legal = moves(fmt, state)
+        if not legal:
+            break
+        ids = [run.stoi[c] for c in legal]
+        z = logits[ids] - logits[ids].max()
+        probs = np.exp(z) / np.exp(z).sum()            # the model's choice among the characters allowed here
+        k = int(np.argmax(probs))
+        p *= float(probs[k])                            # how sure it was of this character
+        c = run.chars[ids[k]]
+        state, line = legal[c], line + c
+        logits = run.step(run.stoi[c], cache)
+        if line == 'A ':
+            return None, p
+    return line[2:].strip(), p</pre>
+  <p class="src">From <code>code/ch43_ask.py</code>. The format mask of chapter 13 decides which characters are allowed, and the model's probabilities among those are multiplied as the call is written.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Requests</th><th>Right call</th><th>Wrong call</th><th>No call: answered directly</th></tr>
+    <tr><td>Worded as in training</td><td class="mono">300</td><td class="mono">0</td><td class="mono">0</td></tr>
+    <tr><td>With slips</td><td class="mono">155</td><td class="mono">102</td><td class="mono">43</td></tr>
+  </table></div>
+  <p>The slips cost half the right calls. 102 requests would run a wrong call, and 43 more got no call at all: the model answered directly, so it guessed. There is no action to approve in those 43. A guess has to be caught by checking the answer, as in chapter 25. From here on the chapter counts the 557 requests that ended in a call.</p>
+
+  <h2>Is its confidence worth anything?</h2>
+  <p>The calls grouped by confidence:</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Confidence</th><th>Calls</th><th>Right</th><th>Share right</th></tr>
+    <tr><td class="mono">below 0.5</td><td class="mono">53</td><td class="mono">4</td><td class="mono">8%</td></tr>
+    <tr><td class="mono">0.5 to 0.9</td><td class="mono">35</td><td class="mono">11</td><td class="mono">31%</td></tr>
+    <tr><td class="mono">0.9 to 0.99</td><td class="mono">58</td><td class="mono">42</td><td class="mono">72%</td></tr>
+    <tr><td class="mono">0.99 and above</td><td class="mono">411</td><td class="mono">398</td><td class="mono">97%</td></tr>
+  </table></div>
+  <p>The confidence carries real information. A call below 0.5 is almost always wrong, and one above 0.99 is almost always right. But it is not <a class="term" href="glossary.html#calibrated">calibrated</a>. The calls between 0.9 and 0.99 were right 72% of the time, not about 95%. The model is more sure than it should be, and most of all on words it never saw.</p>
+
+  <h2>Four rules for when to ask</h2>
+  <pre class="code" data-src="ch43_ask.py#rules">def plain(question):
+    """The harness's own check of the wording: exactly 'what is &lt;n&gt; &lt;plus|minus|times&gt; &lt;n&gt;?'."""
+    w = question.split()
+    return (len(w) == 5 and w[:2] == ['what', 'is'] and w[2].isdigit() and w[3] in one.WORDS
+            and w[4].endswith('?') and w[4][:-1].isdigit())
+
+def rule(name, threshold=0.0):
+    """Each rule says, for one request, whether to ask the person before running the call."""
+    return {'never': lambda r: False,
+            'always': lambda r: True,
+            'unsure': lambda r: r['p'] &lt; threshold,
+            'worded oddly': lambda r: not plain(r['q'])}[name]</pre>
+  <p>A person who is asked is assumed to stop every wrong call. So a rule has two numbers: how often it asks, and how many wrong calls it lets through without asking.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Rule</th><th>Asks, of 557 calls</th><th>Wrong calls let through, of 102</th></tr>
+    <tr><td>Never ask</td><td class="mono">0</td><td class="mono">102</td></tr>
+    <tr><td>Always ask</td><td class="mono">557</td><td class="mono">0</td></tr>
+    <tr><td>Ask when confidence &lt; 0.5</td><td class="mono">53</td><td class="mono">53</td></tr>
+    <tr><td>Ask when confidence &lt; 0.9</td><td class="mono">88</td><td class="mono">29</td></tr>
+    <tr><td>Ask when confidence &lt; 0.99</td><td class="mono">146</td><td class="mono">13</td></tr>
+    <tr><td>Ask when the wording is not the trained form</td><td class="mono">257</td><td class="mono">0</td></tr>
+  </table></div>
+  <ul>
+    <li><strong>Always asking is safe and useless.</strong> 557 questions to the person, 455 of them about calls that were right. People who approve that often stop reading, which brings the safety back to zero. This is called <a class="term" href="glossary.html#approval-fatigue">approval fatigue</a>.</li>
+    <li><strong>A confidence threshold buys a lot cheaply.</strong> Below 0.99, the agent asks about one call in four (146) and stops 89 of the 102 wrong calls.</li>
+    <li><strong>The 13 that remain are expensive to stop.</strong> Every one of them is <code>less</code> read as plus or <code>and</code> read as minus, with a confidence above 0.99. A model is not unsure about what it misunderstands. It is unsure where its training left it between two answers, and <code>less</code> was not one of those places. Raising the threshold to 0.998 does catch all 13, but then the agent asks about 504 of the 557 calls.</li>
+    <li><strong>The wording rule stops everything here, and only here.</strong> It works because the harness knows the one form the model was trained on. Real requests have no such form. At full size the equivalent is a separate check, such as a second model that judges the request (chapter 28).</li>
+  </ul>
+
+  <section class="bench" id="w-ask">
+    <h3>Where to set the threshold</h3>
+    <p class="try"><b>Try this.</b> Move the threshold and watch the two numbers trade against each other. Then type a request of your own below, worded with a slip, and see the call and the confidence the model gives it, live in your browser.</p>
+  </section>
+  <p><strong>What you should have seen.</strong> At 0 the agent never asks and 102 wrong calls run. Raising the threshold to 0.9 asks about 88 calls and lets 29 through. At 0.99, 146 asks and 13 through. Between 0.99 and 0.998 the asks climb fast: 220 at 0.995, with 4 wrong calls still through, and 504 at 0.998, where the last one is caught. The confident mistakes sit among the right calls, just below 1. In the live box, <code>what is 53 x 99?</code> gives a low confidence and a wrong call, and <code>what is 42 less 26?</code> gives <code>add 42 26</code> at a confidence close to 1.</p>
+
+  <h2>At full size</h2>
+  <ul>
+    <li><strong>Harnesses ask by kind of action first.</strong> Coding agents typically let reading run freely, ask before editing files or running commands, and let you allow specific commands for good. These are rules about what the action is, set by you: the first box of the figure.</li>
+    <li><strong>The model's confidence is harder to reach.</strong> Some model interfaces return the probability of each token, and a harness can multiply them as we did. Many do not. A model can also be asked to state how sure it is in words, which is much less reliable than its token probabilities.</li>
+    <li><strong>Overconfidence is the rule, not the exception.</strong> Large models trained to give helpful answers (chapter 24) tend to be more sure than they are right, as ours was between 0.9 and 0.99.</li>
+    <li><strong>What to show the person matters.</strong> An approval shows the exact action, with its arguments, and why it was flagged. "Run this command?" with no context trains people to click yes.</li>
+    <li><strong>Risk is probability times cost.</strong> A wrong sum costs little and a wrong deletion costs a lot. A sensible harness asks at a low confidence for cheap actions and at a high one, or always, for expensive ones.</li>
+  </ul>
+
+  <h2>Build it</h2>
+  <pre class="code" data-lang="text">python code/ch43_ask.py      # 600 requests, about 10 seconds; needs  python code/ch19_system.py --train</pre>
+
+  <div class="note">
+    <h3>What this chapter glossed over</h3>
+    <p><strong>The person is perfect here.</strong> Every wrong call that is asked about is stopped. Real people miss some, and miss more when they are asked often.</p>
+    <p><strong>The confidence is of the call alone.</strong> It is the probability of the characters of the call, given that the model writes one. A fuller measure would include its probability of calling at all.</p>
+    <p><strong>The slips are ours.</strong> A list of misspellings and synonyms written for this test, not a sample of how people really write.</p>
+    <p><strong>One run, no sampling.</strong> 600 requests, the most likely character chosen at each step.</p>
+  </div>
+
+  <div class="recap">
+    <h3>In short</h3>
+    <ul>
+      <li>Ask before an action for two reasons: the action cannot be undone (a rule you write), or the model may have misread the request (a number from the model).</li>
+      <li>The <a class="term" href="glossary.html#confidence">confidence</a> of a call, the product of its character probabilities, separates right from wrong calls well: 8% right below 0.5, 97% above 0.99.</li>
+      <li>Asking below 0.99 asked about one call in four and stopped 89 of 102 wrong calls. Always asking stopped all of them at the price of 557 approvals.</li>
+      <li>Confidence barely helps against a confident misunderstanding: <code>less</code> read as plus at 0.996. Catching those took asking about 504 of 557 calls. They need a check on the request, not on the model's doubt.</li>
+    </ul>
+  </div>
+
+  <h2>Check yourself</h2>
+  <details class="check"><summary>A call is written with character probabilities 1.0, 0.9, 0.8 and 1.0. What is its confidence?</summary><p>0.9 × 0.8 = 0.72. The characters the model was sure of do not lower it. The two uncertain ones do.</p></details>
+  <details class="check"><summary>Why is "always ask" not the safest rule in practice?</summary><p>Because a person asked about every action, nearly all of them right, stops reading. Here 455 of the 557 approvals would have been for right calls. Safety depends on the person paying attention when it matters.</p></details>
+  <details class="check"><summary>The agent read "42 less 26" as plus with a confidence of 0.996. Why did the model not show any doubt?</summary><p>It never saw "less" in training, so nothing pulled it towards minus. Its probabilities show doubt between answers it learned, not about meanings it never learned. Confidence measures the first, not the second.</p></details>
+  <details class="check"><summary>An action deletes a database. What threshold should the agent use before running it?</summary><p>None: ask every time, whatever the model's confidence. An action that cannot be undone is decided by the first box of the figure, a rule about the action, before the model's confidence is even looked at.</p></details>
+</main>
+
+<script src="assets/agent.js"></script>
+<script src="assets/ask.js"></script>
+<script src="assets/glossary.js"></script>
+<script src="assets/micro.js"></script>
+<script>
+M.ready(function () {
+  var box = M.$('#w-ask'), A = window.MICRO_ASK;
+  if (!A) { box.appendChild(M.el('p', { text: 'The measurements did not load, so this experiment is unavailable.' })); return; }
+  var calls = A.rows.filter(function (r) { return r[2] !== null; }), wrongAll = calls.filter(function (r) { return !r[4]; }).length;
+  var T = [0, 0.5, 0.8, 0.9, 0.95, 0.98, 0.99, 0.995, 0.998, 0.999, 1.01];
+  var bars = M.el('div'), stat = M.el('p', { class: 'readout' }), list = M.el('div', { class: 'caption' });
+  function show(k) {
+    var t = T[k], asked = 0, through = 0, wrongAsked = 0, slipped = [];
+    calls.forEach(function (r) { var ask = r[3] < t; asked += ask; if (!r[4]) { if (ask) wrongAsked++; else { through++; slipped.push(r); } } });
+    M.bars(bars, [{ label: 'asks the person', p: asked / calls.length, text: asked + ' of ' + calls.length, hl: true },
+                  { label: 'wrong calls run', p: through / calls.length, text: through + ' of ' + wrongAll }], 1);
+    stat.innerHTML = 'Threshold <b>' + (t > 1 ? 'ask always' : t) + '</b>: the person is asked <b>' + asked + '</b> times, and <b>' + (asked - wrongAsked) + '</b> of those are about a call that was right.';
+    var ex = {}; slipped.forEach(function (r) { var w = r[0].split(' ').slice(3, -1).join(' ') || r[0]; ex[w] = (ex[w] || 0) + 1; });
+    var top = Object.keys(ex).sort(function (a, b) { return ex[b] - ex[a]; }).slice(0, 4);
+    list.textContent = through ? 'The wrong calls that still run come mostly from: ' + top.map(function (w) { return '"' + w + '" (' + ex[w] + ')'; }).join(', ') + '.' : 'No wrong call runs without the person being asked.';
+  }
+  var s = M.slider({ label: 'Ask when confidence is below', min: 0, max: T.length - 1, step: 1, value: 6, fmt: function (k) { return T[k] > 1 ? 'always' : T[k]; }, oninput: show });
+  box.appendChild(M.row(s)); box.appendChild(bars); box.appendChild(stat); box.appendChild(list);
+  show(6);
+
+  /* live: the agent of chapter 19 in this tab, writing a call and measuring its own confidence */
+  if (!window.MICRO_AGENT) return;
+  var m = M.loadWeights(window.MICRO_AGENT), D = '0123456789';
+  var FMT = [{ words: ['C ', 'A '] }, { words: ['add', 'sub', 'mul'] }, [' ', 1, 1], [D, 1, 2], [' ', 1, 1], [D, 1, 2], ['\n', 1, 1]];
+  function moves(fmt, st) {
+    var i = st[0], s = st[1], out = {}, mayEnd;
+    while (i < fmt.length) {
+      var part = fmt[i];
+      if (part.words) {
+        part.words.forEach(function (w) { if (w.indexOf(s) === 0 && w.length > s.length && !(w[s.length] in out)) out[w[s.length]] = [i, s + w[s.length]]; });
+        mayEnd = part.words.indexOf(s) >= 0;
+      } else {
+        if (s.length < part[2]) for (var k = 0; k < part[0].length; k++) if (!(part[0][k] in out)) out[part[0][k]] = [i, s + part[0][k]];
+        mayEnd = s.length >= part[1];
+      }
+      if (!mayEnd) break;
+      i++; s = '';
+    }
+    return out;
+  }
+  function sure(q) {
+    var wr = M.writer(m, '\nU ' + q + '\n'), st = [0, ''], line = '', p = 1, steps = [];
+    while (true) {
+      var legal = moves(FMT, st), keys = Object.keys(legal);
+      if (!keys.length) break;
+      var z = wr.logits(), mx = -Infinity, sum = 0, best = null;
+      keys.forEach(function (c) { mx = Math.max(mx, z[m.stoi[c]]); });
+      keys.forEach(function (c) { sum += Math.exp(z[m.stoi[c]] - mx); if (best === null || z[m.stoi[c]] > z[m.stoi[best]]) best = c; });
+      var pc = Math.exp(z[m.stoi[best]] - mx) / sum;
+      p *= pc; steps.push([best, pc]);
+      st = legal[best]; line += best; wr.add(m.stoi[best]);
+      if (line === 'A ') return { call: null, p: p, steps: steps };
+    }
+    return { call: line.slice(2).trim(), p: p, steps: steps };
+  }
+  var input = M.el('input', { type: 'text', value: 'what is 53 x 99?', maxlength: '40', 'aria-label': 'A request', autocapitalize: 'off', autocomplete: 'off', spellcheck: 'false' });
+  var out = M.el('div', { 'aria-live': 'polite' });
+  function go() {
+    var q = input.value.toLowerCase().split('').filter(function (c) { return c in m.stoi && c !== '\n'; }).join('');
+    if (!q) return;
+    var r = sure(q), t = T[s.value];
+    out.textContent = '';
+    var chars = M.el('div', { class: 'chips', style: 'margin:8px 0' });
+    r.steps.slice(2).forEach(function (x) { if (x[0] === '\n') return; chars.appendChild(M.el('span', { style: 'display:inline-flex;flex-direction:column;align-items:center;background:color-mix(in srgb, var(--grad) ' + Math.round(70 * (1 - x[1])) + '%, var(--soft))' }, M.el('b', { text: x[0] === ' ' ? '·' : x[0] }), M.el('small', { style: 'font-size:10px;color:var(--muted)', text: x[1] > 0.995 ? '1' : x[1].toFixed(2).replace(/^0/, '') }))); });
+    if (r.call === null) out.appendChild(M.el('p', { text: 'The model answers without a call (confidence ' + r.p.toFixed(3) + '). There is no action to approve: it will guess.' }));
+    else {
+      out.appendChild(M.el('p', { html: 'The call: <code>' + r.call + '</code>. Confidence <b>' + r.p.toFixed(3) + '</b>. At the threshold above, the harness ' + (r.p < t ? '<b>asks you first</b>.' : '<b>runs it</b> without asking.') }));
+      out.appendChild(chars);
+      out.appendChild(M.el('p', { class: 'caption', text: 'Each character of the call with the probability the model gave it, shaded by its doubt: the redder, the less sure.' }));
+    }
+  }
+  input.addEventListener('keydown', function (e) { if (e.key === 'Enter') go(); });
+  var chips = M.el('div', { class: 'row' });
+  ['what is 53 x 99?', 'what is 42 less 26?', 'what is 53 times 99?', 'what is 12 take away 5?'].forEach(function (e) { chips.appendChild(M.button(e, function () { input.value = e; go(); })); });
+  box.appendChild(M.el('h3', { text: 'Your own request', style: 'margin-top:18px' }));
+  box.appendChild(input); box.appendChild(M.row(M.button('Ask the agent', go, 'go'))); box.appendChild(out); box.appendChild(chips);
+  box.appendChild(M.el('p', { class: 'caption', text: 'The agent of chapter 19 runs in your browser with its weights rounded to 16 bits, so a confidence can differ slightly from the table above.' }));
+  go();
+});
+</script>
+</body>
+</html>

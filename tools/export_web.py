@@ -183,6 +183,20 @@ if os.path.exists(tools):
     with open(os.path.join(ROOT, 'docs', 'assets', 'tools.js'), 'w') as f:
         f.write('window.MICRO_TOOLS = ' + json.dumps({'model': pack(tools), 'catalogue': ch38_skills.CATALOGUE, 'room': ch38_skills.ROOM}) + ';\n')
 
+# ---- chapters 39 to 42: the agent that works through several steps ----
+work = os.path.join(ROOT, 'runs', 'work.npz')
+if os.path.exists(work):
+    with open(os.path.join(ROOT, 'docs', 'assets', 'work.js'), 'w') as f:
+        f.write('window.MICRO_WORK = ' + json.dumps(pack(work)) + ';\n')
+
+# ---- chapter 43: the 600 requests, the call the agent wanted and how sure it was ----
+ask = os.path.join(ROOT, 'runs', 'ask.json')
+if os.path.exists(ask):
+    facts = json.load(open(ask))
+    with open(os.path.join(ROOT, 'docs', 'assets', 'ask.js'), 'w') as f:
+        f.write('window.MICRO_ASK = ' + json.dumps({'rows': [[r['q'], r['want'], r['call'], r['p'], int(r['ok']), int(r['slip'])] for r in facts['rows']],
+                                                   'calib': facts['calib'], 'table': facts['table']}, separators=(',', ':')) + ';\n')
+
 # ---- the packed model of chapter 23: the file itself, byte for byte ----
 tiny = os.path.join(ROOT, 'runs', 'tiny.bin')
 if os.path.exists(tiny):

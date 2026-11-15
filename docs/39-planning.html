@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A plan, then the steps | microAI</title>
+<!-- [social] written by tools/build_site.py -->
+<meta name="description" content="One agent trained for chains of tool calls: one step at a time, or a plan written first. Measured by length, with checkpoints for long jobs that crash.">
+<link rel="canonical" href="https://timothee-aubourg.github.io/microai/39-planning.html">
+<meta property="og:site_name" content="microAI">
+<meta property="og:type" content="article">
+<meta property="og:title" content="A plan, then the steps · microAI">
+<meta property="og:description" content="One agent trained for chains of tool calls: one step at a time, or a plan written first. Measured by length, with checkpoints for long jobs that crash.">
+<meta property="og:url" content="https://timothee-aubourg.github.io/microai/39-planning.html">
+<meta property="og:image" content="https://timothee-aubourg.github.io/microai/cards/39.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="A plan, then the steps · microAI">
+<meta name="twitter:card" content="summary_large_image">
+<!-- [/social] -->
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-ch="39">
+<main>
+  <p class="where">Chapter 39</p>
+  <h1>A plan, then the steps</h1>
+  <p class="question">A job takes four tool calls, and each needs the result of the one before. Should the model decide one call at a time, or write the whole plan first?</p>
+
+  <p>The agent of chapter 19 answers one sum with one tool call. Real jobs take several calls, and the result of one is often an input of the next: find the file, then read it, then change a line in it. This chapter trains an agent for jobs like that and compares the two shapes such an agent can take.</p>
+
+  <div class="def"><span class="kind">Definitions</span>
+    <p><dfn>Step by step</dfn>: the model writes one call, the harness runs it and writes the result into the context, and the model writes the next call having read that result. It is the loop of chapter 15, sometimes called ReAct.</p>
+    <p><dfn>Plan first</dfn>: the model writes every call at once, as a <dfn>plan</dfn>, before any of them runs. The harness then runs the plan without asking the model again. Later steps refer to earlier results by number.</p>
+    <p>A <dfn>checkpoint</dfn> is a saved record of the work done so far, from which a job can resume after a crash instead of starting again.</p>
+  </div>
+
+  <h3>The new agent</h3>
+  <p>Our jobs are chains of sums, worked from left to right like a pocket calculator: <code>what is 23 times 45 minus 17?</code> means (23 × 45) − 17. Each link needs a call, and every call after the first uses the result of the one before. <code>code/ch39_plan.py</code> trains a model of 161,728 weights from random numbers, for 8,000 steps (about 45 minutes on a laptop), on 40,000 conversations of three kinds: chains of one to four links done step by step, the same done with a plan, and conversations with notes, which chapter 42 uses. Some step-by-step conversations include a tool that answers <code>error busy</code>, which chapter 40 uses.</p>
+  <pre class="code" data-src="ch39_plan.py#chain">def chain(rng, links, test=False):
+    """Numbers and operations for one question, and every value along the way, left to right."""
+    while True:
+        nums = [int(x) for x in rng.integers(100, size=links + 1)]
+        if one.held_out(nums[0], nums[1]) != test:   # the first pair of a test question was never trained on
+            continue
+        ops = [list(WORDS)[k] for k in rng.integers(3, size=links)]
+        values, v = [], nums[0]
+        for op, n in zip(ops, nums[1:]):
+            v = TOOLS[WORDS[op]](v, n)
+            values.append(v)
+        if all(abs(x) &lt; 10000 for x in values):      # keep every result to four digits
+            return nums, ops, values
+
+def question(nums, ops, names=None):
+    """The words of the question. With `names`, some numbers are replaced by the name of a note."""
+    show = [names.get(i, str(n)) for i, n in enumerate(nums)] if names else [str(n) for n in nums]
+    return 'what is ' + show[0] + ''.join(f' {op} {x}' for op, x in zip(ops, show[1:])) + '?'
+
+def step_by_step(nums, ops, values, rng=None, busy=0.0):
+    """The conversation, one call at a time: the model sees each result before the next call."""
+    lines, left = [], nums[0]
+    for op, n, v in zip(ops, nums[1:], values):
+        call = f'C {WORDS[op]} {left} {n}'
+        while rng is not None and rng.random() &lt; busy:          # the tool is busy: the same call again
+            lines += [call, f'R {BUSY}']
+        lines += [call, f'R {v}']
+        left = v
+    return lines + [f'A {values[-1]}.']
+
+def plan_first(nums, ops, values):
+    """The conversation with a plan: every call at once, then only the final result."""
+    steps = [f'{WORDS[ops[0]]} {nums[0]} {nums[1]}'] + [f'{WORDS[op]} ${i} {n}' for i, (op, n) in enumerate(zip(ops[1:], nums[2:]), 1)]
+    return ['P ' + ', '.join(steps), f'R {values[-1]}', f'A {values[-1]}.']</pre>
+  <p class="src">From <code>code/ch39_plan.py</code>. <code>step_by_step</code> and <code>plan_first</code> write the same job as the two kinds of conversation the model learns.</p>
+
+  <h3>By hand: one job, both ways</h3>
+  <p>Step by step, the context grows by one call and one result per link:</p>
+  <pre class="code" data-lang="text">U what is 23 times 45 minus 17?
+C mul 23 45
+R 1035
+C sub 1035 17
+R 1018
+A 1018.</pre>
+  <p>Plan first, the model writes one line and is done. <code>$1</code> means "the result of step 1". The harness runs the steps and writes only the final result:</p>
+  <pre class="code" data-lang="text">U what is 23 times 45 minus 17?
+P mul 23 45, sub $1 17
+                    (the harness runs it: 1035, then 1018)</pre>
+  <p>Both give 1018. Step by step took three passes of the model, and by the end its context held 81 characters. Plan first took one pass and 56 characters. The plan is shorter because no result in the middle is written into the context for the model to read.</p>
+
+  <figure class="fig">
+    <svg viewBox="0 0 760 240" role="img" aria-labelledby="f39a">
+      <title id="f39a">Step by step: the model and the tools take turns, three model passes for a job of two links, and the model reads every result. Plan first: one model pass writes the whole plan, the harness runs both steps, and the model reads no intermediate result.</title>
+      <defs><marker id="c39a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
+      <g class="t-small">
+      <text x="16" y="30" class="t-muted">step by step</text>
+      <rect x="16" y="42" width="120" height="34" rx="6" class="bx-fwd"/><text x="76" y="64" text-anchor="middle" class="t-mono">C mul 23 45</text>
+      <rect x="152" y="42" width="100" height="34" rx="6" class="bx-soft"/><text x="202" y="64" text-anchor="middle" class="t-mono">R 1035</text>
+      <rect x="268" y="42" width="140" height="34" rx="6" class="bx-fwd"/><text x="338" y="64" text-anchor="middle" class="t-mono">C sub 1035 17</text>
+      <rect x="424" y="42" width="100" height="34" rx="6" class="bx-soft"/><text x="474" y="64" text-anchor="middle" class="t-mono">R 1018</text>
+      <rect x="540" y="42" width="100" height="34" rx="6" class="bx-fwd"/><text x="590" y="64" text-anchor="middle" class="t-mono">A 1018.</text>
+      <text x="16" y="100" class="t-muted">3 passes of the model; it reads each result before the next call</text>
+      <text x="16" y="150" class="t-muted">plan first</text>
+      <rect x="16" y="162" width="250" height="34" rx="6" class="bx-fwd"/><text x="141" y="184" text-anchor="middle" class="t-mono">P mul 23 45, sub $1 17</text>
+      <rect x="282" y="162" width="200" height="34" rx="6" class="bx-soft"/><text x="382" y="184" text-anchor="middle">harness: 1035, then 1018</text>
+      <rect x="498" y="162" width="100" height="34" rx="6" class="bx"/><text x="548" y="184" text-anchor="middle" class="t-mono">R 1018</text>
+      <text x="16" y="220" class="t-muted">1 pass; the plan is fixed before anything runs</text>
+      </g>
+    </svg>
+    <figcaption><b>Two shapes for the same job.</b> Blue: written by the model. Grey: done by the harness.</figcaption>
+  </figure>
+
+  <h2>Measured, by length of job</h2>
+  <p>200 questions for each length, from one to four links, with a first pair of numbers the model never saw in training. Both ways use the same model, chosen by the first letter the harness writes for it.</p>
+  <pre class="code" data-src="ch39_plan.py#react">def run_steps(run, prompt, max_calls=8, on_result=None):
+    """Step by step: the model writes a call, the harness runs it and writes the result, and again.
+    Returns the final number (or None), the calls made, and how many characters the model read."""
+    cache = run.new_cache()
+    logits, calls = feed(run, cache, prompt), []
+    while cache['pos'] &lt; run.block - 24 and len(calls) &lt; max_calls:
+        role, logits = write_line(run, cache, logits, fmt=[['C ', 'A ']])
+        if role == 'A ':
+            text, _ = write_line(run, cache, logits)
+            return number(text.rstrip('.\n')), calls, cache['pos']
+        call, logits = write_line(run, cache, logits, fmt=CALL)
+        name, a, b = call.split()
+        result = on_result(name, int(a), int(b)) if on_result else tool(name, int(a), int(b))
+        calls.append((call.strip(), result))
+        logits = feed(run, cache, f'R {result}\n')                     # the result is now in the context
+    return None, calls, cache['pos']</pre>
+  <pre class="code" data-src="ch39_plan.py#plan">def run_plan(run, prompt, on_result=None):
+    """Plan first: the model writes every call on one line, without seeing any result.
+    The harness then runs the steps in order, putting each result where the plan says $1, $2 ..."""
+    cache = run.new_cache()
+    logits = feed(run, cache, prompt + 'P ')                           # the harness asks for a plan
+    plan, results = [], []
+    while True:
+        step, logits = write_line(run, cache, logits, fmt=STEP)
+        plan.append(step.rstrip(', \n'))
+        if not step.endswith(', ') or len(plan) &gt; 8:            # the line is over: the plan is complete
+            break
+    for step in plan:
+        name, a, b = step.split()
+        a = results[int(a[1:]) - 1] if a.startswith('$') and 0 &lt; int(a[1:] or 0) &lt;= len(results) else number(a)
+        if a is None:
+            return None, plan, cache['pos']                            # the plan points at a step that does not exist
+        r = on_result(name, a, int(b)) if on_result else tool(name, a, int(b))
+        results.append(number(r))
+        if results[-1] is None:
+            return None, plan, cache['pos']
+    return results[-1], plan, cache['pos']                              # the model needs no second pass</pre>
+  <div class="scroll"><table class="mini">
+    <tr><th>Links</th><th>Step by step: right, of 200</th><th>characters read</th><th>passes</th><th>Plan first: right, of 200</th><th>characters read</th><th>passes</th></tr>
+    <tr><td>1</td><td class="mono">200</td><td class="mono">48</td><td class="mono">2</td><td class="mono">200</td><td class="mono">35</td><td class="mono">1</td></tr>
+    <tr><td>2</td><td class="mono">200</td><td class="mono">76</td><td class="mono">3</td><td class="mono">199</td><td class="mono">55</td><td class="mono">1</td></tr>
+    <tr><td>3</td><td class="mono">199</td><td class="mono">103</td><td class="mono">4</td><td class="mono">200</td><td class="mono">74</td><td class="mono">1</td></tr>
+    <tr><td>4</td><td class="mono">198</td><td class="mono">131</td><td class="mono">5</td><td class="mono">200</td><td class="mono">93</td><td class="mono">1</td></tr>
+  </table></div>
+  <ul>
+    <li><strong>Both ways are almost always right:</strong> 797 and 799 of 800. The agent learned both shapes equally well, so on these jobs the difference is cost, not accuracy.</li>
+    <li><strong>Passes.</strong> Step by step needs one pass per link and one for the answer: five for a chain of four. Plan first always needs one. At full size each pass is a request to the model, with its wait and its price.</li>
+    <li><strong>Reading.</strong> Each result goes into the context and is read again by every later pass (chapter 16). For four links, step by step ends at 131 characters and plan first at 93. The window is 160: a chain of five links, at about 28 characters per link, would need about 159 of them step by step.</li>
+  </ul>
+
+  <h3>Why long jobs fail more often</h3>
+  <p>If each step is right with probability <i>p</i>, and the steps fail independently, a job of <i>n</i> steps is right with probability <i>p</i><sup><i>n</i></sup>. At <i>p</i> = 0.98, ten steps give 0.82 and fifty give 0.36. Our agent's steps are right far more often than 0.98: only 3 of 800 step-by-step jobs failed, so length barely shows here. It shows in chapter 40, where the tool fails one call in five.</p>
+
+  <h2>What a plan cannot do</h2>
+  <p>A plan is written before any result exists. That is its strength and its limit. Our chains never need to look at a result to know the next step: the words say it all. Many real jobs do. "Find the test that fails and fix it" cannot be planned call by call, because what to read second depends on what the first search returned. Only the step-by-step loop can react to a result.</p>
+  <p>Real agents mix the two. They write a short plan, a list of steps in words, keep it in the context, and work through it step by step, crossing steps off and rewriting the rest when a result changes the picture. That is re-planning. Our model was not trained to do it, so it is described here, not measured.</p>
+
+  <h2>Long jobs, and crashes</h2>
+  <p>A job of hours can be interrupted: the machine restarts, the session times out, a process is killed. Make a job of 20 questions in a row, and before each one let the process crash with a small probability. Without a checkpoint the job starts again from the first question. With one, the answers so far are saved and the job resumes where it stopped.</p>
+  <pre class="code" data-src="ch39_plan.py#checkpoint">def long_job(run, questions, crash, rng, checkpoint):
+    """A job of many questions in a row. Before each one the process may crash (probability `crash`).
+    Without a checkpoint the job starts again from the first question; with one, from where it stopped."""
+    done, passes, restarts = [], 0, 0                                  # `done` is what a checkpoint would save
+    while len(done) &lt; len(questions):
+        if rng.random() &lt; crash:
+            restarts += 1
+            if not checkpoint:
+                done = []                                              # everything since the start is lost
+            continue
+        nums, ops, values = questions[len(done)]
+        got, calls, _ = run_steps(run, prompt_for(nums, ops))
+        passes += len(calls) + 1
+        done.append(got == values[-1])
+    return sum(done), passes, restarts</pre>
+  <div class="scroll"><table class="mini">
+    <tr><th>Chance of a crash before each question</th><th>Model passes, no checkpoint</th><th>Model passes, with a checkpoint</th></tr>
+    <tr><td>0.02</td><td class="mono">64</td><td class="mono">55</td></tr>
+    <tr><td>0.05</td><td class="mono">103</td><td class="mono">55</td></tr>
+    <tr><td>0.10</td><td class="mono">164</td><td class="mono">55</td></tr>
+  </table></div>
+  <p>Without any crash the job takes 55 passes. With a checkpoint it still takes 55: a crash before a question loses nothing, because the answers so far are saved. Without one, every crash throws the work away, and the longer the job runs the more chances it has to crash again. At one crash in ten questions the job took 164 passes, three times the work. Each row is the average of ten runs.</p>
+
+  <section class="bench" id="w-plan">
+    <h3>One job, both ways</h3>
+    <p class="try"><b>Try this.</b> Make a job of one link, then of four, and compare what each way reads and how many passes it takes. Then type a chain of your own, left to right.</p>
+  </section>
+  <p><strong>What you should have seen.</strong> For one link, step by step reads 48 characters in two passes and plan first 35 in one. Each link adds about 28 characters and one pass to step by step, and about 19 characters and no pass to the plan, so at four links it is about 131 against 93 characters and five passes against one. The plan line uses <code>$1</code>, <code>$2</code> … for the result of the step before. Both columns are right almost every time.</p>
+
+  <h2>At full size</h2>
+  <ul>
+    <li><strong>The step-by-step loop is the default.</strong> Coding agents call the model again after every tool result, because their tasks need to react to what they find.</li>
+    <li><strong>Plans live in the context as text.</strong> A coding agent can keep a to-do list, write it at the start of a large task, and tick items off. The list keeps a long job on course and shows the person what is happening. Unlike our plan, it is a guide for the model, not a program for the harness.</li>
+    <li><strong>Plan-then-execute is a workflow.</strong> When the steps are known in advance, writing them once and running them in code saves passes and context. Chapter 41 compares these choices.</li>
+    <li><strong>Long jobs checkpoint to files.</strong> Agents that work for hours write their progress to disk: notes, a to-do file, commits in version control. A new session reads them and continues, which is also how they survive the compaction of chapter 16.</li>
+  </ul>
+
+  <h2>Build it</h2>
+  <pre class="code" data-lang="text">python code/ch39_plan.py --train   # about 45 minutes: the agent of chapters 39 to 42
+python code/ch39_plan.py           # the measurements of this chapter, about 3 minutes
+python code/ch39_plan.py "what is 23 times 45 minus 17?"</pre>
+
+  <div class="note">
+    <h3>What this chapter glossed over</h3>
+    <p><strong>Our plans are easy.</strong> Every chain says its steps in order, and every step after the first uses the result just before it. Real plans branch, and steps can use any earlier result, or none.</p>
+    <p><strong>The harness chooses the shape.</strong> It writes the first letter, C or P. A real agent decides for itself whether to plan.</p>
+    <p><strong>Crashes are coin flips before each question,</strong> and a crash costs nothing but the lost work.</p>
+    <p><strong>One run, no sampling,</strong> 200 questions per length.</p>
+  </div>
+
+  <div class="recap">
+    <h3>In short</h3>
+    <ul>
+      <li><a class="term" href="glossary.html#step-by-step">Step by step</a>, the model reads each result before the next call. <a class="term" href="glossary.html#plan">Plan first</a>, it writes every call at once and code runs them.</li>
+      <li>On chains of one to four links both ways were right 797 and 799 times in 800. For four links the plan took one pass instead of five, and 93 characters of context instead of 131.</li>
+      <li>A plan cannot react to a result it has not seen. Jobs whose next step depends on what came back need the loop, or re-planning.</li>
+      <li>Errors multiply over a long job: a step right with probability <i>p</i> gives a job of <i>n</i> steps right with probability <i>p</i><sup><i>n</i></sup>.</li>
+      <li>A <a class="term" href="glossary.html#checkpoint">checkpoint</a> makes a crash cost a restart, not the work so far: 55 passes against 164 at one crash in ten questions.</li>
+    </ul>
+  </div>
+
+  <h2>Check yourself</h2>
+  <details class="check"><summary>Step by step, a job of three links takes how many passes of the model? And plan first?</summary><p>Four step by step: one per call and one for the answer. One plan first: the model writes the plan and the harness does the rest.</p></details>
+  <details class="check"><summary>Each step of a job is right with probability 0.95. How likely is a job of five steps to be right?</summary><p>0.95⁵ ≈ 0.77, if the steps fail independently. Long jobs need steps that are much more reliable than they look one at a time.</p></details>
+  <details class="check"><summary>"Search the documentation, then answer from what you find." Can this be written as a plan before the first step?</summary><p>Only the first step. What to read next and what to answer depend on what the search returns. The rest has to be decided step by step, or re-planned after the search.</p></details>
+  <details class="check"><summary>A job of 20 steps crashes at step 15. What does a checkpoint save, and what does it need to record?</summary><p>It saves redoing steps 1 to 14. It needs to record enough to resume: which steps are done and their results, written somewhere that survives the crash.</p></details>
+</main>
+
+<script src="assets/work.js"></script>
+<script src="assets/glossary.js"></script>
+<script src="assets/micro.js"></script>
+<script src="assets/workrun.js"></script>
+<script>
+M.ready(function () {
+  var box = M.$('#w-plan');
+  if (!window.MICRO_WORK || !M.Work) { box.appendChild(M.el('p', { text: 'The trained agent did not load, so this experiment is unavailable.' })); return; }
+  var W = new M.Work(M.loadWeights(window.MICRO_WORK)), presses = 0;
+  var input = M.el('input', { type: 'text', maxlength: '60', 'aria-label': 'A chain of sums', autocapitalize: 'off', autocomplete: 'off', spellcheck: 'false' });
+  var cols = M.el('div', { class: 'col2' });
+  function pane(title, text, foot) {
+    return M.el('div', null, M.el('p', { class: 'caption', style: 'margin:0 0 4px', html: '<b>' + title + '</b>' }),
+      M.el('div', { style: 'font-family:var(--mono);font-size:14px;white-space:pre-wrap;overflow-wrap:anywhere;border-left:4px solid var(--line);padding-left:10px;min-height:120px', text: text }),
+      M.el('p', { class: 'readout', html: foot }));
+  }
+  function truth(q) {
+    var t = q.replace('?', '').split(' ').slice(2), v = +t[0], OPS = { plus: 'add', minus: 'sub', times: 'mul' };
+    for (var i = 1; i + 1 < t.length; i += 2) { if (!(t[i] in OPS)) return null; v = M.Work.TOOLS[OPS[t[i]]](v, +t[i + 1]); }
+    return isNaN(v) ? null : v;
+  }
+  function go() {
+    var q = input.value.toLowerCase().split('').filter(function (c) { return c in W.m.stoi && c !== '\n'; }).join('');
+    if (!q) return;
+    var want = truth(q), a = W.steps('\nU ' + q + '\n'), b = W.plan('\nU ' + q + '\n');
+    var mark = function (x) { return want === null ? '' : x === want ? ' · <b>right</b>' : ' · <b>wrong</b>'; };
+    cols.textContent = '';
+    cols.appendChild(pane('Step by step', a.text.replace(/^\n/, ''), a.read + ' characters read · ' + (a.calls.length + 1) + ' passes' + mark(a.answer)));
+    cols.appendChild(pane('Plan first', b.text.replace(/^\n/, '') + '\n(the harness runs it: ' + b.results.join(', ') + ')', b.read + ' characters read · 1 pass' + mark(b.answer)));
+  }
+  function make(links) { var c = M.Work.chain(M.rng(71 * (presses++) + links), links); input.value = c.q; go(); }
+  input.addEventListener('keydown', function (e) { if (e.key === 'Enter') go(); });
+  box.appendChild(M.row(M.button('One link', function () { make(1); }), M.button('Two', function () { make(2); }), M.button('Three', function () { make(3); }), M.button('Four', function () { make(4); })));
+  box.appendChild(input); box.appendChild(M.row(M.button('Run both ways', go, 'go')));
+  box.appendChild(cols);
+  box.appendChild(M.el('p', { class: 'caption', text: 'The agent of this chapter runs in your browser, its weights rounded to 16 bits. Numbers in the question must be below 100, and every value along the way below 10,000.' }));
+  input.value = 'what is 23 times 45 minus 17?'; go();
+});
+</script>
+</body>
+</html>
