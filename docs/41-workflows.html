@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A workflow or an agent? | microAI</title>
+<!-- [social] written by tools/build_site.py -->
+<meta name="description" content="A parser, a one-pass workflow, an agent and a route on the same 300 requests: right answers, model passes and time.">
+<link rel="canonical" href="https://timothee-aubourg.github.io/microai/41-workflows.html">
+<meta property="og:site_name" content="microAI">
+<meta property="og:type" content="article">
+<meta property="og:title" content="A workflow or an agent? · microAI">
+<meta property="og:description" content="A parser, a one-pass workflow, an agent and a route on the same 300 requests: right answers, model passes and time.">
+<meta property="og:url" content="https://timothee-aubourg.github.io/microai/41-workflows.html">
+<meta property="og:image" content="https://timothee-aubourg.github.io/microai/cards/41.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="A workflow or an agent? · microAI">
+<meta name="twitter:card" content="summary_large_image">
+<!-- [/social] -->
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-ch="41">
+<main>
+  <p class="where">Chapter 41</p>
+  <h1>A workflow or an agent?</h1>
+  <p class="question">Some requests need a model to decide each step. Many do not. How do you tell them apart, and what does a wrong choice cost?</p>
+
+  <p>An agent decides its own path: which tool to call, in what order, and when to stop. That freedom is what the loop of chapter 15 buys. It is paid for on every request, in model passes, in time, and in the chance that one of those passes goes wrong. Many requests do not need the freedom. Their path is the same every time, and plain code can follow it.</p>
+
+  <div class="def"><span class="kind">Definitions</span>
+    <p>A <dfn>workflow</dfn> is a path fixed in code. It may call a model at fixed places, for example to read a request or to write a plan, but the code decides what happens next.</p>
+    <p><dfn>Routing</dfn> sends each request down one of several paths, chosen by a rule or a small model that looks at the request first.</p>
+  </div>
+  <p>Chapter 39 already built one workflow without naming it. "Plan, then code" calls the model once to write the plan, and from then on code runs every step. The model fills in one box of a path that does not change. "Step by step" is an agent: after each result, the model decides what comes next.</p>
+
+  <h3>By hand: one request, four ways</h3>
+  <p>Take <code>what is 23 tims 45?</code>, with a slip in it.</p>
+  <ul>
+    <li><strong>Code only.</strong> A parser written by hand expects <code>what is &lt;n&gt; plus|minus|times &lt;n&gt; …?</code>. <code>tims</code> is none of the three words, so the parser fails and the service says it cannot help. No model was used.</li>
+    <li><strong>Plan, then code.</strong> The model writes a plan in one pass, whatever the wording, and code runs it. Whether the answer is right depends on whether the model read <code>tims</code> as times.</li>
+    <li><strong>Agent.</strong> The model writes a call, reads the result, then answers: two passes for one sum.</li>
+    <li><strong>Route.</strong> The parser tries first. It fails, so the request goes to the agent. For <code>what is 23 times 45?</code> the parser would have succeeded, and no model would have run.</li>
+  </ul>
+
+  <figure class="fig">
+    <svg viewBox="0 0 760 300" role="img" aria-labelledby="f41a">
+      <title id="f41a">Four ways to serve a request, from fixed to free. Code only: a parser and the tools, no model. Plan, then code: one model pass writes a plan, code runs it. Agent: the model and the tools take turns until the model answers. Route: a parser tries first; what it cannot read goes to the agent.</title>
+      <defs><marker id="c41a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
+      <g class="t-small">
+      <text x="16" y="40" class="t-muted">code only</text>
+      <rect x="170" y="20" width="120" height="32" rx="6" class="bx"/><text x="230" y="41" text-anchor="middle">parser</text>
+      <rect x="320" y="20" width="120" height="32" rx="6" class="bx-soft"/><text x="380" y="41" text-anchor="middle">tools</text>
+      <text x="16" y="110" class="t-muted">plan, then code</text>
+      <rect x="170" y="90" width="120" height="32" rx="6" class="bx-fwd"/><text x="230" y="111" text-anchor="middle">model: a plan</text>
+      <rect x="320" y="90" width="120" height="32" rx="6" class="bx-soft"/><text x="380" y="111" text-anchor="middle">code runs it</text>
+      <text x="16" y="180" class="t-muted">agent</text>
+      <rect x="170" y="160" width="120" height="32" rx="6" class="bx-fwd"/><text x="230" y="181" text-anchor="middle">model: a call</text>
+      <rect x="320" y="160" width="120" height="32" rx="6" class="bx-soft"/><text x="380" y="181" text-anchor="middle">tool: a result</text>
+      <path d="M380 194 L380 212 L230 212 L230 196" class="ln" fill="none" marker-end="url(#c41a)"/><text x="460" y="214" class="t-muted">again, until it answers</text>
+      <text x="16" y="262" class="t-muted">route</text>
+      <rect x="170" y="242" width="120" height="32" rx="6" class="bx"/><text x="230" y="263" text-anchor="middle">parser</text>
+      <text x="300" y="236" class="t-muted">read it</text><text x="300" y="300" class="t-muted">could not</text>
+      <rect x="380" y="232" width="120" height="26" rx="6" class="bx-soft"/><text x="440" y="250" text-anchor="middle">tools</text>
+      <rect x="380" y="266" width="120" height="26" rx="6" class="bx-fwd"/><text x="440" y="284" text-anchor="middle">agent</text>
+      <text x="560" y="40" class="t-muted">fixed, cheap</text><text x="560" y="262" class="t-muted">fixed where it can be</text><text x="560" y="181" class="t-muted">free, costly</text>
+      </g>
+      <g class="ln"><line x1="292" y1="36" x2="316" y2="36" marker-end="url(#c41a)"/><line x1="292" y1="106" x2="316" y2="106" marker-end="url(#c41a)"/><line x1="292" y1="176" x2="316" y2="176" marker-end="url(#c41a)"/>
+      <line x1="292" y1="254" x2="376" y2="245" marker-end="url(#c41a)"/><line x1="292" y1="262" x2="376" y2="279" marker-end="url(#c41a)"/></g>
+    </svg>
+    <figcaption><b>From fixed to free.</b> Blue boxes are passes of the model. The further down, the more the model decides and the more it costs.</figcaption>
+  </figure>
+
+  <h2>300 requests, four ways</h2>
+  <p><code>code/ch41_workflow.py</code> serves one mix of 300 requests, with number pairs no model saw in training: 150 single sums worded as usual, 90 chains of two to four links, and 60 single sums with a slip in the operation word, the slips of chapter 43. The model is the agent of chapter 39.</p>
+  <pre class="code" data-src="ch41_workflow.py#code">def code_only(q):
+    """A hand-written parser: the expected shape, or nothing. Returns (answer or None, model passes)."""
+    m = SHAPE.match(q)
+    if not m:
+        return None, 0                                     # "sorry, i only understand sums"
+    v, rest = int(m.group(1)), m.group(2).split()
+    for op, n in zip(rest[::2], rest[1::2]):
+        v = w.TOOLS[w.WORDS[op]](v, int(n))                # the code does the work itself
+    return v, 0
+
+def agent(run, q):
+    got, calls, _ = w.run_steps(run, '\nU ' + q + '\n')
+    return got, len(calls) + 1
+
+def plan_then_code(run, q):
+    got, _, _ = w.run_plan(run, '\nU ' + q + '\n')
+    return got, 1
+
+def route(run, q):
+    """The parser first; only what it cannot read goes to the agent."""
+    got, passes = code_only(q)
+    return (got, passes) if SHAPE.match(q) else agent(run, q)</pre>
+  <div class="scroll"><table class="mini">
+    <tr><th>Way</th><th>One sum, of 150</th><th>Chain, of 90</th><th>Slip, of 60</th><th>All, of 300</th><th>Model passes per request</th><th>Time per request</th></tr>
+    <tr><td>Code only</td><td class="mono">150</td><td class="mono">90</td><td class="mono">0</td><td class="mono">240</td><td class="mono">0.00</td><td class="mono">under 0.01 ms</td></tr>
+    <tr><td>Plan, then code</td><td class="mono">150</td><td class="mono">90</td><td class="mono">26</td><td class="mono">266</td><td class="mono">1.00</td><td class="mono">16.2 ms</td></tr>
+    <tr><td>Agent</td><td class="mono">150</td><td class="mono">90</td><td class="mono">25</td><td class="mono">265</td><td class="mono">2.65</td><td class="mono">23.1 ms</td></tr>
+    <tr><td>Route</td><td class="mono">150</td><td class="mono">90</td><td class="mono">25</td><td class="mono">265</td><td class="mono">0.45</td><td class="mono">4.59 ms</td></tr>
+  </table></div>
+  <p class="src">Times measured on the laptop-class machine that ran the script. The parser takes microseconds; a pass of our small model takes milliseconds; a pass of a large model takes from a fraction of a second to many seconds.</p>
+  <ul>
+    <li><strong>Code alone was right on every request it could read:</strong> all 240, with no model and in microseconds. The 60 slips got nothing.</li>
+    <li><strong>The workflow and the agent were equally right:</strong> 266 and 265. Both answered all 240 ordinary requests and about 26 of the 60 slips. But the agent took 2.65 passes and 23 ms per request, the workflow 1 pass and 16 ms. On these requests the agent's freedom bought nothing, because every step was known from the words.</li>
+    <li><strong>The route matched the agent's 265 with 0.45 passes per request</strong> and a fifth of its time, because 240 of the 300 requests never reached the model.</li>
+    <li><strong>No way did well on slips:</strong> under half. That is the model's limit here, words it never saw (chapter 43), whichever way it is called.</li>
+  </ul>
+
+  <h2>Which one, when</h2>
+  <p>The table turns into four questions to ask about any job before building an agent for it.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>If the requests…</th><th>use</th><th>because</th></tr>
+    <tr><td>have a shape code can read</td><td>code</td><td>exact, free and instant on everything it covers</td></tr>
+    <tr><td>need understanding, but always the same steps</td><td>a workflow with model steps</td><td>one pass where the reading happens, code for the rest</td></tr>
+    <tr><td>need a number or order of steps known only along the way</td><td>an agent</td><td>only the loop can react to a result it has not seen yet</td></tr>
+    <tr><td>are mostly one kind, with a tail of odd ones</td><td>a route</td><td>the cheap path for the many, the agent for the few</td></tr>
+  </table></div>
+  <p>Our chains do not need an agent. Their steps are all known in advance from the words. An agent is needed when the next step depends on a result: search, read what came back, decide where to look next. Chapter 39 discusses that limit of a plan.</p>
+
+  <section class="bench" id="w-flow">
+    <h3>Four ways, on your own request</h3>
+    <p class="try"><b>Try this.</b> Pick a kind of request and serve it all four ways. Then write one with a slip of your own, and one the parser can read, and compare the model passes.</p>
+  </section>
+  <p><strong>What you should have seen.</strong> A single sum or a chain is answered by the parser with no model pass, and the route does the same. The agent takes one pass per call plus one, and the workflow one pass in all. Slips are where the model is needed, and where it is unreliable. <code>what is 79 tims 4?</code> was read as times and answered right. <code>what is 65 take away 59?</code> was read as times too. <code>what is 22 x 27?</code> sent the agent into four calls of its own invention, five passes for a wrong answer.</p>
+
+  <h2>At full size</h2>
+  <ul>
+    <li><strong>Start with the simplest thing that works.</strong> Builders of large agents give the same advice: a single model call with good context first, then a fixed workflow, and an agent only when the steps cannot be written down in advance.</li>
+    <li><strong>The common workflows have names.</strong> A chain of model calls, each one working on the output of the last. Routing to specialised paths. Running independent parts in parallel and joining the results (chapter 32). A model that writes and a second one that checks, in a loop with a fixed number of rounds (chapter 25).</li>
+    <li><strong>The costs scale.</strong> A large model pass costs money and seconds where ours cost a few milliseconds. An agent that takes 20 passes for a job that one workflow pass could do is 20 times slower and dearer.</li>
+    <li><strong>Agents earn their cost on open tasks.</strong> Fixing a bug, researching a question, working through a website: the number of steps is unknown and each step depends on what the last one found. There the loop is the only thing that works.</li>
+    <li><strong>A router is usually a classifier.</strong> At full size the first stop is rarely a hand-written parser. It is a small model or a cheap call that labels the request, like the guard of chapter 28.</li>
+  </ul>
+
+  <h2>Build it</h2>
+  <pre class="code" data-lang="text">python code/ch41_workflow.py   # 300 requests, four ways, about 1 minute; needs  python code/ch39_plan.py --train</pre>
+
+  <div class="note">
+    <h3>What this chapter glossed over</h3>
+    <p><strong>The parser is generous to code.</strong> Our requests come in one grammar, and a regular expression covers it exactly. Real requests are rarely that tidy. The "code only" column is what code gets when the shape is known.</p>
+    <p><strong>The slips are few and invented.</strong> 60 requests, with the misspellings and synonyms of chapter 43.</p>
+    <p><strong>Time is measured on one machine,</strong> for a model of a few hundred thousand weights. The ratios between ways matter more than the milliseconds.</p>
+    <p><strong>One run, no sampling.</strong> The model chose its most likely character at every step.</p>
+  </div>
+
+  <div class="recap">
+    <h3>In short</h3>
+    <ul>
+      <li>A <a class="term" href="glossary.html#workflow">workflow</a> is a path fixed in code, with model calls at fixed places. An agent chooses its own path, one pass after another.</li>
+      <li>On 300 requests whose steps were all known from the words, the agent was no more accurate than a one-pass workflow (265 against 266) and took 2.65 passes against 1.</li>
+      <li>Code alone was right on all 240 requests it could read, and free.</li>
+      <li><a class="term" href="glossary.html#routing">Routing</a> gave the agent's accuracy for 0.45 passes per request: code for the many, the model for the odd ones.</li>
+      <li>Use an agent when the next step depends on a result. Until then, a workflow is cheaper and as good.</li>
+    </ul>
+  </div>
+
+  <h2>Check yourself</h2>
+  <details class="check"><summary>"Plan, then code" calls the model. Why is it a workflow and not an agent?</summary><p>Because the model is called once, at a fixed place, and code decides everything after that. An agent is called again after each result and decides what comes next.</p></details>
+  <details class="check"><summary>90% of a service's requests have a fixed shape. What does routing them to code save, compared with sending everything to an agent?</summary><p>Every model pass for those 90%: their cost, their time and their mistakes. Only the 10% the parser cannot read pay for the model.</p></details>
+  <details class="check"><summary>Name a task where a plan cannot be written before the first step.</summary><p>Any task where the next step depends on a result: searching and reading until something is found, debugging until a test passes, following links. The number and order of steps are not known in advance, so a loop has to decide them.</p></details>
+  <details class="check"><summary>A route sends a request to code, and the code answers it wrongly. How could that happen?</summary><p>The parser accepted a request it misread: its rule matched, but the meaning was different from what the rule assumed. A router is only as good as its test of what it can handle.</p></details>
+</main>
+
+<script src="assets/work.js"></script>
+<script src="assets/glossary.js"></script>
+<script src="assets/micro.js"></script>
+<script src="assets/workrun.js"></script>
+<script>
+M.ready(function () {
+  var box = M.$('#w-flow');
+  if (!window.MICRO_WORK || !M.Work) { box.appendChild(M.el('p', { text: 'The trained agent did not load, so this experiment is unavailable.' })); return; }
+  var W = new M.Work(M.loadWeights(window.MICRO_WORK)), WORDS = { plus: 'add', minus: 'sub', times: 'mul' };
+  var SLIPS = { times: ['tims', 'multiplied by', 'x'], plus: ['pluss', 'and', 'add'], minus: ['minsu', 'less', 'take away'] };
+  var SHAPE = /^what is (\d+)((?: (?:plus|minus|times) \d+)+)\?$/;
+  function code(q) {
+    var m = SHAPE.exec(q);
+    if (!m) return { answer: null, passes: 0, note: 'the parser could not read it' };
+    var v = +m[1], rest = m[2].trim().split(' ');
+    for (var i = 0; i < rest.length; i += 2) v = M.Work.TOOLS[WORDS[rest[i]]](v, +rest[i + 1]);
+    return { answer: v, passes: 0, note: 'the parser read it; no model' };
+  }
+  var WAYS = {
+    'Code only': function (q) { return code(q); },
+    'Plan, then code': function (q) { var r = W.plan('\nU ' + q + '\n'); return { answer: r.answer, passes: 1, note: 'plan: ' + r.plan.join(', ') }; },
+    'Agent': function (q) { var r = W.steps('\nU ' + q + '\n'); return { answer: r.answer, passes: r.calls.length + 1, note: r.calls.map(function (c) { return c[0] + ' → ' + c[1]; }).join('; ') || 'no call' }; },
+    'Route': function (q) { var c = code(q); if (SHAPE.test(q)) return c; var r = WAYS['Agent'](q); r.note = 'parser could not read it; agent: ' + r.note; return r; }
+  };
+  var input = M.el('input', { type: 'text', maxlength: '60', 'aria-label': 'A request', autocapitalize: 'off', autocomplete: 'off', spellcheck: 'false' });
+  var out = M.el('div', { 'aria-live': 'polite' }), presses = 0;
+  function truth(q) {                       // the right answer, read with the slips undone
+    var t = q;
+    Object.keys(SLIPS).forEach(function (op) { SLIPS[op].forEach(function (s) { t = t.replace(' ' + s + ' ', ' ' + op + ' '); }); });
+    var c = code(t); return c.answer;
+  }
+  function go() {
+    var q = input.value.toLowerCase().split('').filter(function (c) { return c in W.m.stoi && c !== '\n'; }).join('');
+    if (!q) return;
+    var want = truth(q);
+    out.textContent = '';
+    Object.keys(WAYS).forEach(function (name) {
+      var t0 = performance.now(), r = WAYS[name](q), ms = performance.now() - t0;
+      var ok = r.answer !== null && r.answer === want;
+      out.appendChild(M.el('div', { style: 'border-left:4px solid ' + M.css(r.answer === null ? '--line' : ok ? '--ok' : '--grad') + ';padding:4px 0 4px 10px;margin:8px 0' },
+        M.el('div', { html: '<b>' + name + '</b>: ' + (r.answer === null ? 'no answer' : r.answer) + (r.answer === null ? '' : ok ? ' (right)' : ' (wrong)') }),
+        M.el('div', { class: 'caption', style: 'margin:0', text: r.passes + (r.passes === 1 ? ' model pass' : ' model passes') + ' · ' + ms.toFixed(1) + ' ms · ' + r.note })));
+    });
+  }
+  function kind(k) {
+    var rnd = M.rng(97 * (presses++) + 3), c = M.Work.chain(rnd, k === 'chain' ? 2 + Math.floor(rnd() * 3) : 1), q = c.q;
+    if (k === 'slip') { var op = c.ops[0], s = SLIPS[op][Math.floor(rnd() * 3)]; q = q.replace(' ' + op + ' ', ' ' + s + ' '); }
+    input.value = q; go();
+  }
+  input.addEventListener('keydown', function (e) { if (e.key === 'Enter') go(); });
+  box.appendChild(M.row(M.button('One sum', function () { kind('one'); }), M.button('A chain', function () { kind('chain'); }), M.button('A slip', function () { kind('slip'); })));
+  box.appendChild(input); box.appendChild(M.row(M.button('Serve it four ways', go, 'go')));
+  box.appendChild(out);
+  box.appendChild(M.el('p', { class: 'caption', text: 'The agent of chapter 39 runs in your browser. Green: the right answer. Raspberry: a wrong one. Grey: no answer. Times are for this device.' }));
+  input.value = 'what is 23 tims 45?'; go();
+});
+</script>
+</body>
+</html>

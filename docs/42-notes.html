@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Memory that lasts | microAI</title>
+<!-- [social] written by tools/build_site.py -->
+<meta name="description" content="Notes kept between sessions, four ways: none, every note, the latest of each, the latest the question names. What goes stale, and what distracts.">
+<link rel="canonical" href="https://timothee-aubourg.github.io/microai/42-notes.html">
+<meta property="og:site_name" content="microAI">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Memory that lasts · microAI">
+<meta property="og:description" content="Notes kept between sessions, four ways: none, every note, the latest of each, the latest the question names. What goes stale, and what distracts.">
+<meta property="og:url" content="https://timothee-aubourg.github.io/microai/42-notes.html">
+<meta property="og:image" content="https://timothee-aubourg.github.io/microai/cards/42.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Memory that lasts · microAI">
+<meta name="twitter:card" content="summary_large_image">
+<!-- [/social] -->
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-ch="42">
+<main>
+  <p class="where">Chapter 42</p>
+  <h1>Memory that lasts</h1>
+  <p class="question">The model forgets everything when a session ends. What should the harness write down, and what should it put back?</p>
+
+  <p>A model's weights do not change while you use it, and each session starts with an empty context (chapters 11 and 16). Whatever an assistant "remembers" about you from last week, a program wrote down and put back into the context. So memory is two decisions for the harness: what to keep, and what to show the model each time.</p>
+
+  <div class="def"><span class="kind">Definitions</span>
+    <p><dfn>Long-term memory</dfn> is what an agent keeps between sessions, outside the model: notes in a file or a database, put back into the context when they are needed.</p>
+    <p>A <dfn>stale note</dfn> is one whose fact has since changed. "n is 42", written before the person said n is now 50.</p>
+  </div>
+
+  <h3>By hand: seven sessions</h3>
+  <p>The agent of chapter 39 was trained to read notes: lines <code>M n is 42</code> before the question, which let the question say <code>n</code> instead of a number. Here are seven sessions with one person:</p>
+  <pre class="code" data-lang="text">session 1   the person says  n is 42
+session 2   the person says  k is 9
+session 3   the person asks  what is n times 3?
+session 4   the person says  n is now 50
+session 5   the person says  k is now 3
+session 6   the person says  p is 18
+session 7   the person asks  what is n plus 7?</pre>
+  <p>Before session 7 the harness's log holds five facts, two of them out of date. If it shows every note, the context is:</p>
+  <pre class="code" data-lang="text">M n is 42
+M k is 9
+M n is 50
+M k is 3
+M p is 18
+U what is n plus 7?</pre>
+  <p>The agent wrote <code>add 28 7</code> and answered 35. 28 is neither the old value of <code>n</code> nor the new one: with five notes in view, it mixed them. If the harness keeps only the latest value of each name and shows only the name in the question, the context holds <code>M n is 50</code> alone, and the agent writes <code>add 50 7</code> and answers 57.</p>
+
+  <figure class="fig">
+    <svg viewBox="0 0 760 250" role="img" aria-labelledby="f42a">
+      <title id="f42a">What four ways of keeping notes put into the context before the question "what is n plus 7?". Nothing: no notes. Every note: every fact ever stated, the old value of n next to the new one, cut from the oldest when it does not fit. Latest: one note per name, the newest value. Latest, picked: only the note for n, the name in the question.</title>
+      <g class="t-small">
+      <text x="16" y="38" class="t-muted">nothing</text><rect x="170" y="20" width="270" height="28" rx="6" class="bx-fwd"/><text x="180" y="39" class="t-mono">U what is n plus 7?</text>
+      <text x="16" y="92" class="t-muted">every note</text>
+      <rect x="170" y="74" width="74" height="28" rx="6" class="bx-grad"/><text x="207" y="93" text-anchor="middle" class="t-mono">n 42</text>
+      <rect x="248" y="74" width="74" height="28" rx="6" class="bx"/><text x="285" y="93" text-anchor="middle" class="t-mono">k 9</text>
+      <rect x="326" y="74" width="74" height="28" rx="6" class="bx"/><text x="363" y="93" text-anchor="middle" class="t-mono">n 50</text>
+      <rect x="404" y="74" width="74" height="28" rx="6" class="bx"/><text x="441" y="93" text-anchor="middle" class="t-mono">k 3</text>
+      <rect x="482" y="74" width="74" height="28" rx="6" class="bx"/><text x="519" y="93" text-anchor="middle" class="t-mono">p 18</text>
+      <rect x="560" y="74" width="184" height="28" rx="6" class="bx-fwd"/><text x="570" y="93" class="t-mono">U what is n plus 7?</text>
+      <text x="170" y="118" class="t-muted">old values stay, next to the new ones</text>
+      <text x="16" y="160" class="t-muted">latest</text>
+      <rect x="170" y="142" width="74" height="28" rx="6" class="bx"/><text x="207" y="161" text-anchor="middle" class="t-mono">n 50</text>
+      <rect x="248" y="142" width="74" height="28" rx="6" class="bx"/><text x="285" y="161" text-anchor="middle" class="t-mono">k 3</text>
+      <rect x="326" y="142" width="74" height="28" rx="6" class="bx"/><text x="363" y="161" text-anchor="middle" class="t-mono">p 18</text>
+      <rect x="404" y="142" width="184" height="28" rx="6" class="bx-fwd"/><text x="414" y="161" class="t-mono">U what is n plus 7?</text>
+      <text x="16" y="218" class="t-muted">latest, picked</text>
+      <rect x="170" y="200" width="74" height="28" rx="6" class="bx"/><text x="207" y="219" text-anchor="middle" class="t-mono">n 50</text>
+      <rect x="248" y="200" width="184" height="28" rx="6" class="bx-fwd"/><text x="258" y="219" class="t-mono">U what is n plus 7?</text>
+      </g>
+    </svg>
+    <figcaption><b>Four ways to fill the context.</b> Grey boxes are note lines (<code>M n is 50</code>, shortened), raspberry a stale one. Each way keeps the same log; only what it shows differs.</figcaption>
+  </figure>
+
+  <h2>Eight people, sixty sessions each</h2>
+  <p><code>code/ch42_memory.py</code> simulates eight people, each over 60 sessions. In each session a person either states a fact, new or changed (four sessions in ten), or asks a question of one or two links that uses one of the names. The harness keeps a log of every fact stated, and shows notes in one of four ways. The test is repeated with 2, 4, 8 and 16 names per person. The window of the agent is 160 characters, and the question and its working need about 60 of them, so the notes get what is left.</p>
+  <pre class="code" data-src="ch42_memory.py#keep">def notes(way, log, question_names, room):
+    """The note lines the harness puts before the question. `log` is every fact stated so far, in order."""
+    if way == 'nothing':
+        return []
+    if way == 'every note':
+        lines = [f'M {n} is {v}' for n, v in log]               # old values stay, next to the new ones
+    else:
+        latest = {}
+        for n, v in log:
+            latest[n] = v                                      # a new value replaces the old one
+        lines = [f'M {n} is {v}' for n, v in latest.items()
+                 if way == 'latest' or n in question_names]    # 'latest, picked': only what the question names
+    while lines and sum(len(l) + 1 for l in lines) &gt; room:
+        lines = lines[1:]                                      # does not fit: the oldest go first
+    return lines</pre>
+  <div class="scroll"><table class="mini">
+    <tr><th>Names per person</th><th>Nothing</th><th>Every note</th><th>Latest</th><th>Latest, picked</th></tr>
+    <tr><td>2</td><td class="mono">7 / 283</td><td class="mono">75 / 283</td><td class="mono">117 / 283</td><td class="mono">277 / 283</td></tr>
+    <tr><td>4</td><td class="mono">3 / 278</td><td class="mono">55 / 278</td><td class="mono">67 / 278</td><td class="mono">270 / 278</td></tr>
+    <tr><td>8</td><td class="mono">5 / 285</td><td class="mono">33 / 285</td><td class="mono">40 / 285</td><td class="mono">274 / 285</td></tr>
+    <tr><td>16</td><td class="mono">7 / 264</td><td class="mono">43 / 264</td><td class="mono">46 / 264</td><td class="mono">261 / 264</td></tr>
+  </table></div>
+  <p class="src">Right answers, of the questions asked. The number of questions differs a little between rows because the people are drawn at random.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Names per person</th><th>Nothing</th><th>Every note</th><th>Latest</th><th>Latest, picked</th></tr>
+    <tr><td>2</td><td class="mono">60</td><td class="mono">122</td><td class="mono">80</td><td class="mono">71</td></tr>
+    <tr><td>4</td><td class="mono">58</td><td class="mono">124</td><td class="mono">95</td><td class="mono">69</td></tr>
+    <tr><td>8</td><td class="mono">60</td><td class="mono">125</td><td class="mono">118</td><td class="mono">70</td></tr>
+    <tr><td>16</td><td class="mono">60</td><td class="mono">124</td><td class="mono">121</td><td class="mono">71</td></tr>
+  </table></div>
+  <p class="src">Characters in the context at the end of each question, on average.</p>
+  <ul>
+    <li><strong>Nothing: almost never right,</strong> 3 to 7 times. Without a note the model has no way to know what <code>n</code> stands for, and guesses.</li>
+    <li><strong>Every note: right 12% to 27% of the time,</strong> reading 122 to 125 characters, the window nearly full. Stale values sit beside new ones, and the list is cut from the oldest end to fit, which can cut the note that matters.</li>
+    <li><strong>Latest: 117 of 283 with two names,</strong> falling to 40 with eight. Replacing old values removes the stale notes, but every name still comes back each time, and the list grows with the names.</li>
+    <li><strong>Latest, picked: right 96% to 99% of the time,</strong> at about 70 characters, however many names a person has. The question names what it needs, and only that is shown.</li>
+    <li><strong>The surprise is the two-name row.</strong> Everything fits, and still showing one unneeded note cost 160 right answers: 117 against 277. With <code>M g is 41</code> and <code>M v is 43</code> both in view, the agent wrote 42. The agent was trained with up to three unneeded notes. Even so, text in the context that the question does not need was a distraction.</li>
+  </ul>
+
+  <section class="bench" id="w-notes">
+    <h3>A person, over several sessions</h3>
+    <p class="try"><b>Try this.</b> State a fact, ask a question that uses it, then change the fact and ask again. Switch between the ways of keeping notes and read what the model was shown each time.</p>
+  </section>
+  <p><strong>What you should have seen.</strong> The log starts with <code>n is 42, k is 9</code>. After you set n to 50, <code>what is n plus 7?</code> gives 57 with every way that keeps notes, and a guess (12) with none. The context grows from 53 characters with one note to 72 with every note. With so few notes the agent copes with the stale one. Add more names and change a few of them, and "every note" starts to fail, as the table shows it does on average.</p>
+
+  <h2>At full size</h2>
+  <ul>
+    <li><strong>Memory files.</strong> Coding agents read a file of instructions and facts about the project at the start of every session, and some let the model add to it. It is the "latest" way: the file is edited, not appended to, so old facts are replaced.</li>
+    <li><strong>The model writes the notes.</strong> Here the harness wrote each note from a fixed sentence. A full-size agent decides itself what is worth remembering, often through a memory tool it can call. Deciding what to keep is then the model's job, with its own mistakes.</li>
+    <li><strong>Picking needs search.</strong> Our harness picks notes by the exact name in the question. Real notes are matched to a request by meaning, with the embedding search of chapter 11.</li>
+    <li><strong>Forgetting is a feature.</strong> Notes go out of date, and people ask to have things removed. A memory needs a way to correct and delete, not only to add.</li>
+    <li><strong>A note is text the agent obeys.</strong> A note written from a document can carry the injected instructions of chapter 17 into every future session. What goes into memory deserves the same care as what goes into the context.</li>
+  </ul>
+
+  <h2>Build it</h2>
+  <pre class="code" data-lang="text">python code/ch42_memory.py     # eight people, four ways, about 3 minutes; needs  python code/ch39_plan.py --train</pre>
+
+  <div class="note">
+    <h3>What this chapter glossed over</h3>
+    <p><strong>The notes are written by rule.</strong> A fact arrives as a fixed sentence and becomes a note exactly. Deciding what is a fact, and what a fact means, was left out.</p>
+    <p><strong>One name per question.</strong> The agent reads one note reliably and confuses two in the same question more often, so each question uses one name. The test is of the notes, not of the reading.</p>
+    <p><strong>The agent was trained on up to four notes.</strong> Longer lists are new to it, which is part of what "every note" and "latest" measure.</p>
+    <p><strong>One run, no sampling.</strong></p>
+  </div>
+
+  <div class="recap">
+    <h3>In short</h3>
+    <ul>
+      <li>The model keeps nothing between sessions. <a class="term" href="glossary.html#long-term-memory">Long-term memory</a> is notes a program writes down and puts back into the context.</li>
+      <li>Showing every note ever written was right 12% to 27% of the time: <a class="term" href="glossary.html#stale-note">stale notes</a> next to new ones, and lists cut to fit.</li>
+      <li>Keeping only the latest value of each name, and showing only those the question names, was right 96% to 99% of the time, at about 70 characters whatever the number of names.</li>
+      <li>Unneeded notes hurt even when they fit: 117 right against 277 with two names.</li>
+      <li>A memory needs updating and forgetting, and its notes are text the agent will obey.</li>
+    </ul>
+  </div>
+
+  <h2>Check yourself</h2>
+  <details class="check"><summary>An assistant "remembers" your name from last week. Where is that memory?</summary><p>Outside the model: a program stored a note and put it back into the context of this session. The model's weights did not change.</p></details>
+  <details class="check"><summary>Why can keeping every note be worse than keeping only the latest one, although it holds more information?</summary><p>The old values are still there, next to the new ones, and the model has to guess which is current. And the list grows until it no longer fits, so the notes that matter can be cut.</p></details>
+  <details class="check"><summary>The "latest, picked" way read the fewest characters and was the most often right. What does it depend on?</summary><p>On finding the right notes for the question. Here an exact name made that easy. At full size it is a search, and a note it fails to find is as good as forgotten.</p></details>
+  <details class="check"><summary>A person asks the agent to forget a fact. What has to happen?</summary><p>The note has to be removed from the store, and from any summary or copy made from it. Nothing in the model needs to change, because the model never held it.</p></details>
+</main>
+
+<script src="assets/work.js"></script>
+<script src="assets/glossary.js"></script>
+<script src="assets/micro.js"></script>
+<script src="assets/workrun.js"></script>
+<script>
+M.ready(function () {
+  var box = M.$('#w-notes');
+  if (!window.MICRO_WORK || !M.Work) { box.appendChild(M.el('p', { text: 'The trained agent did not load, so this experiment is unavailable.' })); return; }
+  var W = new M.Work(M.loadWeights(window.MICRO_WORK)), way = 'latest, picked', log = [['n', 42], ['k', 9]];
+  var WAYS = [['nothing', 'Nothing'], ['every note', 'Every note, old values too'], ['latest', 'Latest value of each name'], ['latest, picked', 'Latest, only the names asked about']];
+  function notes(q) {
+    var room = W.m.cfg.block - q.length - 60;      // as in ch42_memory.py: what the question and its working leave
+    if (way === 'nothing') return [];
+    var lines;
+    if (way === 'every note') lines = log.map(function (f) { return 'M ' + f[0] + ' is ' + f[1]; });
+    else {
+      var latest = {}, order = [];
+      log.forEach(function (f) { if (!(f[0] in latest)) order.push(f[0]); latest[f[0]] = f[1]; });
+      var words = q.replace('?', '').split(' ');
+      lines = order.filter(function (n) { return way === 'latest' || words.indexOf(n) >= 0; }).map(function (n) { return 'M ' + n + ' is ' + latest[n]; });
+    }
+    while (lines.length && lines.reduce(function (s, l) { return s + l.length + 1; }, 0) > room) lines.shift();
+    return lines;
+  }
+  var NAMES = 'bcdfghjkmnpqrstvwxz';
+  var logBox = M.el('p', { class: 'readout' }), out = M.el('div', { style: 'font-family:var(--mono);font-size:14.5px;white-space:pre-wrap;overflow-wrap:anywhere;border-left:4px solid var(--line);padding-left:10px;margin:10px 0' }), stat = M.el('p', { class: 'readout' });
+  function showLog() { logBox.innerHTML = 'The harness\'s log, oldest first: <b>' + log.map(function (f) { return f[0] + ' is ' + f[1]; }).join(', ') + '</b>'; }
+  var nameS = M.select('Name', NAMES.split('').map(function (c) { return [c, c]; }), function () {});
+  nameS.sel.value = 'n';
+  var valS = M.slider({ label: 'is', min: 0, max: 99, step: 1, value: 50 });
+  var q = M.el('input', { type: 'text', value: 'what is n plus 7?', maxlength: '50', 'aria-label': 'A question that uses a name', autocapitalize: 'off', autocomplete: 'off', spellcheck: 'false' });
+  function ask() {
+    var text = q.value.toLowerCase().split('').filter(function (c) { return c in W.m.stoi && c !== '\n'; }).join('');
+    if (!text) return;
+    var lines = notes(text), r = W.steps('\n' + lines.map(function (l) { return l + '\n'; }).join('') + 'U ' + text + '\n');
+    out.textContent = r.text.replace(/^\n/, '');
+    var latest = {}; log.forEach(function (f) { latest[f[0]] = f[1]; });
+    var t = text.replace('?', '').split(' ').slice(2).map(function (x) { return x in latest ? String(latest[x]) : x; }), v = +t[0], ok = !isNaN(v);
+    var OPS = { plus: 'add', minus: 'sub', times: 'mul' };
+    for (var i = 1; i + 1 < t.length; i += 2) { if (!(t[i] in OPS) || isNaN(+t[i + 1])) ok = false; else v = M.Work.TOOLS[OPS[t[i]]](v, +t[i + 1]); }
+    stat.innerHTML = 'Characters read: <b>' + r.read + '</b>. ' + (ok ? 'With the latest values the answer is ' + v + ': the agent was <b>' + (r.answer === v ? 'right' : 'wrong') + '</b>.' : '');
+  }
+  box.appendChild(M.row(M.select('Notes shown', WAYS, function (v) { way = v; ask(); }).el));
+  box.querySelector('select').value = way;
+  box.appendChild(M.el('h3', { text: 'A session where the person states a fact', style: 'margin-top:14px' }));
+  box.appendChild(M.row(nameS, valS));
+  box.appendChild(M.row(M.button('Remember this', function () { log.push([nameS.sel.value, valS.value]); showLog(); ask(); }), M.button('Forget everything', function () { log = []; showLog(); ask(); })));
+  box.appendChild(logBox);
+  box.appendChild(M.el('h3', { text: 'A session where the person asks', style: 'margin-top:14px' }));
+  q.addEventListener('keydown', function (e) { if (e.key === 'Enter') ask(); });
+  box.appendChild(q); box.appendChild(M.row(M.button('Ask', ask, 'go')));
+  box.appendChild(out); box.appendChild(stat);
+  box.appendChild(M.el('p', { class: 'caption', text: 'The agent of chapter 39 runs in your browser. M lines are notes written by the harness; the model writes the C and A lines. Notes that do not fit in what the question leaves of the 160-character window are cut, oldest first.' }));
+  showLog(); ask();
+});
+</script>
+</body>
+</html>

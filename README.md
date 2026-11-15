@@ -2,7 +2,7 @@
 
 **Build and understand a local language model, and the agent around it, from first principles.**
 
-An interactive course in thirty-eight chapters, in fifteen parts. Each chapter starts
+An interactive course in forty-three chapters, in sixteen parts. Each chapter starts
 from a question and a ten-second guess, gives you an experiment to play with in
 the browser, shows the few lines of code that implement the idea, and ends with
 one line to keep. One small GPT, trained from scratch with numpy, runs through
@@ -28,7 +28,10 @@ rebuilt with every part added since. Chapters 35 and 36 ask whether that
 system is safe to release: red-teaming and repair, then a release gate, a
 canary and monitoring. Chapters 37 and 38 connect the agent to tools from
 outside: a small Model Context Protocol server, tool poisoning, and loading
-descriptions only when they are needed.
+descriptions only when they are needed. Chapters 39 to 43 put an agent to work
+on jobs of several steps: a plan or one step at a time, failures and how to
+recover from them, when a fixed workflow beats an agent, memory that lasts
+between sessions, and when to stop and ask a person.
 
 By the end you can re-implement every piece of a minimal local AI system and
 you know what each component of a full-size one is doing.
@@ -116,6 +119,11 @@ branch `main`, folder `/docs`, and save. The course appears at
 | 36 | Releasing it, and watching it | How do you release a new version without finding out the hard way that it is worse? |
 | 37 | Tools from outside | How can an agent use a tool that did not exist when it was trained? |
 | 38 | Loaded when needed | Every tool description takes room in the context. What happens when there are hundreds? |
+| 39 | A plan, then the steps | Should the model decide one call at a time, or write the whole plan first? |
+| 40 | When a step fails | Should the agent stop, try again, or be told what went wrong? |
+| 41 | A workflow or an agent? | Which requests need a model to decide each step, and what does a wrong choice cost? |
+| 42 | Memory that lasts | What should the harness write down between sessions, and what should it put back? |
+| 43 | Asking first | When should the agent stop and ask you before it acts? |
 
 ## Run the code
 
@@ -223,6 +231,18 @@ python code/ch37_tools.py              # ~2 min: start tool servers, connect the
 python code/ch38_skills.py             # ~2 min: six tools and room for four, handled three ways
 ```
 
+Chapters 39 to 43 put an agent to work. Chapters 39 to 42 share one agent,
+trained by chapter 39; chapter 43 uses the agent of chapter 19:
+
+```bash
+python code/ch39_plan.py --train       # ~45 min: an agent for chains of calls, plans, errors and notes
+python code/ch39_plan.py               # ~3 min: step by step against plan first; crashes and checkpoints
+python code/ch40_recover.py            # ~2 min: a failing tool, a dead tool, and half-done jobs
+python code/ch41_workflow.py           # ~1 min: code, a workflow, an agent and a route on 300 requests
+python code/ch42_memory.py             # ~3 min: four ways to keep notes between sessions
+python code/ch43_ask.py                # ~10 s: when to ask a person, from the model's own confidence
+```
+
 `ch15_harness.py` runs real shell commands when used with a real model. Use a
 folder you can afford to lose and read chapter 17 first.
 
@@ -272,6 +292,11 @@ code/
   ch37_tools.py             tools from a list: the agent, a JSON-RPC client, a harness that builds the call shape from the list
   mcp_server.py             a tool server in one screen: server/discover, tools/list, tools/call over standard input and output
   ch38_skills.py            a catalogue larger than the context: list everything, harness picks, agent asks
+  ch39_plan.py              an agent for jobs of several calls: step by step or plan first; checkpoints
+  ch40_recover.py           failures: stop, retry, tell the model; a loop guard; writes left by half-done jobs
+  ch41_workflow.py          a parser, plan-then-code, an agent and a route, on one mix of requests
+  ch42_memory.py            notes between sessions: none, every note, the latest, the latest that the question names
+  ch43_ask.py               the confidence of a call, and four rules for when to ask a person
   mock_server.py            fake model server for testing without a model
 data/
   shakespeare.txt           training text (public domain, 1.1 MB)
@@ -295,6 +320,9 @@ docs/                       the course website (plain HTML, CSS and JavaScript)
   assets/redteam.js         the repaired guard of chapter 35 and what the attackers achieved
   assets/release.js         the gate, canary and monitoring runs recorded in chapter 36
   assets/tools.js           the agent of chapters 37 and 38 that reads its tools from a list, float16
+  assets/work.js            the agent of chapters 39 to 42, float16
+  assets/workrun.js         its harness in JavaScript: step by step, plan first
+  assets/ask.js             the 600 requests of chapter 43, with each call and its confidence
 runs/                       trained weights and the training log
 tools/
   export_web.py             pack weights and logs for the website
@@ -412,6 +440,12 @@ own runs; after retraining or re-measuring those, update the tables in the pages
   the tool's name, did not learn to pick the right one; the page says so.
 - `ch38_skills.py` counts every character in the context at the end of each
   pass. The figures about skills at full size are from the published format.
+- `ch39_plan.py` to `ch42_memory.py` test only with chains whose first pair of
+  numbers was kept out of training. The crashes of chapter 39, the failures of
+  chapter 40 and the people of chapter 42 are simulated with fixed seeds, and
+  the pages say so. Chapter 41's times were measured on one machine.
+- `ch43_ask.py` uses a list of slips written for the test, not a sample of
+  real requests, and assumes that a person who is asked stops every wrong call.
 - The harness and injection runs of chapters 15 and 17 use a scripted model in
   `mock_server.py`; the pages say so. The GPU figures in chapter 18 are published
   specifications, not measurements.
@@ -446,18 +480,23 @@ Chapters 24 to 33 add training for behaviour, inference methods, serving,
 guards, distillation, current architecture, pictures, helpers and
 self-training, and chapter 34 assembles the system a second time. Chapters
 35 and 36 attack that system, repair it, release it and watch it. Chapters
-37 and 38 connect an agent to tools and instructions from outside.
+37 and 38 connect an agent to tools and instructions from outside. Chapters 39
+to 43 cover jobs of several steps: planning, recovery, workflows, memory between
+sessions and asking a person first.
 
 Not covered yet, in rough order of how much an agent builder would miss them:
 
 - the methods used for post-training at scale beyond the plain policy gradient
   of chapter 24, reward models trained on human rankings, and how alignment is
   evaluated
-- planning, and how models are trained to produce useful thinking; chapter 21
-  shows thinking tokens with the steps given in advance
+- re-planning when a result changes what should come next, and how models are
+  trained to plan and to produce useful thinking; chapter 39 measures a plan
+  written once, and chapter 21 thinking tokens with the steps given in advance
 - a lead that is itself a model and plans the split, where chapter 32 uses
   plain code; the parts of the Model Context Protocol beyond tools
   (authorization, resources, prompts, remote transport)
+- memory written by the model itself and searched by meaning; the notes of
+  chapter 42 are written by rule and picked by exact name
 - serving beyond one machine: several servers, routing between them, cost per
   token; chapter 27 stops at one server
 - data collection and cleaning, scaling laws, other architecture variants
