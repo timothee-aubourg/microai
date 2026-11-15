@@ -509,3 +509,7 @@ h2 .anchor:hover, h2 .anchor:focus-visible { opacity: 1; color: var(--fwd); }
   h2 { font-size: 23px; margin-top: 44px; }
   .question { font-size: 21px; margin: 16px auto 22px; }
 }
+
+/* the light / dark switch in the top bar */
+.top .theme { min-height: 36px; min-width: 36px; padding: 0 6px; font-size: 17px; line-height: 1; text-decoration: none; color: var(--muted); flex: none; }
+.top .theme:hover { color: var(--fwd); }
