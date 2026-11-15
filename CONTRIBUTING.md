@@ -47,6 +47,16 @@ Every chapter now has the definition boxes, worked examples, glossary
 entries and recap of chapters 1 and 2. A new chapter is not finished without
 them.
 
+**Your turn, by hand.** Every chapter has one task for paper and a pencil,
+in a `<section class="yourturn">` (see chapter 1 for the markup): a short
+line of what is needed and how long it takes, two to four steps, and the
+full working folded in a `<details class="answer">`. It practises the
+chapter's central idea on new, small numbers, not the worked example again.
+In the chapters about agents, where there is little to calculate, the task is
+to trace, count or decide on paper: write the context the model will read,
+count its characters, say which rule fires. Every number in the task and
+the answer is checked by running it. The answers are hidden when printed.
+
 Optional maths goes in a folded `<details class="refresher">`. Step-by-step
 animations use `M.stepper` (see the BPE walkthrough in chapter 2).
 

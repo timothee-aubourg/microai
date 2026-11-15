@@ -224,6 +224,24 @@
     <p>When a model does much better on its training text than on held-out text, it has learned the text instead of the patterns in it. This is called <dfn>memorisation</dfn> or overfitting. Doing well on new text is called <dfn>generalisation</dfn>. Generalisation is the only thing that matters, because new text is the only thing you will ever use a model on.</p>
   </div>
 
+  <section class="yourturn" aria-label="Your turn, by hand">
+    <h3>Your turn, by hand</h3>
+    <p class="need">Paper and a pencil · about 10 minutes</p>
+    <p>Build an order-1 model from this training text, then score it on three held-out texts. Write ␣ for a space.</p>
+    <pre class="code" data-lang="text">banana␣bandana</pre>
+    <ol>
+      <li>Find every <code>a</code> and write down the character that follows it. Do the same for every <code>n</code>. Turn each pair of tallies into probabilities.</li>
+      <li>Score the held-out text <code>nana</code>: for each of its three predictions, write the probability your table gives to the character that really comes next, then its surprise −log p. Average them to get the loss. A calculator is fine for the logarithms: log 0.8 ≈ −0.22, log 0.75 ≈ −0.29, log 0.25 ≈ −1.39.</li>
+      <li>Do the same for <code>and</code>, then for <code>nab</code>. What goes wrong with the last one?</li>
+    </ol>
+    <details class="answer"><summary>Check your working</summary>
+      <p><strong>The table.</strong> After <code>a</code>: n four times, ␣ once (the last <code>a</code> ends the text), so n 0.8 and ␣ 0.2. After <code>n</code>: a three times, d once, so a 0.75 and d 0.25.</p>
+      <p><strong><code>nana</code></strong>: n→a 0.75 (surprise 0.29), a→n 0.8 (0.22), n→a 0.75 (0.29). Loss = (0.29 + 0.22 + 0.29) / 3 ≈ 0.27.</p>
+      <p><strong><code>and</code></strong>: a→n 0.8 (0.22), n→d 0.25 (1.39). Loss ≈ 0.80. The less common continuation costs most of it.</p>
+      <p><strong><code>nab</code></strong>: n→a 0.75, then a→b. Your table never saw <code>b</code> after <code>a</code>, so it gives it probability 0 and the surprise is infinite. One unseen pair makes the loss of the whole text infinite. The next section shows this problem at full size, and <em>Build it</em> shows the usual patch: add a small number to every tally, so that nothing has probability exactly 0.</p>
+    </details>
+  </section>
+
   <h2>The wall</h2>
   <p>The widgets above count over a 60,000-character excerpt to stay light in your browser. Here is the same experiment on the full text, run by <code>code/ch01_ngram.py</code>: count on the first 90% of the text (about a million characters), and measure the loss on the rest.</p>
 

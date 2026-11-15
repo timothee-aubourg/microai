@@ -513,3 +513,14 @@ h2 .anchor:hover, h2 .anchor:focus-visible { opacity: 1; color: var(--fwd); }
 /* the light / dark switch in the top bar */
 .top .theme { min-height: 36px; min-width: 36px; padding: 0 6px; font-size: 17px; line-height: 1; text-decoration: none; color: var(--muted); flex: none; }
 .top .theme:hover { color: var(--fwd); }
+
+/* ---------- your turn, by hand: a task for paper and pencil, and its answer folded below ---------- */
+.yourturn { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--fwd); border-radius: 0 12px 12px 0; padding: 14px 18px 6px; margin: 30px auto; font-size: 16.5px; line-height: 1.55; }
+.yourturn > h3 { font-size: 17px; margin-bottom: 2px; }
+.yourturn .need { font-family: var(--sans); font-size: 13.5px; color: var(--muted); margin: 0 0 12px; }
+.yourturn ol, .yourturn ul { margin-bottom: 12px; }
+.yourturn pre.code { margin-bottom: 12px; }
+.yourturn details.answer { border-top: 1px solid var(--line); margin-top: 6px; padding: 8px 0 4px; }
+.yourturn details.answer > summary { cursor: pointer; font-family: var(--sans); font-weight: 600; font-size: 15px; color: var(--fwd); min-height: 32px; }
+.yourturn details.answer[open] > summary { margin-bottom: 8px; }
+@media print { .yourturn details.answer { display: none; } }

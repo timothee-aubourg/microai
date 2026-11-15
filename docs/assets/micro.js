@@ -886,6 +886,7 @@
     rough: dab(24, 24, 11, 'fr', U) + ink('M6 26 L11 18 L14 30 L19 17 L22 31 L27 16 L30 30 L35 19 L38 27 L42 22'),                  // a scribble: where the telling was rougher than the truth
     keep:  dab(26, 25, 11, 'nt', U) + ink('M5 32 C 14 32, 20 30, 22 24 C 24 16, 33 16, 32 23 C 31 30, 22 30, 23 25 C 24 21, 30 32, 43 31'),  // a knot in a thread
     word:  dab(24, 25, 12, 'wd', U) + ink('M8 14 C 14 12, 20 13, 24 16 C 28 13, 34 12, 40 14 L40 34 C 34 32, 28 33, 24 36 C 20 33, 14 32, 8 34 Z M24 16 L24 36', 2.8),  // an open book
+    pencil: dab(25, 26, 12, 'pn', U) + ink('M13 37 L33 15 L38 20 L18 41 Z M13 37 L11 43 L18 41'),                                  // a pencil: do it by hand
     recap: dab(28, 24, 12, 'rc', U) + ink('M9 16 C 15 15, 27 17, 38 16 M9 24 C 15 23, 27 25, 38 24 M9 32 C 14 31, 20 33, 27 32'),    // three lines
     right: dab(24, 26, 12, 'ok', 'var(--ok)', 0.85) + ink('M12 25 L20 33 L37 13'),
     wrong: dab(24, 24, 11, 'no', 'var(--grad)', 0.8) + ink('M15 15 C 21 21, 27 27, 33 33 M33 15 C 27 21, 21 27, 15 33')
@@ -993,6 +994,7 @@
     });
     document.querySelectorAll('.def .kind').forEach((k) => put(k, M.icon('word')));
     document.querySelectorAll('.recap > h3').forEach((h) => put(h, M.icon('recap')));
+    document.querySelectorAll('.yourturn > h3').forEach((h) => put(h, M.icon('pencil')));
     document.querySelectorAll('p.part').forEach((p, k) => { if (M.parts[k]) put(p, M.partIcon(k)); });
   }
 
