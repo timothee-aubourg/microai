@@ -625,7 +625,7 @@
      keeps a copy of every page it has served. The network is always asked first, so a reader who is
      online never sees an old page. */
   function installable() {
-    const head = document.head, dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const head = document.head, dark = M.theme() === 'dark';
     head.appendChild(M.el('link', { rel: 'manifest', href: 'manifest.webmanifest' }));
     head.appendChild(M.el('link', { rel: 'apple-touch-icon', href: 'assets/icon-192.png' }));
     head.appendChild(M.el('meta', { name: 'theme-color', content: dark ? '#15151B' : '#F4ECDA' }));
@@ -658,6 +658,35 @@
     slot.appendChild(say);
   }
 
+  /* ---------- light and dark ----------
+     The page follows the phone's setting until the reader chooses; the choice is kept in this browser.
+     assets/theme.js, loaded in the head of every page, applies a kept choice before the page is drawn. */
+  M.theme = function (set) {
+    const root = document.documentElement;
+    if (set) {
+      root.setAttribute('data-theme', set);
+      try { localStorage.setItem('microai.theme', set); } catch (e) { /* no storage: the choice lasts for this page */ }
+      const meta = M.$('meta[name="theme-color"]');
+      if (meta) meta.setAttribute('content', set === 'dark' ? '#15151B' : '#F4ECDA');
+    }
+    const t = root.getAttribute('data-theme');
+    if (t === 'light' || t === 'dark') return t;
+    return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  };
+  function themeButton() {
+    const b = M.el('button', { type: 'button', class: 'theme' });
+    const show = () => {
+      const dark = M.theme() === 'dark';
+      b.textContent = dark ? '\u2600' : '\u263E';
+      b.setAttribute('aria-label', dark ? 'Switch to light mode' : 'Switch to dark mode');
+      b.title = b.getAttribute('aria-label');
+    };
+    b.addEventListener('click', () => { M.theme(M.theme() === 'dark' ? 'light' : 'dark'); show(); });
+    if (window.matchMedia) { const mq = window.matchMedia('(prefers-color-scheme: dark)'); mq.addEventListener && mq.addEventListener('change', show); }
+    show();
+    return b;
+  }
+
   function chrome() {
     const ch = +document.body.getAttribute('data-ch') || 0;
     const trail = M.el('nav', { class: 'trail', 'aria-label': 'Chapters' });
@@ -669,7 +698,7 @@
     });
     const bar = M.el('div', { class: 'progress', 'aria-hidden': 'true' }, M.el('i'));
     const top = M.el('header', { class: 'top' }, M.el('div', { class: 'top-in' }, M.el('a', { class: 'brand', href: 'index.html', html: 'micro<span>AI</span>' }), trail,
-      M.el('a', { class: 'gl', href: 'map.html', text: 'Map' }), M.el('a', { class: 'gl', href: 'glossary.html', text: 'Glossary' })));
+      M.el('a', { class: 'gl', href: 'map.html', text: 'Map' }), M.el('a', { class: 'gl', href: 'glossary.html', text: 'Glossary' }), themeButton()));
     document.body.insertBefore(top, document.body.firstChild);
     if (ch) {                                          // how far down the chapter the reader is
       top.appendChild(bar);

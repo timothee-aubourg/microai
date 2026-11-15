@@ -61,6 +61,13 @@ The look is paper and ink: ivory paper and brown-black ink by day, dark paper
 and cream ink by night. It is defined once, as variables at the top of
 `docs/assets/style.css`.
 
+**Light and dark.** A page follows the phone's setting until the reader taps the
+switch in the top bar; the choice is kept in the browser and applied by
+`docs/assets/theme.js`, loaded in the `<head>` of every page so that a page is
+never drawn in the wrong theme first. A new page needs that script tag, and a
+colour that must change with the theme goes under both `:root[data-theme="dark"]`
+and the guarded `prefers-color-scheme` block.
+
 - **Three colours carry meaning** and mean the same on every page: ultramarine
   (`--fwd`) for values flowing forward and for the selected thing, raspberry
   (`--grad`) for gradients and errors, amber (`--prob`, `--prob-fill`) for
