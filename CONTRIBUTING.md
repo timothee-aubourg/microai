@@ -87,10 +87,10 @@ and the guarded `prefers-color-scheme` block.
   "What this chapter glossed over", definition, recap, guess and line to keep,
   so a page never draws one itself. A new kind of recurring piece gets one new
   entry in `ICONS`: a `dab(...)` plus one `ink(...)` path on a 48 by 48 grid.
-- **Each part has a sign.** The fifteen parts are listed in `M.parts` with a
+- **Each part has a sign.** The sixteen parts are listed in `M.parts` with a
   pigment each. A part's sign is its pigment as the dab and a gesture derived
   from its name, shown in the contents and at the top of each of its chapters.
-  The fifteen pigments are used for nothing else, and none is close to the three
+  The sixteen pigments are used for nothing else, and none is close to the three
   meaning colours.
 - **Four more pigments say "which one".** `--pig1` to `--pig4` tell apart
   several things of the same kind in one experiment, such as the four experts
