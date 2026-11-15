@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Asleep most of the time | microAI</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-ch="44">
+<main>
+  <p class="where">Chapter 44</p>
+  <h1>Asleep most of the time</h1>
+  <p class="question">An agent that works for you all day is not running all day. What wakes it, and what stops two wake-ups from trampling each other?</p>
+
+  <p>Every agent so far was called by someone who then waited for the answer. An always-on agent works while nobody waits: it answers a message that came in at night, reacts when a payment fails, checks on something it promised to check. It runs the same loop as the agent of chapter 15. What changes is everything around the loop.</p>
+  <p>The first surprise is that such an agent is asleep almost all the time. It wakes for an event, does one short stretch of work, saves what happened, and sleeps again.</p>
+
+  <div class="def"><span class="kind">Definitions</span>
+    <p>An <dfn>event</dfn> is anything that should wake the agent: a message from the person, a notification from another service (a <dfn>webhook</dfn>), or a timer it set itself (chapter 45).</p>
+    <p>A <dfn>run</dfn> is one stretch of work: read the new events, act, save what happened. A <dfn>session</dfn> is the record of messages and tool calls a run works in, which a later run can open again.</p>
+    <p>An <dfn>event inbox</dfn> is a table where every event is written before anything else happens, with an id and a status. A worker reads the table, and only the worker starts runs.</p>
+  </div>
+
+  <h3>By hand: one minute of a busy afternoon</h3>
+  <p>At 14:00:00 the person sends "move my 3 pm to 4 pm". At 14:00:15 they add "and tell Sam". At 14:00:40 a calendar service sends a notification about the change, and at 14:03:00 it sends the same notification again, because it did not hear back. Each run takes 20 seconds to start and 10 seconds per event it handles.</p>
+  <p><strong>Calling the agent directly</strong> from each source starts four runs: at 14:00:00, 14:00:15, 14:00:40 and 14:03:00. The first two overlap. Both read the agent's notes when they start and write them back when they end, so the second write, at 14:00:45, replaces the first, made at 14:00:30, with a copy that never saw "move my 3 pm". And the duplicate notification is handled twice.</p>
+  <p><strong>With an inbox,</strong> the four events are written to the table as they arrive. The second notification has the same id as the first and is not written again. One worker takes the first message at once (14:00:00 to 14:00:30), then the second (14:00:30 to 14:01:00), then the notification (14:01:00 to 14:01:30). Three runs instead of four, one after the other: nothing overwritten, nothing done twice.</p>
+
+  <figure class="fig" id="fig-inbox">
+    <svg viewBox="0 0 760 260" role="img" aria-labelledby="f44a">
+      <title id="f44a">Events from the person, from other services and from timers are written into an inbox table, each with an id and a status. Duplicates are dropped by id. One worker reads the table, takes the pending events, and starts one run, which reads memory, acts and saves. The events are marked done. If the run crashes, they stay pending and the next worker takes them again.</title>
+      <defs><marker id="c44a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
+      <g class="t-small">
+      <rect x="16" y="26" width="120" height="34" rx="6" class="bx"/><text x="76" y="48" text-anchor="middle">the person</text>
+      <rect x="16" y="86" width="120" height="34" rx="6" class="bx"/><text x="76" y="108" text-anchor="middle">other services</text>
+      <rect x="16" y="146" width="120" height="34" rx="6" class="bx"/><text x="76" y="168" text-anchor="middle">timers (ch. 45)</text>
+      <rect x="196" y="40" width="200" height="130" rx="8" class="bx-prob"/>
+      <text x="296" y="64" text-anchor="middle" class="t-big">inbox</text>
+      <text x="212" y="92" class="t-mono">msg-1    done</text><text x="212" y="114" class="t-mono">msg-2    pending</text><text x="212" y="136" class="t-mono">hook-3   pending</text><text x="212" y="158" class="t-muted">same id twice: written once</text>
+      <rect x="456" y="70" width="120" height="70" rx="8" class="bx-soft"/><text x="516" y="100" text-anchor="middle" class="t-big">one worker</text><text x="516" y="122" text-anchor="middle" class="t-muted">takes what is pending</text>
+      <rect x="616" y="62" width="128" height="86" rx="8" class="bx-fwd"/><text x="680" y="88" text-anchor="middle" class="t-big">a run</text><text x="680" y="110" text-anchor="middle">read memory, act,</text><text x="680" y="128" text-anchor="middle">save, mark done</text>
+      <text x="456" y="214" class="t-muted">a crash: the events stay pending, and the next worker takes them</text>
+      </g>
+      <g class="ln"><line x1="138" y1="43" x2="192" y2="80" marker-end="url(#c44a)"/><line x1="138" y1="103" x2="192" y2="103" marker-end="url(#c44a)"/><line x1="138" y1="163" x2="192" y2="130" marker-end="url(#c44a)"/>
+      <line x1="398" y1="105" x2="452" y2="105" marker-end="url(#c44a)"/><line x1="578" y1="105" x2="612" y2="105" marker-end="url(#c44a)"/>
+      <path d="M680 150 L680 190 L296 190 L296 174" class="ln-dash" fill="none" marker-end="url(#c44a)"/></g>
+    </svg>
+    <figcaption><b>The event inbox.</b> Every source writes to one table; only the worker starts runs, one at a time. The table, not the worker, is the record of what is left to do.</figcaption>
+  </figure>
+
+  <h2>A working day, three ways</h2>
+  <p><code>code/ch44_inbox.py</code> simulates 20 working days of eight hours for one person. Each day brings 40 bursts of one to three messages from the person, half a minute apart at most, and 60 notifications from other services, of which 15% are sent a second time with the same id. One run in twenty crashes part-way. Every run reads the agent's memory when it starts and writes it back when it ends. Nothing here needs a model: a run's length stands for its model passes.</p>
+  <pre class="code" data-src="ch44_inbox.py#inbox">PLACEHOLDER</pre>
+  <div class="scroll"><table class="mini">
+    <tr><th>Way</th><th>Events lost</th><th>Handled twice</th><th>Runs</th><th>Most runs at once</th><th>Memory overwritten</th><th>Slowest wait</th></tr>
+    <tr><td>Direct: every event starts a run</td><td class="mono">6.3</td><td class="mono">8.0</td><td class="mono">150</td><td class="mono">3.7</td><td class="mono">51.9</td><td class="mono">30 s</td></tr>
+    <tr><td>Inbox, one event per run</td><td class="mono">0</td><td class="mono">0</td><td class="mono">149</td><td class="mono">1</td><td class="mono">0</td><td class="mono">177 s</td></tr>
+    <tr><td>Inbox, batched</td><td class="mono">0</td><td class="mono">0</td><td class="mono">126</td><td class="mono">1</td><td class="mono">0</td><td class="mono">158 s</td></tr>
+  </table></div>
+  <p class="src">Averages per day over 20 simulated days, of about 150 events (142 different ones). "Memory overwritten": runs whose saved work was replaced by another run that had read memory before it.</p>
+  <ul>
+    <li><strong>Direct calls lose and repeat.</strong> A crashed run takes its event with it: 6 a day, gone without a trace. The 8 notifications sent twice are acted on twice. And because a burst of messages starts runs that overlap, 52 runs a day have their saved work overwritten by another one.</li>
+    <li><strong>An inbox fixes all three by construction.</strong> The table keeps an event until a run has finished it, so a crash only delays it. The id stops a duplicate at the door. One worker means one run at a time, so nothing overwrites anything.</li>
+    <li><strong>Batching saves runs.</strong> Taking every waiting event together cut 149 runs to 126, and the busy time from 75 to 67 minutes, because the fixed start of a run is paid once per batch.</li>
+    <li><strong>The price is waiting.</strong> A direct run starts at once. With one worker, an event that arrives during a run waits for it: up to about 3 minutes here, after a crash.</li>
+  </ul>
+
+  <h3>Events that arrive during a run</h3>
+  <p>The person sends "actually, make it 5 pm" while the run about "move my 3 pm" is still working. Three choices: leave it for the next run, fold it into the running one at its next step, or stop the run and start again with both. Folding in is what a person would do. It needs the run to look at the inbox between its steps.</p>
+
+  <section class="bench" id="w-inbox">
+    <h3>One simulated day</h3>
+    <p class="try"><b>Try this.</b> Run a day each way and compare the timelines. Then raise the chance of a crash and watch what each way does with the events of a crashed run.</p>
+  </section>
+  <p><strong>What you should have seen.</strong> With direct calls, runs stack on top of each other during bursts, and crashed runs (raspberry) leave their events lost. With the inbox there is never more than one run at a time, a crash is followed by a later run that picks the same events up, and with batching fewer, longer runs cover the same day.</p>
+
+  <section class="yourturn" aria-label="Your turn, by hand">
+    <h3>Your turn, by hand</h3>
+    <p class="need">Paper and a pencil · about 10 minutes</p>
+    <p>Play the worker. Runs take 20 seconds plus 10 per event. These events arrive, with their ids:</p>
+    <p class="predict"><b>Predict first.</b> With one batching worker, how many runs will these six events need: six, four, or three? Write your guess down.</p>
+    <pre class="code" data-lang="text">0 s    msg-1
+5 s    msg-2
+50 s   hook-7
+55 s   msg-3
+200 s  hook-7     (sent again)
+205 s  hook-8</pre>
+    <ol>
+      <li>With direct calls: write down each run's start and end. Which runs overlap? Which event is handled twice?</li>
+      <li>With an inbox and one batching worker: a run takes every pending event when it starts. Write each run's start, its events and its end.</li>
+      <li>Now the first inbox run crashes at 30 s, and a new worker is ready 60 s later. Redo step 2. When is <code>msg-1</code> finally done?</li>
+    </ol>
+    <details class="answer"><summary>Check your working</summary>
+      <ol class="worked">
+        <li>Direct: msg-1 0–30, msg-2 5–35, hook-7 50–80, msg-3 55–85, hook-7 200–230, hook-8 205–235. Three pairs overlap: msg-1 with msg-2, hook-7 with msg-3, hook-7 with hook-8. <code>hook-7</code> is handled twice.</li>
+        <li>Inbox: at 0 s only msg-1 is waiting, so run 1 is msg-1, 0–30. At 30 s msg-2 is waiting: run 2, 30–60. At 60 s hook-7 and msg-3 are waiting: run 3 takes both, 60–100. At 200 s hook-7 arrives again with an id already in the table, and is dropped. hook-8 arrives at 205: run 4, 205–235. Four runs.</li>
+        <li>Run 1 crashes at 30 s with msg-1 still pending. Meanwhile msg-2, hook-7 and msg-3 arrive. The new worker is ready at 90 s and takes all four: 90 + 20 + 40 = 150 s. Then hook-8: 205–235. msg-1 is done at 150 s, late but not lost.</li>
+      </ol>
+      <p>Your prediction: four runs without a crash, three with one, because the crash made more events wait and the next run took them together. The table is what turns a crash into a delay instead of a loss.</p>
+    </details>
+  </section>
+
+  <h2>At full size</h2>
+  <ul>
+    <li><strong>The inbox is a database table.</strong> A handler, usually a web address that services can call, writes each event and answers at once. Slower checks, such as screening the text for planted instructions (chapter 17), happen later, inside the run.</li>
+    <li><strong>One inbox per person to start with,</strong> and one active worker per inbox. Several workers on one inbox bring back the overwriting this chapter measured.</li>
+    <li><strong>Ids come from the source.</strong> Services that send notifications attach an id to each, and send again when they are unsure, so dropping repeats by id is standard.</li>
+    <li><strong>Durable execution engines</strong> provide the table, the retries and the single worker as a service, for teams that would rather not build them.</li>
+  </ul>
+
+  <h2>Build it</h2>
+  <pre class="code" data-lang="text">python code/ch44_inbox.py      # 20 simulated days, three ways, a few seconds; no model needed</pre>
+
+  <div class="note">
+    <h3>What this chapter glossed over</h3>
+    <p><strong>It is a simulation.</strong> The events, crash rate and run lengths are chosen, not measured on a real service. The direction of every result follows from the mechanism; the sizes depend on the choices.</p>
+    <p><strong>"Overwritten" assumes the simplest memory:</strong> read it all at the start, write it all at the end. Memory that merges changes, or locks, overwrites less, at the cost of more machinery.</p>
+    <p><strong>A crash here happens inside the run.</strong> The handler that writes the table can fail too; real systems make that write the one thing that must not fail.</p>
+  </div>
+
+  <div class="stick" data-draw="fig-inbox" data-explain="event,run,event-inbox,idempotent"></div>
+
+  <div class="recap">
+    <h3>In short</h3>
+    <ul>
+      <li>An always-on agent sleeps, wakes for an <a class="term" href="glossary.html#event">event</a>, does one <a class="term" href="glossary.html#run">run</a>, saves, and sleeps again. The loop inside a run is the loop of chapter 15.</li>
+      <li>Calling the agent directly from every source lost 6 events a day to crashes, handled 8 twice, and let overlapping runs overwrite each other's memory 52 times.</li>
+      <li>An <a class="term" href="glossary.html#event-inbox">event inbox</a> with one worker lost none, repeated none and overwrote none: the table keeps an event until a run finishes it, and drops a repeat by its id.</li>
+      <li>Taking every waiting event in one run cut the runs from 149 to 126. The price of one worker is a wait of up to a few minutes.</li>
+    </ul>
+  </div>
+
+  <h2>Check yourself</h2>
+  <details class="check"><summary>Why is "asleep most of the time" the normal state of an always-on agent?</summary><p>Because it only needs to work when something happens. Between events there is nothing to do, and keeping a model running would cost without doing anything. It wakes for an event, does one run and sleeps.</p></details>
+  <details class="check"><summary>A notification service sends each event again if it gets no answer within a second. What must the handler do, and what must the inbox do?</summary><p>The handler answers at once, before any slow work, so that fewer events are sent twice. The inbox drops an event whose id it already has, so the ones that are sent twice anyway are handled once.</p></details>
+  <details class="check"><summary>Two workers read the same inbox to go faster. What problem from the table comes back?</summary><p>Two runs at once on the same person's memory: each reads it at its start and writes it back at its end, so one can overwrite the other's work. One worker per inbox avoids it; more workers need memory that merges or locks.</p></details>
+  <details class="check"><summary>A run crashes. Where are its events, with direct calls and with an inbox?</summary><p>With direct calls they existed only inside the run, so they are gone. With an inbox they are still in the table, marked pending, and the next worker takes them.</p></details>
+</main>
+
+<script src="assets/glossary.js"></script>
+<script src="assets/micro.js"></script>
+<script>
+M.ready(function () {
+  var box = M.$('#w-inbox'), way = 'direct', crash = 0.05, presses = 0;
+  var DAY = 3 * 3600, START = 20, PER = 10;               /* three hours, to keep the picture readable */
+  function events(rnd) {
+    var ev = [], n = 0;
+    for (var i = 0; i < 15; i++) { var t = rnd() * DAY, k = 1 + Math.floor(rnd() * 3); for (var j = 0; j < k; j++) ev.push([t + 15 * j, 'msg-' + (++n)]); }
+    for (var i = 0; i < 22; i++) { var t = rnd() * DAY; n++; ev.push([t, 'hook-' + n]); if (rnd() < 0.15) ev.push([t + 60 + rnd() * 240, 'hook-' + n]); }
+    return ev.sort(function (a, b) { return a[0] - b[0]; });
+  }
+  function direct(ev, rnd) {
+    var runs = [], done = {}, lost = 0, twice = 0;
+    ev.forEach(function (e) {
+      var ok = rnd() >= crash, len = START + PER;
+      runs.push({ s: e[0], e: ok ? e[0] + len : e[0] + rnd() * len, ok: ok });
+      if (!ok) { if (!done[e[1]]) lost++; return; }
+      if (done[e[1]]) twice++; done[e[1]] = 1;
+    });
+    var lostIds = {}; ev.forEach(function (e) { if (!done[e[1]]) lostIds[e[1]] = 1; });
+    return { runs: runs, lost: Object.keys(lostIds).length, twice: twice };
+  }
+  function inbox(ev, rnd, batch) {
+    var table = {}, order = [], runs = [], i = 0, t = 0, free = 0;
+    for (;;) {
+      while (i < ev.length && ev[i][0] <= Math.max(t, free)) { if (!table[ev[i][1]]) { table[ev[i][1]] = 'pending'; order.push(ev[i][1]); } i++; }
+      var pend = order.filter(function (id) { return table[id] === 'pending'; });
+      if (!pend.length) { if (i >= ev.length) break; t = ev[i][0]; continue; }
+      t = Math.max(t, free);
+      var take = batch ? pend : pend.slice(0, 1), len = START + PER * take.length;
+      if (rnd() < crash) { var end = t + rnd() * len; runs.push({ s: t, e: end, ok: false }); free = end + 60; continue; }
+      take.forEach(function (id) { table[id] = 'done'; });
+      runs.push({ s: t, e: t + len, ok: true, n: take.length }); free = t + len;
+    }
+    return { runs: runs, lost: 0, twice: 0 };
+  }
+  var cv = M.el('canvas', { class: 'cv', height: '150' }), stat = M.el('p', { class: 'readout' });
+  function draw(r) {
+    var g = M.canvas(cv), W = cv.clientWidth, lanes = [], H = 150;
+    g.clearRect(0, 0, W, H);
+    r.runs.forEach(function (run) {
+      var lane = 0; while (lanes[lane] !== undefined && lanes[lane] > run.s) lane++;
+      lanes[lane] = run.e;
+      g.fillStyle = M.css(run.ok ? '--fwd' : '--grad');
+      g.fillRect(8 + (W - 16) * run.s / DAY, 10 + lane * 18, Math.max(2, (W - 16) * (run.e - run.s) / DAY), 12);
+    });
+    g.fillStyle = M.css('--muted'); g.font = '12px ' + M.css('--sans');
+    g.fillText('three hours →', 8, H - 6);
+    return lanes.length;
+  }
+  function go() {
+    var rnd = M.rng(41 * presses + 7), ev = events(rnd);
+    var r = way === 'direct' ? direct(ev, rnd) : inbox(ev, rnd, way === 'batched');
+    var most = draw(r), crashed = r.runs.filter(function (x) { return !x.ok; }).length;
+    stat.innerHTML = ev.length + ' events · <b>' + r.runs.length + '</b> runs · ' + crashed + ' crashed · most at once <b>' + most + '</b> · lost <b>' + r.lost + '</b> · handled twice <b>' + r.twice + '</b>';
+  }
+  var wS = M.select('Way', [['direct', 'Direct: every event starts a run'], ['one', 'Inbox, one event per run'], ['batched', 'Inbox, batched']], function (v) { way = v; go(); });
+  var cS = M.slider({ label: 'A run crashes', min: 0, max: 30, step: 5, value: 5, fmt: function (v) { return v + '%'; }, oninput: function (v) { crash = v / 100; go(); } });
+  box.appendChild(M.row(wS)); box.appendChild(M.row(cS)); box.appendChild(M.row(M.button('Another day', function () { presses++; go(); }, 'go')));
+  box.appendChild(cv); box.appendChild(stat);
+  box.appendChild(M.el('p', { class: 'caption', text: 'Each bar is a run, on a line of its own when it overlaps another. Blue: finished. Raspberry: crashed. A simulated afternoon of three hours, in your browser.' }));
+  window.addEventListener('resize', go);
+  go();
+});
+</script>
+</body>
+</html>

@@ -81,7 +81,7 @@ a guess, and wrong                 A 19 plus 47 is 66.                given away
   <div class="eq">loss = &minus; sum over the characters the model chose of (reward &minus; usual reward) &times; log p(character)</div>
   <p>With every weight equal to 1 this is the loss of chapter 1. Reinforcement learning is that same loss, with a sign and a size on each example that come from a grader.</p>
 
-  <figure class="fig">
+  <figure class="fig" id="fig-stages">
     <svg viewBox="0 0 760 230" role="img" aria-labelledby="f24a">
       <title id="f24a">Three stages. Pre-training: a million characters of text as found make a base model. From it, two routes: fine-tuning on 300 written examples, or reinforcement on 4,800 of the model's own answers, each scored by a grader.</title>
       <defs><marker id="c24a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
@@ -102,6 +102,7 @@ a guess, and wrong                 A 19 plus 47 is 66.                given away
     <h3>Your turn, by hand</h3>
     <p class="need">Paper and a pencil · about 5 minutes</p>
     <p>The grader has scored four answers to sums. Find the weight of each answer, reward minus usual reward, for three different usual rewards, and see which answers each one pushes up and which down.</p>
+    <p class="predict"><b>Predict first.</b> Before any arithmetic: as the usual reward rises from 0 to 0.9, what happens to the push a right answer gets, and to the push a wrong one gets? Write your guess down.</p>
     <div class="scroll"><table class="mini">
       <tr><th>Answer</th><th>How</th><th>Reward</th></tr>
       <tr><td class="mono">1</td><td>calculator, right</td><td class="mono">1</td></tr>
@@ -120,7 +121,7 @@ a guess, and wrong                 A 19 plus 47 is 66.                given away
         <li>+1, 0, +1, 0, which add up to +2. The wrong answers get a weight of 0, so nothing makes them less likely. Every push is upward.</li>
         <li>+0.1, &minus;0.9, +0.1, &minus;0.9, which add up to &minus;1.6. A right answer, now expected, barely moves the model. Each wrong one gets a strong push down.</li>
       </ol>
-      <p>The usual reward decides what counts as news: the step is spent on what was better or worse than expected. That is why the script in <em>Build it</em> keeps a usual reward for each kind of question and updates it as training goes on.</p>
+      <p>Your prediction: the push up on a right answer shrinks from +1 to +0.1, and the push down on a wrong one grows from 0 to &minus;0.9. The usual reward decides what counts as news: the step is spent on what was better or worse than expected. That is why the script in <em>Build it</em> keeps a usual reward for each kind of question and updates it as training goes on.</p>
     </details>
   </section>
 
@@ -268,6 +269,8 @@ python code/ch24_posttrain.py            # 300 sampled answers per model, as in 
       <li>At full size the stages are the same: trillions of tokens as found, then tens of thousands of written or ranked examples, then rewards from people, from models trained on people's rankings, or from programs that check answers.</li>
     </ul>
   </div>
+
+  <div class="stick" data-draw="fig-stages" data-explain="pretraining,post-training,sft,rl,reward"></div>
 
   <h2>Check yourself</h2>
   <details class="check"><summary>The grader never mentions the calculator. Why did the model start using it?</summary><p>Answers that used the calculator were right and earned a reward of 1. Guesses were wrong four times in five and earned 0. Each update made the rewarded answers more likely, and what they had in common was the call to the calculator.</p></details>

@@ -30,7 +30,7 @@
   <p>Chapter 19 put the first eighteen chapters into one machine: a model trained from nothing, a harness around it, a tool, a format mask, a trace and a test. The chapters after it each took one part further, on its own. This chapter puts them back together. It adds one part at a time to the same system and sends the same 600 requests through every version, so that each part's contribution, and its price, can be read off one table.</p>
   <p>Nothing is trained here except 65 numbers. Every model comes from an earlier chapter.</p>
 
-  <figure class="fig">
+  <figure class="fig" id="fig-system">
     <svg viewBox="0 0 760 210" role="img" aria-labelledby="f34a">
       <title id="f34a">The system as a line of five parts. A request passes a guard made of a probe and a classifier, then reaches the agent, which is a trained model with a tool and a format mask. The answer passes a check that can ask again, then a filter, and leaves as the reply.</title>
       <defs><marker id="c34a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
@@ -96,6 +96,7 @@
     <h3>Your turn, by hand</h3>
     <p class="need">Paper and a pencil · about 10 minutes</p>
     <p>Follow five requests through the last row of the table, every part switched on, using the rules of <code>respond</code> in <em>Build it</em> below: the probe's score settles the request unless it is between 0.2 and 0.8, when the classifier is asked instead; a score of 0.5 or more blocks it. A sum, in exactly the form <code>what is 12 plus 9?</code>, is asked again, up to three tries, until its answer rests on a tool result. A reply with the secret 4821 in it is replaced by the refusal. The scores and the agent's replies below are made up for the exercise.</p>
+    <p class="predict"><b>Predict first.</b> Every part is switched on. Will any of the five requests still get a wrong reply that no part stops? Write your guess down.</p>
     <div class="scroll"><table class="mini">
       <tr><th>Request</th><th>Probe</th><th>Classifier, if asked</th><th>What the agent writes, try by try</th></tr>
       <tr><td class="mono">what is 61 minus 7?</td><td class="mono">0.03</td><td class="mono">&ndash;</td><td>1: no call, <code>61 minus 7 is 56.</code> 2: <code>C sub 61 7</code>, <code>61 minus 7 is 54.</code></td></tr>
@@ -117,7 +118,7 @@
         <li>61 minus 7: <code>61 minus 7 is 54.</code>, decided by the check. The secret question: the agent gave the secret, the filter found 4821, reply <code>i cannot share that.</code>, decided by the filter. The joke: refused by the classifier. The hidden code: refused by the probe. Hey, 12 plus 9: <code>12 plus 9 is 20.</code>, which is wrong, and no part stopped it.</li>
         <li>Secret given: 0 of 2. Harmless refused: 1 of 1, the joke. Sums right: 1 of 1 in the exact form; the reworded sum went out wrong.</li>
       </ol>
-      <p>Each part caught one thing and only in the place it looks: the guard read the request, the check only knew the exact wording of a sum, the filter only the four digits. A sum with one word in front walked past all of them with a wrong answer.</p>
+      <p>Your prediction: yes, one of the five. Each part caught one thing and only in the place it looks: the guard read the request, the check only knew the exact wording of a sum, the filter only the four digits. A sum with one word in front walked past all of them with a wrong answer.</p>
     </details>
   </section>
 
@@ -175,6 +176,8 @@ python code/ch34_system2.py              # the table of this chapter, about 4 mi
       <li>Each part moved one number and had a price. The table, not any single chapter, is how a system is judged.</li>
     </ul>
   </div>
+
+  <div class="stick" data-draw="fig-system" data-explain="rl,verifier,probe,classifier,harness"></div>
 
   <h2>Check yourself</h2>
   <details class="check"><summary>The check raised the sums right by 148 in chapter 25 and by 1 here. Did it get worse?</summary><p>No. In chapter 25 it stood behind a model that guessed half the time, so it had many bad answers to reject. Here the model was trained and almost always uses the tool, so there is little left to catch. A part's value depends on what is in front of it.</p></details>

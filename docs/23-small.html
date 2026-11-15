@@ -72,6 +72,7 @@
     <h3>Your turn, by hand</h3>
     <p class="need">Paper and a pencil · about 10 minutes</p>
     <p>Round a small matrix to three values, then use it on one input with additions only. The rule: the scale is the average size of the weights, ignoring their signs. Each weight is divided by the scale, rounded to the nearest whole number, and kept between &minus;1 and +1.</p>
+    <p class="predict"><b>Predict first.</b> Before you divide anything, look at the two columns of weights. After rounding, will both outputs stay close to the originals? If one goes wrong, which column, and because of which weight? Write your guess down.</p>
     <div class="scroll"><table class="mini">
       <tr><th>Input</th><th>Value</th><th>Weight in column A</th><th>Weight in column B</th></tr>
       <tr><td>1</td><td class="mono">2</td><td class="mono">0.5</td><td class="mono">&minus;0.2</td></tr>
@@ -90,7 +91,7 @@
         <li>A: 2 + 3 &minus; (&minus;1) = 6, and 0.3 &times; 6 = 1.8. B: 1 &minus; 2 &minus; 3 = &minus;4, and 0.3 &times; (&minus;4) = &minus;1.2. Two multiplications in all, one per output.</li>
         <li>A: 2 &times; 0.5 + 1 &times; (&minus;0.1) + (&minus;1) &times; (&minus;0.3) + 3 &times; 0.2 = 1.0 &minus; 0.1 + 0.3 + 0.6 = 1.8, the same. B: 2 &times; (&minus;0.2) + 1 &times; 0.4 + (&minus;1) &times; 0 + 3 &times; (&minus;0.7) = &minus;0.4 + 0.4 + 0 &minus; 2.1 = &minus;2.1, against &minus;1.2.</li>
       </ol>
-      <p>In column A the small errors happen to cancel. In column B the weight &minus;0.7, more than twice the scale, was cut to &minus;0.3, and the output lost almost half its size: one scale for the whole matrix cannot fit its small and its large weights at once. A model has thousands of such errors at the same moment, which is how rounding afterwards reached 0 of 3,000.</p>
+      <p>Your prediction: column B goes wrong, because of its &minus;0.7. In column A the small errors happen to cancel. In column B the weight &minus;0.7, more than twice the scale, was cut to &minus;0.3, and the output lost almost half its size: one scale for the whole matrix cannot fit its small and its large weights at once. A model has thousands of such errors at the same moment, which is how rounding afterwards reached 0 of 3,000.</p>
     </details>
   </section>
 
@@ -100,7 +101,7 @@
     <p><dfn>Quantization-aware training</dfn> rounds the weights in every forward pass of training, so the model learns to do its job with the rounded values. The full-precision weights are kept underneath and are the ones gradient descent adjusts.</p>
   </div>
 
-  <figure class="fig">
+  <figure class="fig" id="fig-qat">
     <svg viewBox="0 0 760 200" role="img" aria-labelledby="f23a">
       <title id="f23a">Each training step. The full-precision weights are rounded to minus one, zero or plus one. The forward pass and the loss use the rounded weights. The gradient skips the rounding and adjusts the full-precision weights.</title>
       <defs><marker id="c23a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker>
@@ -260,6 +261,8 @@ python code/ch23_tiny.py --sweep       # every candidate of the table (about an 
       <li>Smaller has a price that has to be measured. At width 32, three-valued weights miss 215 questions where ordinary ones miss 1, and below width 32 they learned nothing.</li>
     </ul>
   </div>
+
+  <div class="stick" data-draw="fig-qat" data-explain="ternary,qat,quantization,gradient,held-out"></div>
 
   <h2>Check yourself</h2>
   <details class="check"><summary>The chapter 19 model rounded to three values scores 0. A model trained with three values scores almost everything. Both files hold only &minus;1, 0 and +1. What is the difference?</summary><p>Which model the values belong to. The first set are the nearest three-valued neighbours of weights that were trained to work at full precision; nothing ever checked that the neighbours work. The second set were used in every forward pass of training, so the loss was measured on them and the training adjusted them until they worked.</p></details>

@@ -87,7 +87,7 @@ P mul 23 45, sub $1 17
                     (the harness runs it: 1035, then 1018)</pre>
   <p>Both give 1018. Step by step took three passes of the model, and by the end its context held 81 characters. Plan first took one pass and 56 characters. The plan is shorter because no result in the middle is written into the context for the model to read.</p>
 
-  <figure class="fig">
+  <figure class="fig" id="fig-shapes">
     <svg viewBox="0 0 760 240" role="img" aria-labelledby="f39a">
       <title id="f39a">Step by step: the model and the tools take turns, three model passes for a job of two links, and the model reads every result. Plan first: one model pass writes the whole plan, the harness runs both steps, and the model reads no intermediate result.</title>
       <defs><marker id="c39a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
@@ -203,6 +203,7 @@ P mul 23 45, sub $1 17
     <h3>Your turn, by hand</h3>
     <p class="need">Paper and a pencil · about 15 minutes</p>
     <p>Take a job of three links, worked left to right: <code>what is 12 plus 30 times 4 minus 8?</code>. Write it both ways, count what it costs, then count what crashes cost a job of ten such questions.</p>
+    <p class="predict"><b>Predict first.</b> The job is interrupted by two crashes. Without a checkpoint, will it cost a little more than with one, about twice as much, or ten times as much? Write your guess down.</p>
     <ol>
       <li>Write the step-by-step conversation, line by line, in the format above. Then write the plan-first conversation, up to the end of the plan line.</li>
       <li>Count the passes of each, and the characters each context holds at the end. Count as the page does: every character, spaces included, one more for the end of each line, and one for the empty line the harness writes first. This gives 81 and 56 for the example above.</li>
@@ -214,7 +215,7 @@ P mul 23 45, sub $1 17
         <li>Step by step: one pass per link and one for the answer, 4 passes. Characters: 1 + 38 + 12 + 5 + 11 + 6 + 12 + 6 + 7 = 98. Plan first: 1 pass, and 1 + 38 + 32 = 71 characters.</li>
         <li>Step by step costs 4 passes a question. Without a checkpoint: questions 1 to 3 (12 passes), crash, all lost; questions 1 to 7 (28), crash, all lost; questions 1 to 10 (40). Total 12 + 28 + 40 = 80. With a checkpoint each question is done once: 10 × 4 = 40. Plan first costs 1 pass a question: 3 + 7 + 10 = 20 without a checkpoint, 10 with one.</li>
       </ol>
-      <p>Without a checkpoint the two crashes doubled the work, and the second cost more than the first because more had been done by then. The two savings are separate: plan first without a checkpoint (20) is already cheaper than step by step with one (40), and with both the job takes 10 passes, an eighth of 80. The trained agent answered 160 both ways, and the program counted 98 and 71 characters.</p>
+      <p>Your prediction: about twice as much, 80 passes against 40 step by step. Without a checkpoint the two crashes doubled the work, and the second cost more than the first because more had been done by then. The two savings are separate: plan first without a checkpoint (20) is already cheaper than step by step with one (40), and with both the job takes 10 passes, an eighth of 80. The trained agent answered 160 both ways, and the program counted 98 and 71 characters.</p>
     </details>
   </section>
 
@@ -249,6 +250,21 @@ python code/ch39_plan.py "what is 23 times 45 minus 17?"</pre>
       <li>A <a class="term" href="glossary.html#checkpoint">checkpoint</a> makes a crash cost a restart, not the work so far: 55 passes against 164 at one crash in ten questions.</li>
     </ul>
   </div>
+
+  <section class="actout" aria-label="Act it out">
+    <h3>Act it out</h3>
+    <p class="need">Two people, slips of paper, a calculator, a die · about 10 minutes</p>
+    <p>Play the two shapes of the figure, with the job of "Your turn": <code>what is 12 plus 30 times 4 minus 8?</code></p>
+    <ol>
+      <li>One of you is the <b>model</b>. You may only write on slips and hand them over; you never touch the calculator. The other is the <b>harness</b>: you alone run calls, on the calculator. Every slip the model writes is one pass.</li>
+      <li><b>Step by step.</b> The model writes one call, <code>C add 12 30</code>. The harness runs it and hands back a slip with the result, <code>R 42</code>. The model reads it and writes the next call, until it can write the answer. Count the slips the model wrote.</li>
+      <li><b>Plan first.</b> The model writes the whole plan on one slip, <code>P add 12 30, mul $1 4, sub $2 8</code>, and hands it over. The harness runs every step without asking the model again. Count the slips.</li>
+      <li>Now a new job: "roll the die; if the roll is even, add 10 to it, otherwise multiply it by 3". The die is a tool: only the harness rolls it. Try it plan first: write every call on one slip before the roll.</li>
+    </ol>
+    <p>The plan took one slip where step by step took four, because the model never read a result in the middle. For the same reason it cannot write the second call of the die job: that call depends on a result that does not exist yet.</p>
+  </section>
+
+  <div class="stick" data-draw="fig-shapes" data-explain="step-by-step,plan,harness,context,tool-call"></div>
 
   <h2>Check yourself</h2>
   <details class="check"><summary>Step by step, a job of three links takes how many passes of the model? And plan first?</summary><p>Four step by step: one per call and one for the answer. One plan first: the model writes the plan and the harness does the rest.</p></details>

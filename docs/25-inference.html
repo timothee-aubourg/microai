@@ -47,7 +47,7 @@
     <tr><td class="mono">5</td><td>guess</td><td class="mono">2412</td></tr>
   </table></div>
   <p>Three of the five are guesses, so a single try is more likely wrong than right. But the three guesses are wrong in three different ways, and the two right answers are the same. The answer given most often is 2397. There are many ways to be wrong and one way to be right, so wrong answers scatter and right ones pile up.</p>
-  <figure class="fig">
+  <figure class="fig" id="fig-vote">
     <svg viewBox="0 0 760 220" role="img" aria-labelledby="f25a">
       <title id="f25a">Five tries at the same question on the left, each with its final answer. In the middle the answers are counted: 2397 was given twice, and 2524, 2371 and 2412 once each. On the right, the answer given most often, 2397, is kept.</title>
       <defs><marker id="c25a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
@@ -73,6 +73,7 @@
     <h3>Your turn, by hand</h3>
     <p class="need">Paper, a pencil and a calculator · about 10 minutes</p>
     <p>Work out how often a vote of five tries is right, from how often one try is right. Assume, as in the table above, that wrong answers never agree with each other. Then drop that assumption.</p>
+    <p class="predict"><b>Predict first.</b> Before you calculate, think of step 3: a model right 4 times in 10 whose wrong answers always agree. Will a vote of five be right more often than one try, or less often? Write your guess down.</p>
     <ol>
       <li>Each try is right with probability 0.5, as for this model. With wrong answers all different, the right answer wins for certain as soon as two tries give it. Find the chance that no try is right, 0.5<sup>5</sup>, and that exactly one is, 5 &times; 0.5<sup>5</sup>. Subtract both from 1.</li>
       <li>Do the same for a model that is right with probability 0.4: no try right is 0.6<sup>5</sup>, exactly one is 5 &times; 0.4 &times; 0.6<sup>4</sup>.</li>
@@ -84,7 +85,7 @@
         <li>0.6<sup>5</sup> = 0.078. 5 &times; 0.4 &times; 0.1296 = 0.259. 1 &minus; 0.078 &minus; 0.259 = 0.66, against 0.4 for one try.</li>
         <li>10 &times; 0.064 &times; 0.36 = 0.230, 5 &times; 0.0256 &times; 0.6 = 0.077, 0.4<sup>5</sup> = 0.010. Together 0.32, less than the 0.4 of a single try.</li>
       </ol>
-      <p>Voting works because wrong answers scatter. When a model is wrong the same way most of the time, five votes make it more reliably wrong than one try, and the count of votes gives no sign that anything is amiss.</p>
+      <p>Your prediction: less often, 0.32 against 0.4. Voting works because wrong answers scatter. When a model is wrong the same way most of the time, five votes make it more reliably wrong than one try, and the count of votes gives no sign that anything is amiss.</p>
     </details>
   </section>
 
@@ -200,6 +201,20 @@ python code/ch25_infer.py                # every row of this chapter, about 5 mi
       <li>What a running system learns goes into its context, not its weights. Making the weights themselves keep learning during use is an open research problem.</li>
     </ul>
   </div>
+
+  <section class="actout" aria-label="Act it out">
+    <h3>Act it out</h3>
+    <p class="need">One person, a pack of cards · about 10 minutes</p>
+    <p>Play a model that is right half the time, asked the same question five times, as in the figure of five tries.</p>
+    <ol>
+      <li>A red card is a right answer. A black card is a guess, and its value, ace to king, is the wrong number it gives.</li>
+      <li>Shuffle and deal five cards: five tries. Keep the answer given most often, and count a tie as a loss. Note whether the vote was right, gather the cards, and deal ten votes in all.</li>
+      <li>Now play a model whose guesses always agree: every black card is the same wrong number. Deal ten more votes.</li>
+    </ol>
+    <p>Each card is right only half the time, yet over many deals the first vote is right about four times in five: the black cards rarely match and the red ones always do. In the second round the vote is right half the time, no better than one card, because wrong answers that agree pile up just like right ones.</p>
+  </section>
+
+  <div class="stick" data-draw="fig-vote" data-explain="inference,self-consistency,verifier,steering,sampling"></div>
 
   <h2>Check yourself</h2>
   <details class="check"><summary>A model makes the same arithmetic mistake on nine tries out of ten. Will voting over fifteen tries help?</summary><p>No. Voting keeps the most common answer, and here the most common answer is the mistake. Voting helps only when wrong answers disagree with each other more than right ones do.</p></details>

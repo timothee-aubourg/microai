@@ -45,7 +45,7 @@
   </table></div>
   <p>The model's favourite is gone, and the softmax shares everything between the two that remain. The mask removed 0.67 of the model's belief at this step: that number says how hard the mask had to push. Keep an eye on it. It comes back in the measurements.</p>
 
-  <figure class="fig">
+  <figure class="fig" id="fig-mask">
     <svg viewBox="0 0 760 200" role="img" aria-labelledby="f13a">
       <title id="f13a">The sampling path of chapter 8 with one box added. The model gives scores. The format, which knows what has been written so far, gives the list of characters allowed next. The mask sets the scores of all other characters to minus infinity. Then the softmax and the draw follow as before.</title>
       <defs><marker id="c13a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
@@ -108,6 +108,7 @@
     <h3>Your turn, by hand</h3>
     <p class="need">Paper and a pencil · about 10 minutes</p>
     <p>Play the machine. Step through a short text in this format, and list at every step the characters the mask allows.</p>
+    <p class="predict"><b>Predict first.</b> The text <code>ROSS: oh!</code> has nine characters. At how many of them will the model really have a choice: nearly all, about half, or only one or two? Write your guess down.</p>
     <pre class="code" data-lang="text">format   one word from:  ROMEO  ROSS  JULIET
          then 1 colon
          then 1 space
@@ -126,7 +127,7 @@ text     ROSS: oh!</pre>
         <li>Four: the O after R, the second S, the colon and the space. Of nine characters, the model chose five; the format wrote the other four whatever the scores said. Had the text been <code>ohh</code>, a fourth h would not be allowed: after <code>ohh</code> only ! remains.</li>
         <li>The allowed characters hold 0.30 + 0.06 = 0.36. Rescaled: M 0.30 / 0.36 = 0.83, S 0.06 / 0.36 = 0.17. The mask removed 1 − 0.36 = 0.64 of the model's belief at this step.</li>
       </ol>
-      <p>Close to half of this text was decided by the format, not the model, and the stop as well: the model gets no vote on when the text ends.</p>
+      <p>Your prediction: five of the nine. Close to half of this text was decided by the format, not the model, and the stop as well: the model gets no vote on when the text ends.</p>
     </details>
   </section>
 
@@ -223,6 +224,20 @@ print(reply['content'])        # text that always parses, with exactly these two
       <li>The mask guarantees the form. It does not make the content right, and among the allowed outputs it does not pick the one the model thought best.</li>
     </ul>
   </div>
+
+  <section class="actout" aria-label="Act it out">
+    <h3>Act it out</h3>
+    <p class="need">Two people, a pencil, a few coins · about 10 minutes</p>
+    <p>Play the format of "Your turn" with one person as the machine and one as the model, which does not know the format.</p>
+    <ol>
+      <li>Write these fifteen characters in a row on a sheet, well spaced: <code>J R O M E S U L I T : ␣ o h !</code>. Only the <b>machine</b> may read the format.</li>
+      <li>At each step the <b>model</b> points to any character it likes. If the format allows it, the machine writes it down and lifts all the coins. If not, the machine puts a coin on it, and the model points again at a character that is not covered.</li>
+      <li>The machine says when the text is finished. Play twice: once as the model likes, once with the model trying its best to break the format.</li>
+    </ol>
+    <p>However the model points, the text fits, because a covered character is never written, and pointing again among the rest is what the softmax does after the mask. The model never learned the format, and it did not decide where the text stopped.</p>
+  </section>
+
+  <div class="stick" data-draw="fig-mask" data-explain="tool-call,mask,constrained-decoding,softmax"></div>
 
   <h2>Check yourself</h2>
   <details class="check"><summary>Two characters are possible, with model probabilities 0.9 and 0.1. The format does not allow the first. What is drawn, and how much belief did the mask remove?</summary><p>The second, with probability 1: it is the only one left. The mask removed 0.9 of the model's belief. The text fits the format, and the model thought this character unlikely.</p></details>

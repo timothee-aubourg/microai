@@ -53,7 +53,7 @@
   <p>Six trained numbers produced a correction to all nine. On a table this small that saves little. The saving comes with size: a full correction to a <i>d</i> × <i>d</i> matrix has <i>d</i>² numbers, and this one has 2 × <i>d</i> × <i>r</i>. For a matrix of our model, 96 × 96 = 9,216 numbers against 2 × 96 × 4 = 768.</p>
   <p>The price is visible in the table too. Every row of the correction is the same row, (1, 0, 2), scaled. A correction of rank 1 can only push the weights along one direction, and one of rank <i>r</i> along <i>r</i> directions.</p>
 
-  <figure class="fig">
+  <figure class="fig" id="fig-lora">
     <svg viewBox="0 0 760 220" role="img" aria-labelledby="f12a">
       <title id="f12a">A large square, the frozen matrix W, plus the product of a tall thin strip A and a wide thin strip B. Only the two strips are trained. Their product has the size of the square.</title>
       <g class="t-small">
@@ -82,6 +82,7 @@
     <h3>Your turn, by hand</h3>
     <p class="need">Paper and a pencil · about 10 minutes</p>
     <p>Merge a correction of rank 1 into a small matrix. Then find out which corrections rank 1 can make, and at what rank an adapter stops saving anything.</p>
+    <p class="predict"><b>Predict first.</b> An adapter trains 2 × <i>d</i> × <i>r</i> numbers instead of <i>d</i>². At what rank does it stop saving anything: a few percent of the width, about half of it, or only the full width? Write your guess down.</p>
     <pre class="code" data-lang="text">W  =  0.5   0     0.1
       0     0.4   0
       0.2   0     0.3
@@ -101,7 +102,7 @@ A (column) = 0.1, −0.2, 0.3        B (row) = 2, 1, 0</pre>
         <li>D1: every row is a multiple of (1, 2, 3), by 2, by 1 and by 0. So A = (2, 1, 0) and B = (1, 2, 3). D2: its rows (1, 0, 0) and (0, 1, 0) are not multiples of one row, so rank 1 cannot make it. It needs rank 2: two corrections of rank 1 added together, one for each row.</li>
         <li>The adapter trains 2 × d × r numbers and the matrix holds d². They are equal when r = d / 2. For d = 3: rank 1 trains 6 numbers against 9, rank 2 already trains 12, more than the matrix. For d = 96: rank 48 trains 2 × 96 × 48 = 9,216 = 96 × 96. The rank 4 of our adapter is far below that.</li>
       </ol>
-      <p>An adapter saves numbers only when its rank is well under half the width, and it pays for that by reaching only r directions. That trade is worth it for wide matrices and small ranks, as with 4,096 and 16.</p>
+      <p>Your prediction: about half of it, <i>r</i> = <i>d</i> / 2. An adapter saves numbers only when its rank is well under half the width, and it pays for that by reaching only r directions. That trade is worth it for wide matrices and small ranks, as with 4,096 and 16.</p>
     </details>
   </section>
 
@@ -149,6 +150,8 @@ def apply_adapter():
       <li>An adapter can be merged into the weights, and then costs nothing at run time. It can also make the model worse at everything else, so measure both.</li>
     </ul>
   </div>
+
+  <div class="stick" data-draw="fig-lora" data-explain="fine-tuning,lora,rank,adapter"></div>
 
   <h2>Check yourself</h2>
   <details class="check"><summary>A matrix is 4,096 × 4,096. How many numbers does a rank-16 adapter for it train?</summary><p>2 × 4,096 × 16 = 131,072, against 16.8 million in the matrix: 0.8%.</p></details>

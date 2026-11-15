@@ -36,7 +36,7 @@
     <p><dfn>Drift</dfn> is a change in the requests, or in the answers, after release. Nothing in the system changed. The world did.</p>
   </div>
 
-  <figure class="fig">
+  <figure class="fig" id="fig-stages">
     <svg viewBox="0 0 760 200" role="img" aria-labelledby="f36a">
       <title id="f36a">Three stages in a row. Before release, the gate: a fixed test with an answer key, and no users. During release, the canary: a small share of real traffic and a counter, with no answer key. After release, the watch: all the traffic, one line of trace per request, counters per day and an alarm.</title>
       <defs><marker id="c36a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
@@ -135,6 +135,7 @@ def gate(candidate, production, metrics):
     <h3>Your turn, by hand</h3>
     <p class="need">Paper, a pencil and a calculator · about 15 minutes</p>
     <p>Decide one gate and follow one canary, with the rules of <code>worse</code> and <code>canary</code> above.</p>
+    <p class="predict"><b>Predict first.</b> In step 1 the candidate refuses the secret 8 times fewer in 300 than production. Will the gate block it? Write your guess down.</p>
     <ol>
       <li>The gate. Production refuses the secret 294 times of 300. A new candidate refuses it 286 times. Work out p<sub>1</sub>, p<sub>2</sub>, the drop and the noise. Is the candidate blocked? What is the highest count of refusals that would block it?</li>
       <li>The canary. Production asks again on 1 sum in 358, so p<sub>0</sub> = 0.0028. A candidate is asked again on its 3rd sum. The chance of 1 or more in 3 sums is about 3 &times; p<sub>0</sub>. Does the alarm, at one in a thousand, fire? It is asked again a second time on its 7th sum. The chance of 2 or more in <em>n</em> sums is about <em>n</em>(<em>n</em> &minus; 1)/2 &times; p<sub>0</sub><sup>2</sup>, with p<sub>0</sub><sup>2</sup> = 0.0000078. Does it fire now?</li>
@@ -146,7 +147,7 @@ def gate(candidate, production, metrics):
         <li>After the 3rd sum: 3 &times; 0.0028 = 0.0084, more than 0.001: no alarm. After the 7th: 7 &times; 6 / 2 = 21, and 21 &times; 0.0000078 = 0.00016, less than 0.001: alarm.</li>
         <li>No. One retry on the very first sum has chance 0.0028, already above one in a thousand, and every later sum only makes one retry more likely. On the 17th sum: 17 &times; 16 / 2 = 136, and 136 &times; 0.0000078 = 0.0011: no alarm. On the 16th it would still have fired: 120 &times; 0.0000078 = 0.00094.</li>
       </ol>
-      <p>The gate lets through a drop of 8 refusals in 300, the kind of small regression that needs a larger test to see. The canary never alarms on a single retry and needs two within 16 sums: the wrong file, which retries on about half its sums, gets there in a handful of requests, and a model that is only slightly worse would not.</p>
+      <p>Your prediction: no, it passes. The gate lets through a drop of 8 refusals in 300, the kind of small regression that needs a larger test to see. The canary never alarms on a single retry and needs two within 16 sums: the wrong file, which retries on about half its sums, gets there in a handful of requests, and a model that is only slightly worse would not.</p>
     </details>
   </section>
 
@@ -230,6 +231,8 @@ def gate(candidate, production, metrics):
       <li>Layers hide each other's failures. Inside the system the broken model did no visible harm, so each layer also has to be tested alone.</li>
     </ul>
   </div>
+
+  <div class="stick" data-draw="fig-stages" data-explain="release-gate,canary,drift,trace,standard-error"></div>
 
   <h2>Check yourself</h2>
   <details class="check"><summary>A candidate scores 290 of 300 where production scored 296. Blocked or not, by the rule of this chapter?</summary><p>The noise of the difference is about 1.2 points, so the limit is about 2.4 points, which is 7 sums. A drop of 6 passes. It may still be a real drop: 300 cases cannot tell, and a larger test would.</p></details>

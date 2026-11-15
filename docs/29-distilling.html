@@ -36,7 +36,7 @@
     <p><dfn>Distillation</dfn> is training a small model, the student, to reproduce the outputs of a large one, the teacher.</p>
     <p>A <dfn>soft target</dfn> is a list of probabilities used as the answer in training, in place of one right token.</p>
   </div>
-  <figure class="fig">
+  <figure class="fig" id="fig-soft">
     <svg viewBox="0 0 760 210" role="img" aria-labelledby="f29a">
       <title id="f29a">Two answers to the same question, what follows "the kin". On the left, the text: one bar, all of it on g. On the right, the teacher: a tall bar on g, a shorter one on d, a small one on s and almost nothing on z. Both are shown to the student as the answer to learn.</title>
       <defs><marker id="c29a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
@@ -95,6 +95,7 @@
     <h3>Your turn, by hand</h3>
     <p class="need">Paper, a pencil and a calculator · about 10 minutes</p>
     <p>One position, where the text had "g". Compare two students, first against the text and then against the teacher. Use &minus;log 0.97 &asymp; 0.03, &minus;log 0.02 &asymp; 3.91, &minus;log 0.01 &asymp; 4.61, &minus;log 0.6 &asymp; 0.51, &minus;log 0.3 &asymp; 1.20, &minus;log 0.1 &asymp; 2.30.</p>
+    <p class="predict"><b>Predict first.</b> Student A is nearly certain of g. Student B copies the teacher. Which one will the text prefer, which will the teacher prefer, and which will lose less when the next character turns out to be d? Write your guess down.</p>
     <div class="scroll"><table class="mini">
       <tr><th></th><th class="mono">g</th><th class="mono">d</th><th class="mono">s</th></tr>
       <tr><td>teacher</td><td class="mono">0.6</td><td class="mono">0.3</td><td class="mono">0.1</td></tr>
@@ -112,7 +113,7 @@
         <li>A: 0.6 &times; 0.03 + 0.3 &times; 3.91 + 0.1 &times; 4.61 = 0.018 + 1.173 + 0.461 = 1.65. B: 0.6 &times; 0.51 + 0.3 &times; 1.20 + 0.1 &times; 2.30 = 0.306 + 0.360 + 0.230 = 0.90. The teacher prefers B. No student can score lower than 0.90 against this list: the best a student can do is copy it.</li>
         <li>A: 3.91. B: 1.20.</li>
       </ol>
-      <p>Against the text, certainty wins every time, and a student that sees each situation only once or twice learns to be certain about what it saw. On new text it pays for it, as the 6.573 above shows. Against the teacher, certainty is punished at every position, before any new text is seen.</p>
+      <p>Your prediction: the text prefers A, the teacher prefers B, and on the "d" B loses far less, 1.20 against 3.91. Against the text, certainty wins every time, and a student that sees each situation only once or twice learns to be certain about what it saw. On new text it pays for it, as the 6.573 above shows. Against the teacher, certainty is punished at every position, before any new text is seen.</p>
     </details>
   </section>
 
@@ -182,6 +183,8 @@
       <li>The cost is a pass of the teacher at every training step.</li>
     </ul>
   </div>
+
+  <div class="stick" data-draw="fig-soft" data-explain="distillation,soft-target,loss,memorisation,distribution"></div>
 
   <h2>Check yourself</h2>
   <details class="check"><summary>Both students saw the same 5,000 characters. Where did the second one get its extra knowledge?</summary><p>From the answers. At each position it was given the teacher's probabilities, and those were shaped by everything the teacher read. The text was the same; what was said about it was not.</p></details>

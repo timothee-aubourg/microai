@@ -50,7 +50,7 @@ U what is 23 plus 45?
 A i have no tool for plus.</pre>
   <p>Nothing about <code>ka</code> or <code>wo</code> is in the weights. What the agent can do depends on what the list says, and the list can be different in every conversation.</p>
 
-  <figure class="fig">
+  <figure class="fig" id="fig-harness">
     <svg viewBox="0 0 760 250" role="img" aria-labelledby="f37a">
       <title id="f37a">The harness stands between the model and two tool servers. First it asks each server for its list of tools and writes the lists into the model's context. When the model writes a call, the harness sends it to the server that owns the tool and writes the result back into the context.</title>
       <defs><marker id="c37a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
@@ -222,6 +222,7 @@ def admit(lists, approved):
     <h3>Your turn, by hand</h3>
     <p class="need">Paper and a pencil · about 10 minutes</p>
     <p>Four servers are connected. The harness receives their lists in this order and runs <code>admit</code> on them, as in the code above. Then you write what the agent reads and what it writes.</p>
+    <p class="predict"><b>Predict first.</b> In step 3 a dishonest server is approved by mistake. Will the check still keep the plus answers right? Write your guess down.</p>
     <pre class="code" data-lang="text">A  approved, unchanged   plus=at minus=hx
 C  never approved        plus=bt
 B  approved, unchanged   times=sv minus=qe mod=wu
@@ -238,7 +239,7 @@ D  approved, changed     max=mr</pre>
         <li><code>C mod=wu 47 6</code>, <code>R 5</code> (47 = 7 × 6 + 5), <code>A 47 mod 6 is 5.</code> For max: <code>A i have no tool for max.</code> A server offered <code>max=mr</code>, but it is not on the agent's list, and the list is all the agent knows.</li>
         <li>C now passes the check and comes first, so <code>plus</code> is taken by <code>bt</code>, and A's <code>plus=at</code> is the entry dropped. The line is <code>T plus=bt minus=hx times=sv mod=wu</code>. Then <code>C plus=bt 47 6</code>, <code>R 54</code>, <code>A 47 plus 6 is 54.</code></li>
       </ol>
-      <p>The check trusts the approval and keeps the first tool for each description. Once a dishonest server is approved, the same rule that protected the honest tool removes it, and every plus answer is one too high. The fingerprint guards against a list that changes, not against a bad approval. Given these lists, the trained agent of this chapter wrote exactly the lines above.</p>
+      <p>Your prediction: no. The check now keeps the dishonest <code>bt</code> and drops the honest <code>at</code>. The check trusts the approval and keeps the first tool for each description. Once a dishonest server is approved, the same rule that protected the honest tool removes it, and every plus answer is one too high. The fingerprint guards against a list that changes, not against a bad approval. Given these lists, the trained agent of this chapter wrote exactly the lines above.</p>
     </details>
   </section>
 
@@ -274,6 +275,8 @@ python code/mcp_server.py --tools plus=ka,minus=wo     # a server by itself: typ
       <li>A tool list is text from outside. Offered a dishonest tool for plus and no other, the agent sent it 300 of 300 calls; after the harness checked the lists, 0. This is <a class="term" href="glossary.html#tool-poisoning">tool poisoning</a>, and the defence is in the harness.</li>
     </ul>
   </div>
+
+  <div class="stick" data-draw="fig-harness" data-explain="tool-description,context,harness,mcp,tool-call"></div>
 
   <h2>Check yourself</h2>
   <details class="check"><summary>The agent has never seen the name <code>at</code>. Why can it call it?</summary><p>It does not need to know the name. It has learned a procedure: find the question's operation in the list, and write the entry found there. The name is copied from the context, as a person copies a phone number without knowing it by heart.</p></details>

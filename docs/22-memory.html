@@ -80,7 +80,7 @@
   </div>
   <p>The two pools are joined by a slot on the board. That link is the narrow door. By its specification it carries about 32 GB per second in the version common on current boards (16 lanes, each of 16 gigabits per second), against 1,008 GB per second inside a GeForce RTX 4090. So nobody fetches weights through it for every token. The weights cross it once, when the model is loaded. After that, each layer is computed by the processor that sits next to it, and only the small vector for the current token crosses from one side to the other.</p>
 
-  <figure class="fig">
+  <figure class="fig" id="fig-pools">
     <svg viewBox="0 0 760 250" role="img" aria-labelledby="f22b">
       <title id="f22b">Left: a desktop with a graphics card. The CPU has RAM, the GPU has its own VRAM, and a narrow link joins the two sides. Right: unified memory. CPU and GPU sit on one chip and both read the same single pool.</title>
       <text x="16" y="24" class="t-big">Two pools</text>
@@ -170,6 +170,7 @@
     <h3>Your turn, by hand</h3>
     <p class="need">Paper, a pencil and a calculator · about 15 minutes</p>
     <p>A model of 14 billion weights at 4 bits each has 40 layers and keys of 1,024 numbers, stored on 2 bytes each. It runs on a graphics card with 16 GB of VRAM that delivers 448 GB per second. The computer's RAM delivers 89.6 GB per second.</p>
+    <p class="predict"><b>Predict first.</b> When the conversation grows long and a little of the model has to move to RAM, will the speed drop by a few percent or by about half? Write your guess down.</p>
     <ol>
       <li>How many GB are the weights, and what is the ceiling in tokens per second when they are all on the card?</li>
       <li>How many bytes of KV cache does one token of context need? How much is that at 16,384 tokens, and do model and cache still fit?</li>
@@ -183,7 +184,7 @@
         <li>The cache has 16 − 7 = 9 GB of room. 9,000,000,000 ÷ 163,840 is about 54,900 tokens.</li>
         <li>At 65,536 tokens the cache is 10.74 GB, and with the weights 17.74 GB: 1.74 GB too many. So 1.74 GB of weights go to RAM and 7 − 1.74 = 5.26 GB stay on the card. Time per token: 5.26 ÷ 448 = 0.0117 s, plus 1.74 ÷ 89.6 = 0.0194 s, 0.0312 s in all. The ceiling is 1 ÷ 0.0312 = 32 tokens per second.</li>
       </ol>
-      <p>The same model on the same card writes half as fast because the conversation got longer, and the 1.74 GB in RAM take more time than the 5.26 GB on the card.</p>
+      <p>Your prediction: from 64 tokens per second to 32. The same model on the same card writes half as fast because the conversation got longer, and the 1.74 GB in RAM take more time than the 5.26 GB on the card.</p>
     </details>
   </section>
 
@@ -273,6 +274,20 @@ def ladder(sizes):
       <li>Model files are <a class="term" href="glossary.html#memory-map">mapped</a>, not read. If the model is larger than free memory, every token waits for the disk.</li>
     </ul>
   </div>
+
+  <section class="actout" aria-label="Act it out">
+    <h3>Act it out</h3>
+    <p class="need">Two people, twelve books, a table and a shelf in another room, a watch · about 8 minutes</p>
+    <p>Play one token through a model that does not fit on the graphics card: the table is the VRAM, the shelf is the RAM, and a slip of paper is the token's vector.</p>
+    <ol>
+      <li>Put eight books open on the table and four on the shelf. One of you, the GPU, sits at the table. The other, the CPU, stands by the shelf and may hold only one book at a time.</li>
+      <li>The GPU makes a mark on the slip for each of its eight books, then carries the slip to the CPU. The CPU takes each of its four books down in turn, makes a mark, and puts it back. Time the two halves separately.</li>
+      <li>Move two of the shelf books to the table and play again.</li>
+    </ol>
+    <p>The four books on the shelf take about as long as the eight on the table, or longer, and only the slip crossed the door. Each half's time adds to the token's time, so the small part that spilled sets the pace.</p>
+  </section>
+
+  <div class="stick" data-draw="fig-pools" data-explain="ram,vram,bandwidth,offload,unified-memory"></div>
 
   <h2>Check yourself</h2>
   <details class="check"><summary>A friend's 16 GB card runs a 14 GB model at 40 tokens per second. They load a 20 GB model and get 6. The card is the same. What happened?</summary><p>4 GB of the model did not fit and stayed in RAM, where the CPU computes those layers. Time per token is the sum over both memories, and RAM is around ten times slower per gigabyte, so the small part in RAM dominates.</p></details>

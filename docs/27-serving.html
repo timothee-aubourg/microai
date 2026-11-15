@@ -76,7 +76,7 @@
   <div class="def"><span class="kind">Definition</span>
     <p><dfn>Continuous batching</dfn> rebuilds the batch at every pass. A request joins at the next pass after it arrives and leaves at the pass where it finishes, so nobody waits for anybody else's request to end.</p>
   </div>
-  <figure class="fig">
+  <figure class="fig" id="fig-batching">
     <svg viewBox="0 0 760 250" role="img" aria-labelledby="f27a">
       <title id="f27a">Three requests along a line of time, served in two ways. With fixed batches, the first two run together and the third, which arrived a moment late, waits until both have finished before it starts. With continuous batching, the third joins at the next pass and all three run side by side.</title>
       <g class="t-small">
@@ -143,6 +143,7 @@
     <h3>Your turn, by hand</h3>
     <p class="need">Paper and a pencil · about 10 minutes</p>
     <p>Run the server of <code>serve</code> on paper. Three requests arrive at 0, 0.5 and 1.0 seconds, and each wants 3 tokens. A pass takes 1.0 s with one request in it, 1.2 s with two and 1.4 s with three: mostly reading the weights, like the large model.</p>
+    <p class="predict"><b>Predict first.</b> Look ahead to step 3: a new request every 2 seconds, each taking 3. Will the tenth person wait about as long as the first, a little longer, or far longer? Write your guess down.</p>
     <ol>
       <li>One place: write when each request finishes, and its latency, finish time minus arrival time.</li>
       <li>Three places, continuous batching: before each pass, let in every request that has arrived. Write the clock after each pass and who is in it, then the three latencies.</li>
@@ -154,7 +155,7 @@
         <li>At 0 only request 1 is there: a pass alone, clock 1.0. Requests 2 and 3 have now arrived and join: a pass of three, clock 2.4, and another, clock 3.8. Request 1 has its 3 tokens and leaves, latency 3.8 s. The other two need one more token each: a pass of two, clock 5.0. Latencies 4.5 s and 4.0 s. Everything is done at 5.0 instead of 9.0.</li>
         <li>Each request takes 3 seconds and a new one arrives every 2, so request n arrives at 2 &times; (n &minus; 1) and finishes at 3 &times; n. Latencies 3, 4, 5, … s: each waits one second longer than the one before. The tenth arrives at 18 and finishes at 30, a latency of 12 s.</li>
       </ol>
-      <p>In step 2 the first person pays 0.8 s for sharing and the other two gain 1.0 and 4.0 s. Step 3 is a server past its capacity: half a request arrives per second and a third of one leaves, so the wait grows by a second with every request and has no limit, as in the table at 0.36 per second. With three places, the same ten requests all finish within 4.4 s of arriving.</p>
+      <p>Your prediction: far longer, 12 s against 3 s, and the wait keeps growing. In step 2 the first person pays 0.8 s for sharing and the other two gain 1.0 and 4.0 s. Step 3 is a server past its capacity: half a request arrives per second and a third of one leaves, so the wait grows by a second with every request and has no limit, as in the table at 0.36 per second. With three places, the same ten requests all finish within 4.4 s of arriving.</p>
     </details>
   </section>
 
@@ -198,6 +199,20 @@
       <li>The batch is limited by the memory each request's context needs, and by the speed each user will accept.</li>
     </ul>
   </div>
+
+  <section class="actout" aria-label="Act it out">
+    <h3>Act it out</h3>
+    <p class="need">One or two people, three cups and a pile of coins · about 5 minutes</p>
+    <p>Play the server: a cup is a request, a coin is a token, and a walk to the kitchen and back is one pass, the part that reads the weights.</p>
+    <ol>
+      <li>Put the coins at one end of a room, the kitchen, and the three cups at the other. Each cup wants three coins.</li>
+      <li>One place: each walk brings one coin, to the first cup that still needs one. Count the walks until all three cups are full.</li>
+      <li>Continuous batching: empty the cups. Each walk now brings one coin for every cup that still needs one. If a second person is there, they may put down a new cup at any moment: it gets its first coin on the next walk. Count the walks again.</li>
+    </ol>
+    <p>With three cups it is nine walks against three, and carrying three coins takes hardly longer than carrying one: the walk is paid once per pass, whoever is served. If the coins sat beside the cups, as the small model's weights sit in the cache, there would be no walk to share and nothing to gain.</p>
+  </section>
+
+  <div class="stick" data-draw="fig-batching" data-explain="latency,throughput,batch,continuous-batching,memory-bandwidth"></div>
 
   <h2>Check yourself</h2>
   <details class="check"><summary>Why does a batch of sixteen cost little more than a batch of one for a large model, and sixteen times more for our small one?</summary><p>For the large model most of a pass is spent fetching the weights from memory, and that happens once per pass whatever the batch. For the small model the weights sit in the cache, fetching is free, and all the time is arithmetic, which is done once per text.</p></details>

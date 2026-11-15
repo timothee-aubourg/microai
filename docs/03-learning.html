@@ -59,7 +59,7 @@
   <div class="eq">w ← 2.6 − 0.1 × (−3.2) = 2.92</div>
   <p>The loss is now (5.84 − 6)² = 0.03. Two questions and two steps took the loss from 16 to 0.03, and <i>w</i> from 1 to 2.92. The value that makes the loss zero is 3. Notice that the steps got smaller without anyone deciding so: near the bottom the slope is small, and the step is the slope times the rate.</p>
 
-  <figure class="fig">
+  <figure class="fig" id="fig-downhill">
     <svg viewBox="0 0 760 250" role="img" aria-labelledby="f3a">
       <title id="f3a">The loss of the by-hand example drawn against the parameter w. It is a bowl with its lowest point at w equals 3. A point at w equals 1 sits high on the left wall, where the slope is minus 16. One step carries it to w equals 2.6, near the bottom, and a second to 2.92.</title>
       <defs><marker id="c3a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
@@ -135,6 +135,7 @@
     <h3>Your turn, by hand</h3>
     <p class="need">Paper and a pencil · about 10 minutes</p>
     <p>Run forward, backward and one step for the line <i>prediction</i> = <i>w</i> × <i>x</i> + <i>b</i> on a new example, then try two learning rates. Start at <i>w</i> = 1 and <i>b</i> = 0. The example is <i>x</i> = 3, right answer <i>y</i> = 2.</p>
+    <p class="predict"><b>Predict first.</b> Steps 3 and 4 take one step from the same start with a learning rate of 0.1, then of 0.05. Which one will leave the lower loss? Write your guess down.</p>
     <ol>
       <li>Forward: compute <i>p</i> = <i>w</i> × <i>x</i>, <i>s</i> = <i>p</i> + <i>b</i>, <i>e</i> = <i>s</i> − <i>y</i> and <i>L</i> = <i>e</i>², as in the table above.</li>
       <li>Backward: find the slope of <i>L</i> at <i>e</i>, <i>s</i>, <i>b</i>, <i>p</i> and <i>w</i>, with the two rules for addition and multiplication.</li>
@@ -148,7 +149,7 @@
         <li><i>w</i> ← 1 − 0.1 × 6 = 0.4 and <i>b</i> ← 0 − 0.1 × 2 = −0.2. Forward: <i>p</i> = 0.4 × 3 = 1.2, <i>s</i> = 1.2 − 0.2 = 1, <i>e</i> = 1 − 2 = −1, <i>L</i> = 1. The loss has not changed. The prediction went from 1 too high to 1 too low.</li>
         <li><i>w</i> ← 1 − 0.05 × 6 = 0.7 and <i>b</i> ← 0 − 0.05 × 2 = −0.1. Forward: <i>p</i> = 0.7 × 3 = 2.1, <i>s</i> = 2.1 − 0.1 = 2, <i>e</i> = 0, <i>L</i> = 0.</li>
       </ol>
-      <p>The slopes were the same both times; only the learning rate differed. At 0.1 the step jumped across the valley and landed as high on the other side, and at 0.05 it landed exactly at the bottom. A rate of 0.15 would have landed higher than it started, with a loss of 4: the overshoot of the widget above.</p>
+      <p>Your prediction: the smaller rate, 0.05, which reaches a loss of 0. The slopes were the same both times; only the learning rate differed. At 0.1 the step jumped across the valley and landed as high on the other side, and at 0.05 it landed exactly at the bottom. A rate of 0.15 would have landed higher than it started, with a loss of 4: the overshoot of the widget above.</p>
     </details>
   </section>
 
@@ -252,6 +253,8 @@ assert worst &lt; 1e-6</pre>
       <li><a class="term" href="glossary.html#backpropagation">Backpropagation</a> gets every slope from one forward pass and one backward pass, by multiplying slopes along the chain of operations.</li>
     </ul>
   </div>
+
+  <div class="stick" data-draw="fig-downhill" data-explain="slope,gradient,gradient-descent,learning-rate,backpropagation"></div>
 
   <h2>Check yourself</h2>
   <details class="check"><summary>The slope of the loss for a parameter is +4. Should the parameter go up or down, and by how much with a learning rate of 0.1?</summary><p>Down. A positive slope means that raising the parameter raises the loss, so the step goes the other way: the parameter changes by −0.1 × 4 = −0.4.</p></details>

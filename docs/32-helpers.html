@@ -46,7 +46,7 @@
   </table></div>
   <p>Each helper filled most of a window with its own question, call, result and sentence. None of that reaches the lead. The lead receives three numbers. Its own notes hold the job and the results, and nothing of how they were found.</p>
 
-  <figure class="fig">
+  <figure class="fig" id="fig-split">
     <svg viewBox="0 0 760 230" role="img" aria-labelledby="f32a">
       <title id="f32a">A lead splits a job into three parts. Each part goes to a helper with its own empty context. Each helper works with the tool and hands back one number. The lead adds the numbers.</title>
       <defs><marker id="c32a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
@@ -103,6 +103,7 @@
     <h3>Your turn, by hand</h3>
     <p class="need">Paper, a pencil and a calculator · about 10 minutes</p>
     <p>Split a job of four parts as in the table above, then work out how reliable each helper has to be when the job grows.</p>
+    <p class="predict"><b>Predict first.</b> The trained helper is right 98.5% of the time. Will it still get a job of 20 parts right 9 times in 10? Write your guess down.</p>
     <pre class="code" data-lang="text">add up: 12 plus 30, 7 times 8, 50 minus 6, 9 plus 9</pre>
     <ol>
       <li>Write what each of the four helpers sees and hands back, then what the lead's notes hold and what it answers.</li>
@@ -115,7 +116,7 @@
         <li>Careless: 0.5 &times; 0.5 &times; 0.5 &times; 0.5 = 0.0625, about 12 of 200 (the table above measured 11). Trained: 0.985<sup>4</sup> = 0.941, about 188 of 200.</li>
         <li>0.985<sup>20</sup> = 0.739: about one job in four is wrong. 0.99<sup>20</sup> = 0.818, still short. 0.995<sup>20</sup> = 0.905: this is the first to reach 9 in 10.</li>
       </ol>
-      <p>A helper right 99.5% of the time is wrong once in 200 parts, where the trained helper is wrong three times in 200. Making the job 5 times longer asked for a helper 3 times less often wrong.</p>
+      <p>Your prediction: no, only about 3 times in 4 (0.739). A helper right 99.5% of the time is wrong once in 200 parts, where the trained helper is wrong three times in 200. Making the job 5 times longer asked for a helper 3 times less often wrong.</p>
     </details>
   </section>
 
@@ -181,6 +182,20 @@ python code/ch32_helpers.py              # every table of this chapter, about 5 
       <li>The total number of tokens goes up, the waiting time can go down because helpers run together, and a helper knows only what the lead wrote for it.</li>
     </ul>
   </div>
+
+  <section class="actout" aria-label="Act it out">
+    <h3>Act it out</h3>
+    <p class="need">Two people, slips of paper, a coin · about 10 minutes</p>
+    <p>Play the job of "Your turn": one of you is the lead, the other is every helper in turn.</p>
+    <ol>
+      <li>The lead writes the job at the top of a sheet: these are its notes. It writes each of the four parts on its own slip, folds it, and hands over one slip at a time.</li>
+      <li>The helper opens the slip, works the part on scrap paper, writes only the result on the slip and hands it back. The scrap paper goes in the bin. The lead copies the number into its notes, and adds up the four at the end.</li>
+      <li>Play it again with a careless helper: before each part, toss the coin, and on tails write a result one too high. Play the job a few times. How often is the lead's answer right?</li>
+    </ol>
+    <p>The lead's notes never hold any working, only four numbers, so they stay short however long the job is. And the lead cannot tell a wrong number from a right one, because the working that would show it is in the bin: the job is right only when all four tosses are heads, one time in 16.</p>
+  </section>
+
+  <div class="stick" data-draw="fig-split" data-explain="sub-agent,lead,context-window,token,probability"></div>
 
   <h2>Check yourself</h2>
   <details class="check"><summary>The helpers did all the work with the calculator. Why does the lead's context not contain any tool calls for the parts?</summary><p>Each helper worked in its own context and handed back one number. The calls and results that produced the number stayed in the helper's context, which is discarded when it finishes.</p></details>

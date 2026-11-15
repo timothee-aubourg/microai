@@ -34,7 +34,7 @@
   </div>
   <p>A harness is ordinary software. Nothing in it is learned. It consists of five things: a system prompt, a set of tools, a loop, rules about what may run without asking, and some care for the context window. This chapter builds one in a hundred lines and shows exactly what travels between it and the model.</p>
 
-  <figure class="fig">
+  <figure class="fig" id="fig-harness">
     <svg viewBox="0 0 760 230" role="img" aria-labelledby="f15a">
       <title id="f15a">The loop of a harness in four beats. The model writes a request for a tool or a final answer. The harness decides whether the request may run. The harness runs the tool. The result is added to the conversation, and the model is called again with everything so far. A final answer leaves the loop and goes to the user.</title>
       <defs><marker id="c15a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
@@ -103,6 +103,7 @@
     <h3>Your turn, by hand</h3>
     <p class="need">Paper and a pencil · about 15 minutes</p>
     <p>Play the harness. The task is to fix the mean in this file of 137 characters. The model sends three <code>edit</code> requests, one per call, in this order. Decide each by the harness's rule, write what goes back, and count what the model reads.</p>
+    <p class="predict"><b>Predict first.</b> Of the three <code>edit</code> requests, how many will the harness carry out? Write your guess down.</p>
     <pre class="code" data-lang="text">def mean(xs):
     return sum(xs) / (len(xs) - 1)
 
@@ -128,7 +129,7 @@ def var(xs):
         <li>2,000, then 2,000 + 200 = 2,200, then 2,390, then 2,600, then 2,750. In all 2,000 + 2,200 + 2,390 + 2,600 + 2,750 = 11,940 characters.</li>
         <li>The first refusal, 200 characters, is in requests 2 to 5: 4 × 200 = 800. The second, 190 characters, is in requests 3 to 5: 3 × 190 = 570. Together 1,370, about 11% of the 11,940.</li>
       </ol>
-      <p>The refusals did their job: each told the model exactly why, and the third request quoted enough to point at one place. But every mistake stays in the conversation and is read again on every later call, which is the cost chapter 16 sets out to cut.</p>
+      <p>Your prediction: one, the third. The first quotes text that occurs twice, the second text that occurs nowhere. The refusals did their job: each told the model exactly why, and the third request quoted enough to point at one place. But every mistake stays in the conversation and is read again on every later call, which is the cost chapter 16 sets out to cut.</p>
     </details>
   </section>
 
@@ -256,6 +257,20 @@ python code/ch15_harness.py --dir scratch "Write a script that prints the first 
       <li>The model never runs anything. It writes a request, and the harness decides, acts, and writes the result back.</li>
     </ul>
   </div>
+
+  <section class="actout" aria-label="Act it out">
+    <h3>Act it out</h3>
+    <p class="need">Two people, two sheets of paper · about 10 minutes</p>
+    <p>Play the loop of the first figure on the file of "Your turn", one person as the model and one as the harness.</p>
+    <ol>
+      <li>The <b>harness</b> copies the file onto one sheet and keeps it. On a second sheet, the conversation, it writes "Tools: read, edit. Task: the mean divides by the wrong number. Fix it." and hands it over.</li>
+      <li>The <b>model</b> may only write on the conversation: one request, such as <code>read stats.py</code>, or a final answer. It never sees the file sheet.</li>
+      <li>The harness decides by the rule of <code>edit</code>, carries out what is allowed on the file sheet, and writes the result or the error under the request. Go round until the model writes an answer with no request.</li>
+    </ol>
+    <p>The file changed, and the model never touched it: all it did was write requests. Everything it knew about the file came back to it as text on the conversation, which it read again from the top at every turn.</p>
+  </section>
+
+  <div class="stick" data-draw="fig-harness" data-explain="harness,system-prompt,tool,tool-call,context-window"></div>
 
   <h2>Check yourself</h2>
   <details class="check"><summary>A sixth call would add about 250 characters. How many characters would that request hold, and how many would the model have read in all?</summary><p>About 3,025 + 250 = 3,275 for the request, and 12,749 + 3,275 = 16,024 in all. Each step costs a little more than the one before, because it reads everything again.</p></details>

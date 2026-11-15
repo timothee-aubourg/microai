@@ -45,7 +45,7 @@
     <tr><td>tool: calculator</td><td class="mono">0.17 * 2340</td><td class="mono">397.8</td></tr>
     <tr><td>model</td><td>everything above, plus the result</td><td>17% of 2,340 is 397.8.</td></tr>
   </table></div>
-  <figure class="fig">
+  <figure class="fig" id="fig-trace">
     <svg viewBox="0 0 760 190" role="img" aria-labelledby="f14a">
       <title id="f14a">A trace drawn along a line of time. One long bar is the whole run. Under it, three shorter bars in a row are its spans: a call to the model, a call to the calculator, and a second call to the model.</title>
       <g class="t-small">
@@ -112,6 +112,7 @@
     <h3>Your turn, by hand</h3>
     <p class="need">Paper and a pencil · about 15 minutes</p>
     <p>Two versions of an agent, A and B, ran the same ten tasks. Each run has two checks: one on the answer and one on the path (did the calculator run, without an error). Grade them, and decide what the scores tell you.</p>
+    <p class="predict"><b>Predict first.</b> B passes more tasks than A. Are ten tasks enough for the two scores alone to show that B is better? Write your guess down.</p>
     <div class="scroll"><table class="mini">
       <tr><th>Task</th><th>A: answer</th><th>A: tools</th><th>B: answer</th><th>B: tools</th></tr>
       <tr><td>1</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
@@ -138,7 +139,7 @@
         <li>From fail to pass: tasks 3, 4 and 6. From pass to fail: task 5. There B gave the right answer, but its calculator call failed or never happened: right for a bad reason. Only the path check sees it.</li>
         <li>The standard error is √(p(1 − p)/n), so n = p(1 − p) / 0.05² = 0.7 × 0.3 / 0.0025 = 0.21 / 0.0025 = 84 tasks. This fits the table above: 100 runs give 4.6 points.</li>
       </ol>
-      <p>Three tasks gained and one lost, each with a trace you can read, is more evidence than the two counts. And graded on answers alone, the step backward in task 5 would not show at all.</p>
+      <p>Your prediction: no. The two ranges overlap. Three tasks gained and one lost, each with a trace you can read, is more evidence than the two counts. And graded on answers alone, the step backward in task 5 would not show at all.</p>
     </details>
   </section>
 
@@ -254,6 +255,20 @@ def score(rows):
       <li>With 20 tasks, a system that is truly 5 points better scores higher only about 57% of the time. Small evaluations catch breakages. They cannot rank close versions.</li>
     </ul>
   </div>
+
+  <section class="actout" aria-label="Act it out">
+    <h3>Act it out</h3>
+    <p class="need">Two people, two coins · about 5 minutes</p>
+    <p>Play two evaluations of the same system: each task is a coin, and heads is a pass.</p>
+    <ol>
+      <li>Each of you flips your coin ten times and writes the number of heads: a score out of ten tasks.</li>
+      <li>Compare the two scores and note which one "won". Do it four times.</li>
+      <li>Count how often the two scores differed by two passes or more.</li>
+    </ol>
+    <p>Both of you evaluated the same system, with a pass rate of 50%, and the scores still differed. Worked out exactly, two such scores tie about one time in six and differ by two passes or more about half the time: a standard error of 16 points, on a table.</p>
+  </section>
+
+  <div class="stick" data-draw="fig-trace" data-explain="trace,span,evaluation,grader,standard-error"></div>
 
   <h2>Check yourself</h2>
   <details class="check"><summary>An evaluation of 100 tasks gives 80 passes. What is the standard error?</summary><p>0.8 × 0.2 = 0.16. Divided by 100 it is 0.0016, and the square root is 0.04. The score is 80%, give or take 4 points.</p></details>

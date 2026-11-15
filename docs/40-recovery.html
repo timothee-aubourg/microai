@@ -40,7 +40,7 @@
   <p>The agent of chapter 39 answers chains like <code>what is 23 times 45 minus 17?</code>, one call per link. Make its calculator fail one call in five, at random. A chain of two links needs two calls to succeed: 0.8 × 0.8 = 0.64. Three links: 0.8³ ≈ 0.51. So if the harness stops at the first error, between a third and a half of the jobs are lost to a tool that works 80% of the time.</p>
   <p>Now let the harness try a failed call again, up to three times in all. A call is lost only if all three tries fail: 0.2³ = 0.008. A chain of three links then survives with probability (1 − 0.008)³ ≈ 0.98.</p>
 
-  <figure class="fig">
+  <figure class="fig" id="fig-fail">
     <svg viewBox="0 0 760 270" role="img" aria-labelledby="f40a">
       <title id="f40a">The same failed call handled four ways. Stop: the harness gives up on the whole job. Retry quietly: the harness calls the tool again and the model never knows. Tell clearly: the error is written into the context as "R error busy", a wording seen in training, and the model sends the call again. Tell vaguely: the error is written as "R failed", a wording it never saw.</title>
       <g class="t-small">
@@ -146,6 +146,7 @@
     <h3>Your turn, by hand</h3>
     <p class="need">Paper and a pencil · about 15 minutes</p>
     <p>The agent gets <code>what is 23 times 45 minus 17?</code>. The tool's outcomes, in the order they come, are fixed in advance: each try at the tool, by whoever makes it, takes the next one.</p>
+    <p class="predict"><b>Predict first.</b> In step 3 the loop guard is switched on. With these outcomes, will it help the job finish, or stop it? Write your guess down.</p>
     <pre class="code" data-lang="text">ok, busy, busy, ok, ok, ok, …        (every try after the third is ok)</pre>
     <ol>
       <li><strong>Stop.</strong> Follow the job. What happens, and how many model passes does it take? Count, as the chapter does, one pass for every call the model writes.</li>
@@ -160,7 +161,7 @@
         <li><code>U what is 23 times 45 minus 17?</code>, <code>C mul 23 45</code>, <code>R 1035</code>, <code>C sub 1035 17</code>, <code>R error busy</code>, <code>C sub 1035 17</code>, <code>R error busy</code>, <code>C sub 1035 17</code>, <code>R 1018</code>, <code>A 1018.</code> Four calls and the answer: 5 passes, and 135 of the 160 characters of the window. With the guard on, the third <code>sub 1035 17</code> is the same call for the third time in a row, and the harness stops before running it. No answer, after 4 calls written, and the call it stopped would have taken an ok.</li>
         <li>As you go: step 1 writes 1035, step 2 fails, so the ledger holds 1035, half a job. At the end: 1035 was set aside and never added, so the ledger is empty. Undo: 1035 was written, then removed when the job failed, so it is empty too.</li>
       </ol>
-      <p>The same outcomes give no answer, a right answer in 3 passes, or a right answer in 5, and only the harness differs. The guard that stops a dead tool also stopped a job one try short of finishing: "3 identical calls" is a guess about how long busy lasts. We ran these outcomes through the trained agent and the chapter's harness code, and it wrote exactly these lines.</p>
+      <p>Your prediction: it stops the job, one try before the ok that would have finished it. The same outcomes give no answer, a right answer in 3 passes, or a right answer in 5, and only the harness differs. The guard that stops a dead tool also stopped a job one try short of finishing: "3 identical calls" is a guess about how long busy lasts. We ran these outcomes through the trained agent and the chapter's harness code, and it wrote exactly these lines.</p>
     </details>
   </section>
 
@@ -194,6 +195,21 @@
       <li>A job that fails part-way leaves half its effects unless writes wait for the end or are undone: 20 half-done jobs against 0. That is <a class="term" href="glossary.html#rollback">rollback</a>.</li>
     </ul>
   </div>
+
+  <section class="actout" aria-label="Act it out">
+    <h3>Act it out</h3>
+    <p class="need">Two people, slips of paper, a calculator, a die · about 10 minutes</p>
+    <p>Play three of the figure's ways, and then a dead tool, with the job <code>what is 23 times 45 minus 17?</code> and a tool that fails on a roll of 1.</p>
+    <ol>
+      <li>One of you is the <b>model</b>, who only writes calls on slips. The other is the <b>harness</b>, who holds the calculator and the die. For every try at the tool, the harness rolls: 1 means the tool is busy, anything else means it works.</li>
+      <li><b>Stop</b>, then <b>retry quietly</b>. In the first round the harness ends the job at the first 1. In the second it rolls again, up to three tries per call, and hands the model only the number.</li>
+      <li><b>Tell.</b> On a 1 the harness hands back a slip <code>R error busy</code>, and the model writes the same call again on a new slip. Count the model's slips in each round.</li>
+      <li><b>A dead tool.</b> Now every roll counts as a 1. The model keeps sending the call. The harness stops the job when the same call arrives for the third time in a row: the loop guard.</li>
+    </ol>
+    <p>In the first two rounds the model never knew a call had failed: whether the job finished was decided by the harness's rule. Telling cost a slip and room in the context for every failure, and the dead tool's loop ended only because a rule in the harness stopped it.</p>
+  </section>
+
+  <div class="stick" data-draw="fig-fail" data-explain="transient-error,harness,idempotent,loop-guard,context"></div>
 
   <h2>Check yourself</h2>
   <details class="check"><summary>A tool fails one call in ten. A job needs five calls. If the harness stops at the first error, how often does the job finish?</summary><p>0.9⁵ ≈ 0.59, so about six jobs in ten. With three tries per call, each call fails with probability 0.001, and the job finishes about 99.5% of the time.</p></details>

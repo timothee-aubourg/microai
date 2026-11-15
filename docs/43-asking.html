@@ -47,7 +47,7 @@
   <p>Multiply along a row. For the second request, 0.51 × 0.998 × 0.77 × 0.86 ≈ 0.34. The model never saw <code>x</code> written for times. It was unsure, and right to be: it chose <code>sub</code>, which is wrong. Its doubt was not where the mistake was, though. It gave <code>sub</code> a probability of 1.00 and hesitated over the digits.</p>
   <p>The third row is the dangerous one. <code>less</code> means minus, the model wrote <code>add</code>, and it was sure. Only a threshold that makes the agent ask about nearly every call would stop it.</p>
 
-  <figure class="fig">
+  <figure class="fig" id="fig-ask">
     <svg viewBox="0 0 760 250" role="img" aria-labelledby="f43a">
       <title id="f43a">A call goes through two questions before it runs. First, a rule written by people: can this action be undone? If not, ask the person. Second, a number from the model: was it sure of this call? If its confidence is below a threshold, ask the person. Otherwise the call runs. The person approves a right call and stops a wrong one.</title>
       <defs><marker id="c43a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
@@ -148,6 +148,7 @@ def rule(name, threshold=0.0):
     <h3>Your turn, by hand</h3>
     <p class="need">Paper, a pencil and a calculator · about 10 minutes</p>
     <p>Work out two confidences, then set a threshold for eight calls. The characters not shown below had a probability of 1.000, to three places.</p>
+    <p class="predict"><b>Predict first.</b> To let no wrong call through, how many of the eight calls must a threshold ask about: two or three, about half, or nearly all? Write your guess down.</p>
     <div class="scroll"><table class="mini">
       <tr><th>Request</th><th>Call written</th><th>Characters below 1.000</th></tr>
       <tr><td class="mono">what is 28 without 74?</td><td class="mono">sub 29 36</td><td>s: 0.939, 2: 0.996, 9: 0.946, 3: 0.753, 6: 0.653</td></tr>
@@ -175,7 +176,7 @@ def rule(name, threshold=0.0):
         <li>Right: 1, 2, 3 and 7. Wrong: 4 (<code>x</code> is times), 5 (<code>and</code> is plus), 6 (<code>less</code> is minus) and 8. Below 0.9: calls 4, 7 and 8, so 3 asks, and 2 wrong calls through, 5 at 0.978 and 6 at 0.996. Below 0.99: calls 3, 4, 5, 7 and 8, so 5 asks, and 1 wrong call through, 6.</li>
         <li>The surest wrong call is 6, at 0.996. To ask about it the threshold must be above 0.996, which also catches call 2 at 0.994. Only call 1, at 0.997, can run unasked: 7 asks of 8.</li>
       </ol>
-      <p>Stopping the last wrong call costs asking about every call but one, because the model was surer of <code>less</code> read as plus than of two right calls. These are eight of the 557 calls in the table above, with the confidences the program measured.</p>
+      <p>Your prediction: nearly all, 7 of 8. Stopping the last wrong call costs asking about every call but one, because the model was surer of <code>less</code> read as plus than of two right calls. These are eight of the 557 calls in the table above, with the confidences the program measured.</p>
     </details>
   </section>
 
@@ -208,6 +209,8 @@ def rule(name, threshold=0.0):
       <li>Confidence barely helps against a confident misunderstanding: <code>less</code> read as plus at 0.996. Catching those took asking about 504 of 557 calls. They need a check on the request, not on the model's doubt.</li>
     </ul>
   </div>
+
+  <div class="stick" data-draw="fig-ask" data-explain="human-in-the-loop,confidence,calibrated,approval-fatigue,harness"></div>
 
   <h2>Check yourself</h2>
   <details class="check"><summary>A call is written with character probabilities 1.0, 0.9, 0.8 and 1.0. What is its confidence?</summary><p>0.9 × 0.8 = 0.72. The characters the model was sure of do not lower it. The two uncertain ones do.</p></details>

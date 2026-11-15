@@ -36,7 +36,7 @@
     <p>An <dfn>API</dfn> is the agreed form of those requests and answers. Here it is a list of messages sent as text in a format called JSON.</p>
   </div>
 
-  <figure class="fig">
+  <figure class="fig" id="fig-layers">
     <svg viewBox="0 0 760 210" role="img" aria-labelledby="f10a">
       <title id="f10a">Four layers side by side. Your program, the client, sends messages to the server. The server keeps the model loaded and writes the messages into one document. The runtime does the arithmetic. The model file holds the weights. The answer travels back the same way.</title>
       <defs><marker id="c10a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
@@ -107,6 +107,7 @@ What is the capital of France?&lt;|im_end|&gt;
     <h3>Your turn, by hand</h3>
     <p class="need">Paper and a pencil · about 10 minutes</p>
     <p>Here is a short conversation. Your program sent three requests: after <code>Hi</code>, after <code>2+2?</code> and after <code>And 3+3?</code>. Write out what the model receives, and count.</p>
+    <p class="predict"><b>Predict first.</b> Over the three requests, will the model read the text of the conversation about once, about twice, or about three times over? Write your guess down.</p>
     <div class="scroll"><table class="mini">
       <tr><th>Role</th><th>Text</th></tr>
       <tr><td>system</td><td class="mono">Be brief.</td></tr>
@@ -142,7 +143,7 @@ And 3+3?&lt;|im_end|&gt;
         <li>13 special tokens. The first request has 5 and the second 9, as in the experiment above. Each question and its answer add 4: a start and an end for each. Request n has 4n + 1.</li>
         <li>Request 1: 9 + 2 = 11. Request 2: 11 + 6 + 4 = 21. Request 3: 21 + 1 + 8 = 30. In all 11 + 21 + 30 = 62 characters, for a conversation of 30. <code>Be brief.</code> was read three times.</li>
       </ol>
-      <p>The model receives the whole conversation on every request, so what it reads grows faster than the conversation does. A long chat pays again for its beginning at every turn.</p>
+      <p>Your prediction: about twice, 62 characters for a conversation of 30. The model receives the whole conversation on every request, so what it reads grows faster than the conversation does. A long chat pays again for its beginning at every turn.</p>
     </details>
   </section>
 
@@ -233,6 +234,8 @@ def stream(messages, model=None, **options):
       <li>A complete client is about thirty lines: send the messages as JSON, read the reply.</li>
     </ul>
   </div>
+
+  <div class="stick" data-draw="fig-layers" data-explain="runtime,server,chat-template,special-token,quantization"></div>
 
   <h2>Check yourself</h2>
   <details class="check"><summary>Write the document the server would send for a single user message, <code>Hi</code>, with no system message, in the template of the by-hand example.</summary><p><code>&lt;|im_start|&gt;user</code>, a line break, <code>Hi&lt;|im_end|&gt;</code>, a line break, then <code>&lt;|im_start|&gt;assistant</code> and a line break. Three special tokens, and the document stops where the assistant is about to speak.</p></details>

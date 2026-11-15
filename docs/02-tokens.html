@@ -30,7 +30,7 @@
   <p>In chapter 1 the model read and wrote single characters. That was a choice, and not the one real models make. Before a model can do anything with text, the text has to be cut into pieces, and each piece replaced by a number, because a model computes with numbers and nothing else. How you cut matters more than it seems: it decides how much text fits in the model's view, what the model has to waste effort on, and whether it can read a word it has never met. This chapter compares the options and then builds the one every modern model uses.</p>
 
   <h2>What the model actually sees</h2>
-  <figure class="fig">
+  <figure class="fig" id="fig-tokens">
     <svg viewBox="0 0 760 190" role="img" aria-labelledby="f21t">
       <title id="f21t">Text is cut into tokens, each token is replaced by its number in the vocabulary, and only the numbers go into the model.</title>
       <defs><marker id="c2a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
@@ -188,6 +188,7 @@
     <h3>Your turn, by hand</h3>
     <p class="need">Paper and a pencil · about 15 minutes</p>
     <p>Train a tokenizer on the text below by running byte-pair encoding until no pair occurs twice, then use its merges to encode a new text. Write ␣ for a space. Every character here is one byte.</p>
+    <p class="predict"><b>Predict first.</b> At the end you will encode <code>see␣see</code>, the same word twice. Will both copies of <code>see</code> get the same token ID? Write your guess down.</p>
     <pre class="code" data-lang="text">see␣seen␣seed␣sees␣bees</pre>
     <ol>
       <li>Count the tokens. Then count every pair of neighbouring tokens, and merge the most frequent pair into token 256. Count the tokens again.</li>
@@ -202,7 +203,7 @@
         <li>Every pair left occurs exactly once. A further merge would only memorise this one text, the trap of chapter 1.</li>
         <li>Bytes: <code>s e e ␣ s e e</code>. Merge 256 gives <code>s ee ␣ s ee</code>, merge 257 gives <code>see ␣ see</code>, merge 258 gives <code>see ␣see</code>. Two tokens, IDs 257 and 258.</li>
       </ol>
-      <p>The same word became two different tokens: 257 at the start of the text and 258 after a space, because the space before a word is part of its token. To the model the two IDs are unrelated until training teaches it otherwise.</p>
+      <p>Your prediction: no, two different IDs. The same word became two different tokens: 257 at the start of the text and 258 after a space, because the space before a word is part of its token. To the model the two IDs are unrelated until training teaches it otherwise.</p>
     </details>
   </section>
 
@@ -279,6 +280,21 @@ def decode(ids, merges):
     <p><strong>Tokens explain some odd failures.</strong> A model that sees <code>strawberry</code> as two or three opaque chunks has no direct view of its letters. Counting letters, reversing words and long arithmetic are harder for a language model than their difficulty for a person suggests, partly for this reason.</p>
     <p><strong>Tokenizers are not interchangeable.</strong> Each model ships with its own. The same sentence is a different number of tokens for different models, so token counts and speeds are only comparable within one model family.</p>
   </div>
+
+  <section class="actout" aria-label="Act it out">
+    <h3>Act it out</h3>
+    <p class="need">Paper slips, a pencil and some tape · about 10 minutes</p>
+    <p>Run byte-pair encoding on the text of "Your turn", with one slip of paper per byte.</p>
+    <ol>
+      <li>Write <code>see␣seen␣seed␣sees␣bees</code> on 23 slips, one character each, with an empty slip for each space. Lay them in a row.</li>
+      <li>Count every pair of neighbouring pieces. Tape together every occurrence of the most frequent pair, and write that merge on a list: first <code>e + e</code>.</li>
+      <li>Count again and tape again, until no pair occurs twice.</li>
+      <li>Write <code>see␣see</code> on fresh slips and tape them by following your list in order, nothing else.</li>
+    </ol>
+    <p>Nobody told the slips where a word ends. The taped pieces come from counting alone, and the list of merges, in order, is the whole tokenizer.</p>
+  </section>
+
+  <div class="stick" data-draw="fig-tokens" data-explain="context-window,oov,byte,bpe,merge"></div>
 
   <h2>Check yourself</h2>
   <details class="check"><summary>Before any merge, how many tokens is the word "hello"? And "café"?</summary><p>"hello" is five bytes, so five tokens. "café" is five as well: the é takes two bytes in UTF-8. Starting from bytes is what guarantees every string has an encoding.</p></details>

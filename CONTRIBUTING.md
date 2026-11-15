@@ -47,15 +47,35 @@ Every chapter now has the definition boxes, worked examples, glossary
 entries and recap of chapters 1 and 2. A new chapter is not finished without
 them.
 
-**Your turn, by hand.** Every chapter has one task for paper and a pencil,
-in a `<section class="yourturn">` (see chapter 1 for the markup): a short
-line of what is needed and how long it takes, two to four steps, and the
-full working folded in a `<details class="answer">`. It practises the
-chapter's central idea on new, small numbers, not the worked example again.
-In the chapters about agents, where there is little to calculate, the task is
-to trace, count or decide on paper: write the context the model will read,
-count its characters, say which rule fires. Every number in the task and
-the answer is checked by running it. The answers are hidden when printed.
+**Make it stick.** Reading an idea is not having it. The point of the
+activities is to make the reader rebuild the mechanism from memory, so every
+one of them comes from the chapter's central idea, in the forms that work:
+
+- **Remember.** Before a chapter, the reader recalls the one read before it,
+  without looking. Automatic: the shared script asks for the previous chapter
+  (or the previous one on the reader's path), if it was opened, and reveals
+  its line to keep.
+- **Predict, then work it out.** Every chapter has one task for paper and a
+  pencil in a `<section class="yourturn">` (see chapter 1 for the markup). It
+  opens with `<p class="predict">`: a guess the reader commits to in ten
+  seconds about the task's punchline. Then two to four steps, and the full
+  working in `<details class="answer">` as an `<ol class="worked">` with one
+  item per step (the page reveals them one at a time), closing with "Your
+  prediction:" and the answer. It practises the central idea on new, small
+  numbers, not the worked example again. In the chapters about agents the
+  task is to trace, count or decide on paper.
+- **Draw it from memory** and **explain it back.** One line before
+  "Check yourself", `<div class="stick" data-draw="figure id"
+  data-explain="glossary keys">`, makes the page build a "Make it stick"
+  block: redraw the named figure blank (on paper, or with a finger), then
+  reveal it; answer the opening question in one's own words with the 3 to 5
+  given terms, then compare with the recap.
+- **Act it out,** only where the mechanism has a natural physical form:
+  a `<section class="actout">` with roles or objects, two to four steps, and
+  what playing it shows. It must follow the mechanism faithfully.
+
+Every number in a task and its answer is checked by running it. Made-up
+example data is labelled as such. Answers and controls are hidden when printed.
 
 Optional maths goes in a folded `<details class="refresher">`. Step-by-step
 animations use `M.stepper` (see the BPE walkthrough in chapter 2).

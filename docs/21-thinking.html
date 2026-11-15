@@ -46,7 +46,7 @@
   </table></div>
   <p>The last mark is 1, so the answer is "odd". There are three 1s in the row, which agrees. Each line of the table needed only two things: the mark on the line above and one bit.</p>
 
-  <figure class="fig">
+  <figure class="fig" id="fig-steps">
     <svg viewBox="0 0 760 250" role="img" aria-labelledby="f21a">
       <title id="f21a">Two ways to answer. Directly: all bits go into the model and the answer must come out in one go. With steps: the model writes one mark per bit, each computed from the previous mark and one bit, and the answer is the last mark.</title>
       <defs><marker id="c21a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
@@ -115,6 +115,7 @@ A odd                          T 110111010011      one mark per bit
     <h3>Your turn, by hand</h3>
     <p class="need">Paper and a pencil · about 10 minutes</p>
     <p>Answer one row the way the second model does, count what it costs, and then see what a shorter budget leaves you.</p>
+    <p class="predict"><b>Predict first.</b> If the harness stops the model after six marks, how much will the sixth mark tell you about the final answer? Write your guess down.</p>
     <pre class="code" data-lang="text">0 1 1 0 1 0 0 1 1 1 0 1</pre>
     <ol>
       <li>Write the twelve marks under the row, as in the table of this chapter. What is the answer?</li>
@@ -129,7 +130,7 @@ A odd                          T 110111010011      one mark per bit
         <li>The sixth mark is 1: odd so far. The whole row is odd when the last six bits hold an even number of 1s, and that is true of 32 of the 64 possible endings. The sixth mark says nothing about the answer: it is a coin toss until the last bit is read.</li>
         <li>Marks: 1 0 1 0 0 1, the same as every second mark of the first format. Each step now needs the previous mark and two bits, and must know that two 1s cancel. The answer costs 6 + 1 + 2 + 3 + 2 = 14 tokens.</li>
       </ol>
-      <p>For this question there is no useful halfway answer, so cutting the thinking short does not give a worse answer, it gives a guess. The only way to spend fewer tokens is to make each step bigger, which is what the model could not learn when it had to take all twelve at once.</p>
+      <p>Your prediction: nothing, it is a coin toss. For this question there is no useful halfway answer, so cutting the thinking short does not give a worse answer, it gives a guess. The only way to spend fewer tokens is to make each step bigger, which is what the model could not learn when it had to take all twelve at once.</p>
     </details>
   </section>
 
@@ -202,6 +203,8 @@ python code/ch21_think.py 101100111010  # one row, both models</pre>
       <li>The price is tokens: 20 or 21 against 6 here. <a class="term" href="glossary.html#effort">Reasoning effort</a> is the setting that limits them, and a model must be trained to honour it.</li>
     </ul>
   </div>
+
+  <div class="stick" data-draw="fig-steps" data-explain="thinking,forward-pass,block,attention,effort"></div>
 
   <h2>Check yourself</h2>
   <details class="check"><summary>Both models have the same weights count and saw the same rows. Where did the second one get its extra ability?</summary><p>From the tokens it writes. Each mark is one more pass through the model, and each pass has an easy job because the previous result is written down in front of it. The ability is in the procedure, not in extra weights.</p></details>

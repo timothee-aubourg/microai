@@ -45,7 +45,7 @@
     <p><dfn>Rotary positions</dfn> tell a model the order of its tokens by turning each query and key by an angle proportional to its position. The comparison of the two then depends on how far apart they are, and nothing is added to the token itself.</p>
   </div>
 
-  <figure class="fig">
+  <figure class="fig" id="fig-turn">
     <svg viewBox="0 0 760 220" role="img" aria-labelledby="f30a">
       <title id="f30a">Two pairs of arrows. In each pair the query is turned further than the key by the same amount, because the two tokens are two positions apart. The pairs point in different directions, and the angle between the arrows is the same.</title>
       <g transform="translate(170,120)"><circle r="78" class="bx-soft"/><line x1="0" y1="0" x2="-62" y2="-47" class="ln-fwd"/><line x1="0" y1="0" x2="6" y2="-78" class="ln"/><text x="-74" y="-54" text-anchor="end" class="t-small t-fwd">query, position 5</text><text x="14" y="-84" class="t-small">key, position 3</text><text x="0" y="104" text-anchor="middle" class="t-small t-muted">angle between them: 1.0</text></g>
@@ -66,6 +66,7 @@
     <h3>Your turn, by hand</h3>
     <p class="need">Paper and a pencil · about 10 minutes</p>
     <p>Turn a query and a key that are not of length 1, with a fast pair that turns a quarter of a full turn for every position. A quarter turn needs no cosines: it sends the point (a, b) to (&minus;b, a). The score is the two turned vectors multiplied number by number and added up.</p>
+    <p class="predict"><b>Predict first.</b> The steps end with the query five positions after the key. Will this fast pair give that distance a score of its own, different from every shorter one? Write your guess down.</p>
     <pre class="code" data-lang="text">query  (2, 1)
 key    (1, 1)
 turn   a quarter turn per position</pre>
@@ -82,7 +83,7 @@ turn   a quarter turn per position</pre>
         <li>Query at 2: (&minus;2, &minus;1), score = &minus;2 &minus; 1 = &minus;3. Query at 3: (1, &minus;2), score = 1 &minus; 2 = &minus;1. With both unturned, at distance 0, the score is 2 + 1 = 3. So distances 0, 1, 2, 3 give 3, 1, &minus;3, &minus;1: each distance its own score.</li>
         <li>Five quarter turns are one full turn and one quarter, so the query is (&minus;1, 2) again, exactly as at position 1, and the score is 1: the same as distance 1. After four positions this pair has come all the way round, and distance 4 gives 3, the score of distance 0.</li>
       </ol>
-      <p>This fast pair tells distances 0 to 3 apart and nothing beyond: to it, 5 looks like 1. That is the job of the slow pairs, which have not yet come round when the fast ones repeat.</p>
+      <p>Your prediction: no, distance 5 scores 1, the same as distance 1. This fast pair tells distances 0 to 3 apart and nothing beyond: to it, 5 looks like 1. That is the job of the slow pairs, which have not yet come round when the fast ones repeat.</p>
     </details>
   </section>
 
@@ -164,6 +165,21 @@ python code/ch30_rotary.py             # the table</pre>
       <li>A rotary model can be run on text longer than it was trained on, and here it did badly there: 2.850 at twice the length. The wall is gone, the need to train at the lengths in use is not.</li>
     </ul>
   </div>
+
+  <section class="actout" aria-label="Act it out">
+    <h3>Act it out</h3>
+    <p class="need">Two people · about 5 minutes</p>
+    <p>Play one fast pair: one of you is the query, the other the key, and each arm is that person's arrow.</p>
+    <ol>
+      <li>Stand side by side, facing the same way, each with one arm straight up: that is position 0. To turn, move the arm like the hand of a clock, one hour for each position, both in the same direction.</li>
+      <li>The query takes position 3 and the key position 1. Turn, then look at the angle between your arms: two hours. Now take positions 8 and 6. Your arms point elsewhere, and the angle is the same.</li>
+      <li>Keep the key at 1 and put the query at 5, then at 7. The angle grows to four hours, then six: the arms point opposite ways, and the score is at its lowest.</li>
+      <li>Last, put the query at 13. The arms are parallel again, as if you stood at the same position.</li>
+    </ol>
+    <p>The score reads only the angle between the arms, and that angle depends on how many positions apart you are, never on where you stand. One pair comes all the way round after twelve positions, which is why a model also has slow pairs.</p>
+  </section>
+
+  <div class="stick" data-draw="fig-turn" data-explain="rotary,position-embedding,dot-product,cosine,attention"></div>
 
   <h2>Check yourself</h2>
   <details class="check"><summary>The query at position 20 and the key at position 17 get a certain score. What is the score for the same query and key at positions 50 and 47?</summary><p>The same. Both pairs are three positions apart, so the angle between the turned arrows is the same, and the score depends only on that angle.</p></details>

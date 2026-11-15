@@ -91,7 +91,7 @@
   <div class="eq">0.67 × (1, 0) + 0.09 × (0, 1) + 0.24 × (1, 1) = (0.91, 0.33)</div>
   <p>Two thirds of what it received came from the first token, whose key pointed the same way as its query. Nothing was looked up by position. The first token was chosen for what it contained.</p>
 
-  <figure class="fig">
+  <figure class="fig" id="fig-attn">
     <svg viewBox="0 0 760 250" role="img" aria-labelledby="f5a">
       <title id="f5a">One token with a query reads three earlier tokens. Each earlier token has a key and a value. The query is compared with each key, giving scores 2, 0 and 1. The softmax turns them into shares of 0.67, 0.09 and 0.24. The values, weighted by these shares, are added up into one vector that the reading token receives.</title>
       <defs><marker id="c5a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
@@ -143,6 +143,7 @@
     <h3>Your turn, by hand</h3>
     <p class="need">Paper and a pencil · about 15 minutes</p>
     <p>Run a whole attention step for a text of three tokens: every position reads, with the mask and the division by √<i>d</i>. Queries and keys have <i>d</i> = 4 numbers, so √<i>d</i> = 2. To keep the work short, the values have only two numbers.</p>
+    <p class="predict"><b>Predict first.</b> In the table below, the query of position 1 scores 2 against every key, a perfect tie. Will position 1 take a third of its reading from each position? Write your guess down.</p>
     <div class="scroll"><table class="mini">
       <tr><th>Position</th><th>Query</th><th>Key</th><th>Value</th></tr>
       <tr><td>1</td><td>(1, 1, 0, 0)</td><td>(2, 0, 2, 0)</td><td>(1, 0)</td></tr>
@@ -162,7 +163,7 @@
         <li>Position 1: 1 × (1, 0) = (1, 0). Position 2: 0.27 × (1, 0) + 0.73 × (0, 1) = (0.27, 0.73). Position 3: 0.58 × (1, 0) + 0.21 × (0, 1) + 0.21 × (1, 1) = (0.79, 0.42).</li>
         <li>Row 2: scores 0 and 2 give 1 and 7.39, total 8.39, shares 0.12 and 0.88. Row 3: scores 2, 0 and 0 give 7.39, 1 and 1, total 9.39, shares 0.79, 0.11 and 0.11. The favourite gains in both rows. Row 1 still gives a share of 1 to its only key.</li>
       </ol>
-      <p>The first position can only ever read itself, so it receives its own value whatever the scores are. Without the division the shares are sharper already at 4 numbers, and the gap grows with the width.</p>
+      <p>Your prediction: no, position 1 takes everything from itself. The first position can only ever read itself, so it receives its own value whatever the scores are. Without the division the shares are sharper already at 4 numbers, and the gap grows with the width.</p>
     </details>
   </section>
 
@@ -216,6 +217,21 @@
       <li>Several <a class="term" href="glossary.html#head">heads</a> run side by side. In our model one reads the previous character, and another finds the last line break.</li>
     </ul>
   </div>
+
+  <section class="actout" aria-label="Act it out">
+    <h3>Act it out</h3>
+    <p class="need">Four cards, a pencil and 20 beans or coins · about 10 minutes</p>
+    <p>Play the reading token of the figure, with query (1, 0), and the three tokens before it.</p>
+    <ol>
+      <li>Make three cards. On the front write a key, on the back a value: (2, 0) and (1, 0), then (0, 1) and (0, 1), then (1, 1) and (1, 1). Lay them in a row, keys up. Put a fourth card to the right of your place: a token that comes after you.</li>
+      <li>Read only the keys. Score each one against your query with the dot product: 2, 0 and 1. The fourth card gets no score at all: the mask.</li>
+      <li>The softmax of 2, 0 and 1 gives shares of 0.67, 0.09 and 0.24. Put 13, 2 and 5 of your 20 beans on the three cards.</li>
+      <li>Now turn the cards over. Each bean brings a twentieth of its card's value: 13 × (1, 0) + 2 × (0, 1) + 5 × (1, 1) = (18, 7), divided by 20 is (0.9, 0.35).</li>
+    </ol>
+    <p>You chose what to take by looking at keys, before you saw a single value, and you never looked at where a card lay. What you received is (0.91, 0.33) of the figure up to the rounding of the beans: a blend of values, weighted by how well each key matched.</p>
+  </section>
+
+  <div class="stick" data-draw="fig-attn" data-explain="attention,dot-product,softmax,causal-mask"></div>
 
   <h2>Check yourself</h2>
   <details class="check"><summary>The scores are 3 and 1. Without a calculator: which share is larger, and by what factor?</summary><p>The first, by a factor of e × e ≈ 7.4. A gap of 1 between scores is a factor of e between shares, and the gap here is 2. The shares are 0.88 and 0.12.</p></details>

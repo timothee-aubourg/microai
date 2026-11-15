@@ -66,7 +66,7 @@
   </table></div>
   <p>The lengths come from the definition: for <code>a</code>, the square root of 0.9² + 0.1² is 0.91. The rows of <code>a</code> and <code>e</code> point almost the same way, with a cosine of 0.97. The row of <code>z</code> points away from both. "Similar" now has a number.</p>
 
-  <figure class="fig">
+  <figure class="fig" id="fig-arrows">
     <svg viewBox="0 0 760 240" role="img" aria-labelledby="f4a">
       <title id="f4a">The three rows of the small table drawn as arrows from one point. The arrows for a and e point almost the same way, to the right. The arrow for z points up and to the left, away from both.</title>
       <defs><marker id="c4a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
@@ -157,6 +157,7 @@
     <h3>Your turn, by hand</h3>
     <p class="need">Paper and a pencil · about 10 minutes</p>
     <p>Score three tokens against a final vector, as the output of the model does, and compare the dot product with the cosine. The final vector is (0.6, 0.8), and the table has these rows:</p>
+    <p class="predict"><b>Predict first.</b> In the table below, the row of <code>o</code> is exactly the final vector. Will <code>o</code> get the highest score? Write your guess down.</p>
     <div class="scroll"><table class="mini">
       <tr><th>Token</th><th>Its row</th></tr>
       <tr><td><code>o</code></td><td>(0.6, 0.8)</td></tr>
@@ -174,7 +175,7 @@
         <li>Final vector: the square root of 0.36 + 0.64 = 1, which is 1. <code>o</code>: also 1. <code>u</code>: the square root of 4, which is 2. <code>i</code>: the square root of 0.09 + 0.16 = 0.25, which is 0.5.</li>
         <li><code>o</code>: 1.00 / (1 × 1) = 1. <code>u</code>: 1.20 / (1 × 2) = 0.6. <code>i</code>: 0.50 / (1 × 0.5) = 1. The rows of <code>o</code> and <code>i</code> point exactly along the final vector, and <code>u</code> points well away from it.</li>
       </ol>
-      <p>The model scores with the raw dot product, and <code>u</code> wins it with the worst direction of the three, because its row is long. <code>i</code> points exactly the right way and gets half the score of <code>o</code>. The length of a row counts as well as its direction, so training can make a token more likely in general by making its row longer.</p>
+      <p>Your prediction: no, <code>u</code> gets the highest score. The model scores with the raw dot product, and <code>u</code> wins it with the worst direction of the three, because its row is long. <code>i</code> points exactly the right way and gets half the score of <code>o</code>. The length of a row counts as well as its direction, so training can make a token more likely in general by making its row longer.</p>
     </details>
   </section>
 
@@ -212,6 +213,8 @@ self.p = p</pre>
       <li>The output scores are dot products of the final vector with the rows of the same table, which is <a class="term" href="glossary.html#weight-tying">weight tying</a>.</li>
     </ul>
   </div>
+
+  <div class="stick" data-draw="fig-arrows" data-explain="embedding,vector,dot-product,cosine,parameter"></div>
 
   <h2>Check yourself</h2>
   <details class="check"><summary>With the small table of this chapter, what is the dot product of the rows of <code>e</code> and <code>z</code>?</summary><p>0.8 × −0.5 + 0.3 × 0.7 = −0.40 + 0.21 = −0.19. It is negative: the two rows point away from each other.</p></details>
