@@ -46,7 +46,7 @@
   <div class="eq">vector = 1 &times; (0.2, &minus;0.1) + 0 &times; (0.5, 0.3) + 1 &times; (&minus;0.4, 0.6) = (&minus;0.2, 0.5)</div>
   <p>Each pixel that is on adds its row. The result is a vector of two numbers, and a different pattern of pixels gives a different vector. In the model the patch has 15 pixels and the vector 64 numbers, so the matrix has 15 &times; 64 = 960 weights. They are trained with everything else. The table of chapter 4 is this same operation for an input with exactly one pixel on: the row is picked out whole.</p>
 
-  <figure class="fig">
+  <figure class="fig" id="fig-twoways">
     <svg viewBox="0 0 760 230" role="img" aria-labelledby="f31a">
       <title id="f31a">A question in which the first number is a picture of two digits. Each word of text is looked up in the embedding table. Each digit's 15 pixels are multiplied by a matrix. Both give vectors of 64 numbers, and all of them enter the same model.</title>
       <defs><marker id="c31a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
@@ -132,6 +132,39 @@ def encode(text, pictures):
     <li><strong>The same failure.</strong> A misread number in a screenshot leads to a confident, well-formed, wrong action. For an agent that acts on what it sees (chapter 17), reading is one more thing to check.</li>
   </ul>
 
+  <section class="yourturn" aria-label="Your turn, by hand">
+    <h3>Your turn, by hand</h3>
+    <p class="need">Paper and a pencil · about 10 minutes</p>
+    <p>Cut this picture of 4 by 4 pixels into patches of 2 by 2, turn each patch into a vector with the matrix below it, and see what one damaged pixel does.</p>
+    <p class="predict"><b>Predict first.</b> Two of the four patches turn out to hold the same pixels, in different places in the picture. Will the matrix give them different vectors? Write your guess down.</p>
+    <pre class="code" data-lang="text">1 1 0 0
+1 0 0 1
+0 1 1 1
+1 0 1 0</pre>
+    <div class="scroll"><table class="mini">
+      <tr><th>Pixel of a patch</th><th>Its row of the matrix</th></tr>
+      <tr><td>1, top left</td><td class="mono">0.5, 0</td></tr>
+      <tr><td>2, top right</td><td class="mono">0, 0.5</td></tr>
+      <tr><td>3, bottom left</td><td class="mono">&minus;0.5, 1</td></tr>
+      <tr><td>4, bottom right</td><td class="mono">1, &minus;0.5</td></tr>
+    </table></div>
+    <ol>
+      <li>Cut the picture into four patches: top left, top right, bottom left, bottom right. Write each as its four pixels, read row by row as the agent reads its digits.</li>
+      <li>Turn each patch into a vector of two numbers: every pixel that is on adds its row of the matrix. Do two patches give the same vector?</li>
+      <li>Switch the pixel in the bottom right corner of the picture from 0 to 1. Which vector changes, and by how much?</li>
+      <li>A photograph of 224 by 224 pixels, in colour, is cut into squares of 16 pixels on a side. How many patches is that, and how many numbers does each one hold before the matrix?</li>
+    </ol>
+    <details class="answer"><summary>Check your working</summary>
+      <ol class="worked">
+        <li>Top left: 1, 1, 1, 0. Top right: 0, 0, 0, 1. Bottom left: 0, 1, 1, 0. Bottom right: 1, 1, 1, 0.</li>
+        <li>Top left: (0.5, 0) + (0, 0.5) + (&minus;0.5, 1) = (0, 1.5). Top right: only pixel 4, (1, &minus;0.5). Bottom left: (0, 0.5) + (&minus;0.5, 1) = (&minus;0.5, 1.5). Bottom right: the same pixels as the top left, so the same vector, (0, 1.5).</li>
+        <li>That pixel is pixel 4 of the bottom right patch, which becomes 1, 1, 1, 1. Its vector becomes (1, 1): it changed by (1, &minus;0.5), exactly the row of pixel 4. The other three vectors do not change.</li>
+        <li>224 / 16 = 14 patches across and 14 down, so 14 &times; 14 = 196 patches. Each holds 16 &times; 16 = 256 pixels, and three colours each, so 768 numbers.</li>
+      </ol>
+      <p>Your prediction: no, the top left and the bottom right both give (0, 1.5). Two patches that look the same become the same vector: only the position they sit at tells the model which is which. And one photograph takes 196 positions, more than three times the window of 64 positions that the model of chapter 7 was trained with.</p>
+    </details>
+  </section>
+
   <h2>Build it</h2>
   <pre class="code" data-lang="text">python code/ch31_images.py --train     # train the agent that reads, about 6 minutes
 python code/ch31_images.py             # the table of this chapter</pre>
@@ -154,6 +187,8 @@ python code/ch31_images.py             # the table of this chapter</pre>
       <li>A misread input produces a well-formed, confident, wrong action. Patches also take room in the context, like any other position.</li>
     </ul>
   </div>
+
+  <div class="stick" data-draw="fig-twoways" data-explain="patch,multimodal,embedding,matrix,vector"></div>
 
   <h2>Check yourself</h2>
   <details class="check"><summary>Why can a patch not simply be looked up in the embedding table, as a token is?</summary><p>The table has one row per token, and there are only a few dozen tokens. A patch of 15 pixels can take 32,768 different patterns, and a photograph's patch far more. So the vector is computed from the pixels instead of being stored for each pattern.</p></details>

@@ -53,7 +53,7 @@
     <tr><td class="mono">0.42</td><td class="mono">3.00</td><td class="mono">3</td><td class="mono">0.42</td><td class="mono">0.00</td></tr>
     <tr><td class="mono">−0.30</td><td class="mono">−2.14</td><td class="mono">−2</td><td class="mono">−0.28</td><td class="mono">0.02</td></tr>
   </table></div>
-  <figure class="fig">
+  <figure class="fig" id="fig-grid">
     <svg viewBox="0 0 760 180" role="img" aria-labelledby="f9a">
       <title id="f9a">A line with seven evenly spaced marks, numbered minus 3 to 3, one step of 0.14 apart. The four weights sit between the marks, and an arrow moves each one to the nearest mark: 0.20 to mark 1, minus 0.05 to mark 0, 0.42 to mark 3, minus 0.30 to mark minus 2.</title>
       <defs><marker id="c9a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
@@ -96,6 +96,28 @@
   </table></div>
   <p class="caption" style="font-family:var(--sans)">Bits per weight as reported in the llama.cpp quantization documentation and tables; the mixed formats vary slightly from model to model.</p>
   <p>Q4_K_M is the usual default: about 3.3 times smaller than the 16-bit original for a quality loss most people cannot notice. A widely repeated rule of thumb follows: for a fixed amount of memory, a larger model at 4 bits usually beats a smaller model at 8 bits.</p>
+
+  <section class="yourturn" aria-label="Your turn, by hand">
+    <h3>Your turn, by hand</h3>
+    <p class="need">Paper and a pencil · about 10 minutes</p>
+    <p>Round eight weights to 3 bits twice: once with one scale for all eight, once with one scale per block of four. Then count the bits each version stores.</p>
+    <p class="predict"><b>Predict first.</b> One scale per block of four will make the errors smaller. Will the extra scales cost a small share of the bits, or more bits than the weights themselves? Write your guess down.</p>
+    <pre class="code" data-lang="text">block 1:   0.12   −0.30   0.06   0.21
+block 2:   0.09   −0.15   1.20   0.03</pre>
+    <ol>
+      <li>One scale for all eight: find the scale, divide each weight by it, round to a whole number from −3 to 3, and multiply back. Add up the eight errors, ignoring their signs.</li>
+      <li>One scale per block: do the same for each block of four, with its own scale.</li>
+      <li>Count the bits of each version: 3 bits per weight, plus 16 bits per scale. Divide by 8 to get the bits per weight.</li>
+    </ol>
+    <details class="answer"><summary>Check your working</summary>
+      <ol class="worked">
+        <li>The grid must reach 1.20, so the scale is 1.20 ÷ 3 = 0.40. Divided by the scale: 0.30, −0.75, 0.15, 0.53, 0.23, −0.38, 3.00, 0.08. Stored: 0, −1, 0, 1, 0, 0, 3, 0. Recovered: 0, −0.40, 0, 0.40, 0, 0, 1.20, 0. Errors: 0.12, 0.10, 0.06, 0.19, 0.09, 0.15, 0, 0.03, which add up to 0.74. Five of the eight weights became 0.</li>
+        <li>Block 1 reaches 0.30, so its scale is 0.10. Divided: 1.2, −3.0, 0.6, 2.1. Stored: 1, −3, 1, 2. Recovered: 0.10, −0.30, 0.10, 0.20. Errors: 0.02, 0, 0.04, 0.01, total 0.07. Block 2 still reaches 1.20, so its scale is 0.40 and it rounds exactly as before: stored 0, 0, 3, 0, errors 0.09, 0.15, 0, 0.03, total 0.27. Together 0.34, less than half of 0.74. The large weight still wipes out the three weights of its own block.</li>
+        <li>One scale: 8 × 3 + 16 = 40 bits, so 40 ÷ 8 = 5 bits per weight. Two scales: 8 × 3 + 2 × 16 = 56 bits, so 7 bits per weight.</li>
+      </ol>
+      <p>Your prediction: more than the weights themselves. Smaller blocks protect more weights from a large one, but every scale costs 16 bits. With blocks of four the scales take 4 bits per weight, more than the 3 bits of the weights themselves. With blocks of 32 they take half a bit, which is why the formats above use blocks of that size.</p>
+    </details>
+  </section>
 
   <h2>Will it fit? How fast will it go?</h2>
   <p>Both questions can be answered with arithmetic before downloading anything.</p>
@@ -164,6 +186,8 @@
       <li>Tokens per second cannot exceed <a class="term" href="glossary.html#memory-bandwidth">memory bandwidth</a> ÷ model size.</li>
     </ul>
   </div>
+
+  <div class="stick" data-draw="fig-grid" data-explain="quantization,bit,scale,held-out"></div>
 
   <h2>Check yourself</h2>
   <details class="check"><summary>On 3 bits with a scale of 0.14, what is stored for a weight of 0.33, and what is recovered?</summary><p>0.33 ÷ 0.14 = 2.36, which rounds to 2. Recovered: 2 × 0.14 = 0.28, an error of 0.05.</p></details>

@@ -41,7 +41,7 @@
     <p>The <dfn>active weights</dfn> are the ones a token actually passes through: the shared parts of the model plus the experts chosen for that token. The model owns more weights than that.</p>
   </div>
 
-  <figure class="fig">
+  <figure class="fig" id="fig-router">
     <svg viewBox="0 0 760 230" role="img" aria-labelledby="f20t">
       <title id="f20t">A token's vector goes to a router, which scores four experts. The two with the highest scores process the token, the other two are skipped, and the two results are added with their weights.</title>
       <defs><marker id="c20a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
@@ -123,6 +123,31 @@
 
   <p><strong>What you should have seen.</strong> At 5 bits Mixtral needs 29.2 GB and the card has 24. At 4 bits it needs 23.4 GB and fits. Its ceiling is then about 156 tokens per second, because each token reads only 6.45 GB. An ordinary model of 46.7 billion weights on the same card would read all 23.4 GB per token and stop at about 43. The memory bill is the same. The speed is that of a model a quarter of the size.</p>
 
+  <section class="yourturn" aria-label="Your turn, by hand">
+    <h3>Your turn, by hand</h3>
+    <p class="need">Paper, a pencil and a calculator · about 12 minutes</p>
+    <p>A block has eight experts, two at work for each token. Each expert is two matrices, 96 × 64 and 64 × 96, and the router is a matrix of 96 × 8. Route two tokens and count what they use.</p>
+    <p class="predict"><b>Predict first.</b> One token reads a part of the block. Will two different tokens in the same step read the same part, or more? Write your guess down.</p>
+    <pre class="code" data-lang="text">expert      1     2     3     4     5     6     7     8
+token A   1.0   3.0  −0.5   2.0   0.0   1.5  −1.0   0.5
+token B   2.2  −0.4   0.1   1.0   2.9   0.3  −1.2   0.6
+
+e^3.0 = 20.09   e^2.0 = 7.39   e^2.9 = 18.17   e^2.2 = 9.03</pre>
+    <ol>
+      <li>For each token, choose its two experts and work out their weights with the softmax over the chosen scores.</li>
+      <li>Count the weights of one expert, the weights the block owns, and the active weights for one token. What share is at work?</li>
+      <li>A server puts tokens A and B through the block side by side, in one step. Which experts must be read from memory for that step, and how many weights is that?</li>
+    </ol>
+    <details class="answer"><summary>Check your working</summary>
+      <ol class="worked">
+        <li>Token A: the two highest scores are 3.0 and 2.0, experts 2 and 4. 20.09 + 7.39 = 27.48, so expert 2 gets 20.09 / 27.48 = 0.73 and expert 4 gets 0.27. Token B: 2.9 and 2.2, experts 5 and 1. 18.17 + 9.03 = 27.20, so expert 5 gets 18.17 / 27.20 = 0.67 and expert 1 gets 0.33.</li>
+        <li>One expert: 96 × 64 + 64 × 96 = 12,288. Router: 96 × 8 = 768. Owned: 8 × 12,288 + 768 = 99,072. Active for one token: 2 × 12,288 + 768 = 25,344, a share of 25,344 / 99,072 = 26%.</li>
+        <li>The two tokens share no expert, so experts 1, 2, 4 and 5 must all be read: 4 × 12,288 + 768 = 49,920 weights, half of the block. Each token still does only its own 25,344 multiply-adds.</li>
+      </ol>
+      <p>Your prediction: more, half of the block instead of a quarter. For one stream of text, a token reads a quarter of the block. Put two different tokens side by side and the step reads half of it, and with enough tokens at once every expert is read anyway. The saving in reading is largest for one stream. The saving in arithmetic stays.</p>
+    </details>
+  </section>
+
   <h2>Keeping every expert in work</h2>
   <p>One thing can go wrong during training. Early on, by chance, one expert is slightly better than the others. The router sends it more tokens. It trains on more tokens and gets better still. In the end a few experts do everything and the rest are dead weight in memory. This is called collapse.</p>
   <p>The usual remedy is a small extra term in the loss that grows when the experts' average workloads are uneven. Ours measures how far each expert's share is from one quarter. With it, all four experts of both blocks stayed in use, as the experiment above shows.</p>
@@ -181,6 +206,20 @@ python code/ch20_moe.py             # the two tables of this chapter</pre>
       <li>An extra term in the loss keeps the workloads even, so that no expert is left idle.</li>
     </ul>
   </div>
+
+  <section class="actout" aria-label="Act it out">
+    <h3>Act it out</h3>
+    <p class="need">One or two people, four cups, a pen and twenty slips of paper · about 8 minutes</p>
+    <p>Play the router of one block: the cups are four experts, the slips are tokens, and each token goes to two experts.</p>
+    <ol>
+      <li>Label the cups expert 1 to 4. Pick ten characters of a short line, such as <code>Meet at 10</code>, and write each one on two slips.</li>
+      <li>Fix a scoring rule before you start, as a trained router is fixed when the model is used: for example digits score high for expert 1, capitals for expert 3, everything else spread over the others. For each character, give the four experts a score from 0 to 9 and drop one slip into each of the two cups with the highest scores.</li>
+      <li>When all ten are routed, count. How many cups did one character visit? How many cups hold at least one slip?</li>
+    </ol>
+    <p>Each character visited two cups of four, so only part of the experts' weights worked on it. But all the cups ended up in use, and any character could have gone to any of them, so all four had to be on the table. That is the difference between the weights a model owns and its active weights.</p>
+  </section>
+
+  <div class="stick" data-draw="fig-router" data-explain="expert,router,moe,active-weights"></div>
 
   <h2>Check yourself</h2>
   <details class="check"><summary>A model owns 235 billion weights and uses 22 billion per token. Which number tells you whether it fits on your machine, and which tells you how fast it writes?</summary><p>The 235 billion decide the fit: every expert must be in memory, because any token may be sent to it. The 22 billion decide the speed: only those are read and multiplied for a token.</p></details>

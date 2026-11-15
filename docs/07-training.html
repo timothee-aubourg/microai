@@ -39,7 +39,7 @@
     <p>The passages used in one step are a <dfn>batch</dfn>.</p>
   </div>
 
-  <figure class="fig">
+  <figure class="fig" id="fig-step">
     <svg viewBox="0 0 760 200" role="img" aria-labelledby="f7a">
       <title id="f7a">The four moves of a training step, in a loop: pick a batch of passages, run the model forward and measure the loss, run backward to get every slope, move every parameter a little against its slope, then start again with a new batch.</title>
       <defs><marker id="c7a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
@@ -126,6 +126,32 @@
   </div>
   <p>By hand, with a limit of 1: a batch gives the gradient (3, 4). Its length is the square root of 3² + 4², which is 5. That is over the limit, so every slope is divided by 5: the gradient becomes (0.6, 0.8), of length 1 and pointing the same way. One odd batch cannot throw the model out of the valley, as in the diverging run of chapter 3.</p>
 
+  <section class="yourturn" aria-label="Your turn, by hand">
+    <h3>Your turn, by hand</h3>
+    <p class="need">Paper, a pencil and a calculator · about 10 minutes</p>
+    <p>Compare the steps of plain gradient descent and of Adam for three parameters. Use a simplified Adam: the average of the last four slopes, divided by their typical size, which is the square root of the average of their squares. The learning rate is 0.01 for both methods.</p>
+    <p class="predict"><b>Predict first.</b> The slopes of A are about 5,000 times larger than those of B. With Adam, will A still move much further than B? Write your guess down.</p>
+    <div class="scroll"><table class="mini">
+      <tr><th>Parameter</th><th>Its last four slopes</th></tr>
+      <tr><td>A</td><td>10, 12, 8, 10</td></tr>
+      <tr><td>B</td><td>0.002, 0.001, 0.003, 0.002</td></tr>
+      <tr><td>C</td><td>5, −5, 5, −5</td></tr>
+    </table></div>
+    <ol>
+      <li>Plain gradient descent: how far does each parameter move at the last step, learning rate × slope?</li>
+      <li>For each parameter, compute the average slope and the average square, then the typical size. √102 ≈ 10.1 and √0.0000045 ≈ 0.00212.</li>
+      <li>Adam's step is learning rate × average / typical size, against the slope. How far does each parameter move?</li>
+    </ol>
+    <details class="answer"><summary>Check your working</summary>
+      <ol class="worked">
+        <li>A: 0.01 × 10 = 0.1, down. B: 0.01 × 0.002 = 0.00002, down. C: 0.01 × −5 = −0.05, so up by 0.05; at the step before it went down by 0.05.</li>
+        <li>A: average 10; squares 100, 144, 64, 100, average 102; typical size 10.1. B: average 0.002; squares 0.000004, 0.000001, 0.000009, 0.000004, average 0.0000045; typical size 0.00212. C: average 0; every square is 25, so the typical size is 5.</li>
+        <li>A: 0.01 × 10 / 10.1 ≈ 0.0099, down. B: 0.01 × 0.002 / 0.00212 ≈ 0.0094, down. C: 0.01 × 0 / 5 = 0, it stays put.</li>
+      </ol>
+      <p>Your prediction: no, A and B move almost the same distance. With plain descent A moves 5,000 times further than B. With Adam they move almost the same distance, close to one learning rate, and C, whose slopes do not agree on a direction, stops going back and forth. The Adam in the code keeps decaying averages instead of plain averages of four, but it divides the same two things.</p>
+    </details>
+  </section>
+
   <h2>Build it</h2>
   <pre class="code" data-src="train.py#batch">def get_batch(source, batch_size):
     """Random windows of text. The target is the same window shifted by one character."""
@@ -177,6 +203,8 @@
       <li>Real training adds three things to chapter 3: <a class="term" href="glossary.html#adam">Adam</a>, a <a class="term" href="glossary.html#learning-rate-schedule">learning-rate schedule</a> and <a class="term" href="glossary.html#gradient-clipping">gradient clipping</a>.</li>
     </ul>
   </div>
+
+  <div class="stick" data-draw="fig-step" data-explain="training-step,training-batch,loss,gradient,held-out"></div>
 
   <h2>Check yourself</h2>
   <details class="check"><summary>A passage reads <code>the cat</code>. What are the model's inputs and targets?</summary><p>Seven characters give six questions. The inputs are <code>the ca</code> and the targets are <code>he cat</code>: the same text shifted by one. After <code>t</code> predict <code>h</code>, after <code>th</code> predict <code>e</code>, and so on.</p></details>

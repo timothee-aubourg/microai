@@ -47,6 +47,36 @@ Every chapter now has the definition boxes, worked examples, glossary
 entries and recap of chapters 1 and 2. A new chapter is not finished without
 them.
 
+**Make it stick.** Reading an idea is not having it. The point of the
+activities is to make the reader rebuild the mechanism from memory, so every
+one of them comes from the chapter's central idea, in the forms that work:
+
+- **Remember.** Before a chapter, the reader recalls the one read before it,
+  without looking. Automatic: the shared script asks for the previous chapter
+  (or the previous one on the reader's path), if it was opened, and reveals
+  its line to keep.
+- **Predict, then work it out.** Every chapter has one task for paper and a
+  pencil in a `<section class="yourturn">` (see chapter 1 for the markup). It
+  opens with `<p class="predict">`: a guess the reader commits to in ten
+  seconds about the task's punchline. Then two to four steps, and the full
+  working in `<details class="answer">` as an `<ol class="worked">` with one
+  item per step (the page reveals them one at a time), closing with "Your
+  prediction:" and the answer. It practises the central idea on new, small
+  numbers, not the worked example again. In the chapters about agents the
+  task is to trace, count or decide on paper.
+- **Draw it from memory** and **explain it back.** One line before
+  "Check yourself", `<div class="stick" data-draw="figure id"
+  data-explain="glossary keys">`, makes the page build a "Make it stick"
+  block: redraw the named figure blank (on paper, or with a finger), then
+  reveal it; answer the opening question in one's own words with the 3 to 5
+  given terms, then compare with the recap.
+- **Act it out,** only where the mechanism has a natural physical form:
+  a `<section class="actout">` with roles or objects, two to four steps, and
+  what playing it shows. It must follow the mechanism faithfully.
+
+Every number in a task and its answer is checked by running it. Made-up
+example data is labelled as such. Answers and controls are hidden when printed.
+
 Optional maths goes in a folded `<details class="refresher">`. Step-by-step
 animations use `M.stepper` (see the BPE walkthrough in chapter 2).
 
@@ -87,10 +117,10 @@ and the guarded `prefers-color-scheme` block.
   "What this chapter glossed over", definition, recap, guess and line to keep,
   so a page never draws one itself. A new kind of recurring piece gets one new
   entry in `ICONS`: a `dab(...)` plus one `ink(...)` path on a 48 by 48 grid.
-- **Each part has a sign.** The sixteen parts are listed in `M.parts` with a
+- **Each part has a sign.** The seventeen parts are listed in `M.parts` with a
   pigment each. A part's sign is its pigment as the dab and a gesture derived
   from its name, shown in the contents and at the top of each of its chapters.
-  The sixteen pigments are used for nothing else, and none is close to the three
+  The seventeen pigments are used for nothing else, and none is close to the three
   meaning colours.
 - **Four more pigments say "which one".** `--pig1` to `--pig4` tell apart
   several things of the same kind in one experiment, such as the four experts

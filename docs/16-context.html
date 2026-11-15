@@ -63,7 +63,7 @@
   <p>The second row does 3.5 times less work and produces the same scores: the script checks every request against a computation from scratch. The third row is the warning. One character changed near the beginning, and the cache was worth nothing, because every later token had attended to it.</p>
   <p>From this follows the first rule of building agents: <strong>keep the beginning of the conversation fixed, and only ever add to the end.</strong> No clock in the system prompt. The same tools in the same order at every step. No rewriting of earlier messages. The server of llama.cpp reuses the common beginning of requests that follow one another, without being asked, and services that charge by the token charge less for input that was cached, for the same reason.</p>
 
-  <figure class="fig">
+  <figure class="fig" id="fig-prefix">
     <svg viewBox="0 0 760 190" role="img" aria-labelledby="f16a">
       <title id="f16a">Two requests drawn as bars. The second begins with exactly the same text as the first and adds a little at the end. The shared beginning is taken from the cache, and only the new end is computed. Below, a third request in which one character near the start has changed: everything after the change is computed again.</title>
       <g class="t-small">
@@ -93,6 +93,33 @@
   </div>
   <p>The last two rewrite text the model has already read, so they break the first rule. From the first changed character on, the cache is useless and everything is read again. Measured on a session of six file reads of 1,500 characters each: trimming takes it from 10,870 to 5,722 characters and leaves the first 883 identical. Compacting takes it to 4,036 and leaves the first 483 identical.</p>
   <p>So the two budgets pull against each other. The experiment shows the way out: trimming a little at every step pays the re-reading price at every step, while compacting rarely, in one large cut, pays it once and then enjoys a short conversation that grows at the end again. Shrink seldom and shrink a lot.</p>
+
+  <section class="yourturn" aria-label="Your turn, by hand">
+    <h3>Your turn, by hand</h3>
+    <p class="need">Paper and a pencil · about 12 minutes</p>
+    <p>Count, for a small session, how many characters the model computes with a prefix cache, and then which of two ways of shrinking it costs less.</p>
+    <p class="predict"><b>Predict first.</b> Dropping the oldest step removes a little at every request. Compacting once removes a lot, one time. Which will make the prefix cache compute less over the whole session? Write your guess down.</p>
+    <pre class="code" data-lang="text">fixed beginning P   system prompt, tools and task       1,200 characters
+each step s1, s2 …  one request and its result            400 characters
+request n           P + s1 + … + s(n−1)
+window                                                  3,000 characters</pre>
+    <ol>
+      <li>Write the length of requests 1 to 5. Add them up: that is what a server with no cache computes. Then count what a server with a prefix cache computes, where only the new part of each request is read.</li>
+      <li>Find the first request that no longer fits the window.</li>
+      <li>Shrink in one of two ways, from that request on, and count what the prefix cache computes for requests 6, 7 and 8 in each case. <strong>Drop the oldest step:</strong> each request holds P and only the four latest steps. <strong>Compact once:</strong> before request 6, replace s1 to s4 by a summary of 200 characters, placed right after P, and then add to the end again. Leave out the cost of writing the summary.</li>
+    </ol>
+    <details class="hint"><summary>A hint</summary>
+      <p>Write each request as a list, such as P s2 s3 s4 s5, under the one before it. The cache keeps everything up to the first place where the two lists differ.</p>
+    </details>
+    <details class="answer"><summary>Check your working</summary>
+      <ol class="worked">
+        <li>Requests 1 to 5 are 1,200, 1,600, 2,000, 2,400 and 2,800 characters. With no cache: 1,200 + 1,600 + 2,000 + 2,400 + 2,800 = 10,000. With a prefix cache, request 1 is read in full and each later one adds 400: 1,200 + 4 × 400 = 2,800, 3.6 times less.</li>
+        <li>Request 6 would be 1,200 + 5 × 400 = 3,200 characters, more than 3,000. Requests 1 to 5 fit.</li>
+        <li><strong>Drop the oldest step.</strong> Request 6 is P s2 s3 s4 s5, 2,800 characters. Request 5 was P s1 s2 s3 s4. They agree only on P, so 2,800 − 1,200 = 1,600 are computed. The same happens at requests 7 and 8: 3 × 1,600 = 4,800, and 2,800 + 4,800 = 7,600 for the whole session. <strong>Compact once.</strong> Request 6 is P, the summary and s5: 1,200 + 200 + 400 = 1,800, of which 600 are new. Requests 7 and 8 only add to the end: 2,200 and 2,600, 400 new each. Requests 6 to 8 cost 600 + 400 + 400 = 1,400, and the whole session 2,800 + 1,400 = 4,200.</li>
+      </ol>
+      <p>Your prediction: compacting once. Dropping a little at every step re-reads four steps' worth each time, four times the 400 the session grows by. One compaction pays one re-read of 600 and then lets the cache work again: 4,200 against 7,600. Shrink seldom and by a lot.</p>
+    </details>
+  </section>
 
   <h2>Memory is a decision about the window</h2>
   <p>Chapter 11 said the model's only memory is the list of messages. Everything called memory in an agent is a way of choosing what goes back into that list.</p>
@@ -161,6 +188,8 @@ def compact(messages, summarize, keep=4):
       <li>What is called memory in an agent is a choice of what to put back into the window.</li>
     </ul>
   </div>
+
+  <div class="stick" data-draw="fig-prefix" data-explain="prefill,kv-cache,prefix-cache,context-window,compaction"></div>
 
   <h2>Check yourself</h2>
   <details class="check"><summary>The last request was <code>hello world</code>. The new one is <code>hello there world</code>. How many characters does a prefix cache save?</summary><p>The two agree on <code>hello </code>, six characters, and differ from the seventh on. Those six are reused, and the other eleven are computed, although most of them were in the old request too. Only an unchanged beginning counts.</p></details>

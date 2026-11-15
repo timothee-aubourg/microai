@@ -49,7 +49,7 @@
   </table></div>
   <p>The left column grows with the catalogue. The right one does not. The rest of the chapter is about getting to the right column.</p>
 
-  <figure class="fig">
+  <figure class="fig" id="fig-ways">
     <svg viewBox="0 0 760 260" role="img" aria-labelledby="f38a">
       <title id="f38a">Three ways to handle a catalogue of six tools when the context has room for four. Everything: the list is cut after four entries and two tools are lost. Harness picks: the harness reads the question and lists only the matching tool. Agent asks: the agent starts with an empty list, says which tool it lacks, the harness loads that one entry, and the agent is asked again.</title>
       <defs><marker id="c38a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
@@ -119,6 +119,26 @@ def agent_asks(model, question):
   </section>
   <p><strong>What you should have seen.</strong> A plus question is answered right in all three ways. The agent read 99 characters with everything listed, 74 when the harness picked, and 126 in two passes when it asked. A max question shows the difference. With everything listed the agent says <code>i have no tool for max.</code>, because max is past the cut. The other two ways answer <code>23 max 45 is 45.</code> Thirty questions gave 20 or 21 right with everything listed, and 30 of 30 in each of the other two ways.</p>
 
+  <section class="yourturn" aria-label="Your turn, by hand">
+    <h3>Your turn, by hand</h3>
+    <p class="need">Paper and a pencil · about 10 minutes</p>
+    <p>Count what the agent reads for one question, <code>what is 61 min 17?</code>, with the six-tool catalogue above, in each of the three ways. Count as the program does: every character, spaces included, one more for the end of each line, and one for the empty line the harness writes before the list. An empty list is the line <code>T</code> alone.</p>
+    <p class="predict"><b>Predict first.</b> Which of the three ways will read the most characters for this one question, and which will read the least while still answering right? Write your guess down.</p>
+    <ol>
+      <li><strong>Everything.</strong> Write the context, with the list cut to its first four entries, and the agent's answer. Count the characters.</li>
+      <li><strong>Harness picks.</strong> Write the context with the one entry the harness finds, and the whole conversation: call, result and answer. Count.</li>
+      <li><strong>Agent asks.</strong> Write both passes and count the total. Which way read the most, and which read the least for a right answer?</li>
+    </ol>
+    <details class="answer"><summary>Check your working</summary>
+      <ol class="worked">
+        <li>The empty line 1, <code>T plus=at minus=hx times=sv mod=wu</code> 35, <code>U what is 61 min 17?</code> 21, <code>A i have no tool for min.</code> 26. Total 83 characters, one pass, and no answer: <code>min=cl</code> was past the cut.</li>
+        <li>1, <code>T min=cl</code> 9, <code>U what is 61 min 17?</code> 21, <code>C min=cl 61 17</code> 15, <code>R 17</code> 5, <code>A 61 min 17 is 17.</code> 19. Total 70, one pass.</li>
+        <li>First pass: 1, <code>T</code> 2, the question 21, <code>A i have no tool for min.</code> 26, so 50. The harness loads <code>min=cl</code> and asks again, and the second pass is the context of step 2, 70. Total 120 in two passes. Asking read the most, 120; the harness's pick read the least for a right answer, 70.</li>
+      </ol>
+      <p>Your prediction: asking read the most, 120; the harness's pick read the least, 70. "Everything" read 83 characters to fail. The first pass of "agent asks" ended the same way, with <code>i have no tool for min.</code>, but there the harness treats the refusal as a request and acts on it. The trained agent of chapter 37 gave these answers, and the program counted 83, 70 and 120 characters.</p>
+    </details>
+  </section>
+
   <h2>At full size</h2>
   <ul>
     <li><strong>This is how skills work.</strong> A skill is a folder with a file of instructions. Under the <a href="https://agentskills.io/client-implementation/adding-skills-support">open format</a> that several agents now share, loading has three levels. The name and a one-line description of every installed skill are always in the context, at a cost of about 100 tokens each. The body of instructions, which the format recommends keeping under 5,000 tokens, is read only when the model decides the task calls for it. Scripts and reference files inside the folder are read or run only if the body points to them.</li>
@@ -150,6 +170,8 @@ def agent_asks(model, question):
       <li>Loading late is paid for with an extra pass. It is worth it when the catalogue is large compared with the work.</li>
     </ul>
   </div>
+
+  <div class="stick" data-draw="fig-ways" data-explain="progressive-disclosure,skill,tool-description,context-window,harness"></div>
 
   <h2>Check yourself</h2>
   <details class="check"><summary>With the whole catalogue listed, the agent said "i have no tool for max". The tool exists. What went wrong?</summary><p>The list was cut to fit the window, and the entry for max was past the cut. The agent answered truthfully about the list it was shown. The fault is in what the harness put in the context.</p></details>

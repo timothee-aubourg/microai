@@ -49,7 +49,7 @@
   <p>The two agree at positions 1 and 2, so those are kept. At position 3 they differ. The large model's own character is taken, and everything the draft wrote after it is thrown away, because it was written after a character that is no longer there. The round cost four cheap passes and one costly pass, and produced three characters. Alone, the large model would have needed three costly passes.</p>
   <p>Notice what the third character is. It is not a guess that was accepted. It is the large model's own choice, from the same pass that did the checking. That is why every round yields at least one character and the output cannot differ from the large model's.</p>
 
-  <figure class="fig">
+  <figure class="fig" id="fig-round">
     <svg viewBox="0 0 760 200" role="img" aria-labelledby="f26a">
       <title id="f26a">One round. The small model writes four tokens in four cheap passes. The large model reads them in one pass and gives its own token at each position. Tokens are kept up to the first disagreement, where the large model's token is used.</title>
       <defs><marker id="c26a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
@@ -120,6 +120,32 @@
   <p class="src">From <code>code/ch26_draft.py</code>. The draft proposes a token. It is kept with a probability that is higher the more the large model also likes it. If it is refused, a token is drawn from the part of the large model's probability that the draft had left out.</p>
   <p>The claim is that a token chosen this way is distributed exactly as if the large model had drawn it. The script tests the claim on one prompt with 100,000 draws: the largest gap between how often a token came out and the large model's probability for it is 0.0014, which is what chance alone gives with that many draws.</p>
 
+  <section class="yourturn" aria-label="Your turn, by hand">
+    <h3>Your turn, by hand</h3>
+    <p class="need">Paper and a pencil · about 10 minutes</p>
+    <p>Check the claim on a list of three tokens: follow the rule for sampled text and work out how often each token comes out.</p>
+    <p class="predict"><b>Predict first.</b> The draft model proposes b six times in ten, and the large model wants it two times in ten. Once the rule has run, how often will b come out: near 0.6, near 0.2, or somewhere between? Write your guess down.</p>
+    <div class="scroll"><table class="mini">
+      <tr><th>Token</th><th>Draft model, q</th><th>Large model, p</th></tr>
+      <tr><td class="mono">a</td><td class="mono">0.3</td><td class="mono">0.5</td></tr>
+      <tr><td class="mono">b</td><td class="mono">0.6</td><td class="mono">0.2</td></tr>
+      <tr><td class="mono">c</td><td class="mono">0.1</td><td class="mono">0.3</td></tr>
+    </table></div>
+    <ol>
+      <li>For each token, find the chance it is kept when the draft proposes it, the smaller of 1 and p(x) / q(x). Multiply by q(x) to get the chance it is proposed and kept. Add the three: that is the chance the draft is kept at all.</li>
+      <li>When the draft is refused, a token is drawn from what the draft under-weighted: the larger of p(x) &minus; q(x) and 0, divided by the total of those. Write that list.</li>
+      <li>For each token, add the chance it was proposed and kept to the chance of a refusal times its share of the list from step 2. Compare with p.</li>
+    </ol>
+    <details class="answer"><summary>Check your working</summary>
+      <ol class="worked">
+        <li>a: 0.5 / 0.3 is more than 1, so it is always kept: 0.3 &times; 1 = 0.3. b: 0.2 / 0.6 = 1/3, and 0.6 &times; 1/3 = 0.2. c: 0.3 / 0.1 = 3, so always kept: 0.1. The draft is kept with chance 0.3 + 0.2 + 0.1 = 0.6, and refused with chance 0.4.</li>
+        <li>a: 0.5 &minus; 0.3 = 0.2. b: 0.2 &minus; 0.6 is negative, so 0. c: 0.3 &minus; 0.1 = 0.2. The total is 0.4, so the shares are 0.5, 0 and 0.5.</li>
+        <li>a: 0.3 + 0.4 &times; 0.5 = 0.5. b: 0.2 + 0.4 &times; 0 = 0.2. c: 0.1 + 0.4 &times; 0.5 = 0.3. That is p exactly.</li>
+      </ol>
+      <p>Your prediction: exactly 0.2, the large model's own probability. The draft's favourite, b, which it proposes six times in ten, comes out only as often as the large model wants it, and the refusals make up exactly what a and c were short of. The chance a draft is kept, 0.6 here, is the overlap of the two lists: the closer the draft model is to the large one, the more of its tokens survive.</p>
+    </details>
+  </section>
+
   <h2>Build it</h2>
   <pre class="code" data-src="ch26_draft.py#speculate">def speculate(big, small, tokens, n, k):
     """Write n tokens. The small model drafts k at a time; the large one checks each draft in one pass."""
@@ -163,6 +189,21 @@ python code/ch26_draft.py             # every table of this chapter, about 3 min
       <li>At full size a draft can be twenty times cheaper, and the same arithmetic gives two to three times the speed.</li>
     </ul>
   </div>
+
+  <section class="actout" aria-label="Act it out">
+    <h3>Act it out</h3>
+    <p class="need">Two people, a book · about 5 minutes</p>
+    <p>Play the round of the figure again and again. The book is the large model: it always knows its next word.</p>
+    <ol>
+      <li>The <b>large model</b> opens the book at any page and reads the first few words of a sentence aloud. Only they look at the page.</li>
+      <li>The <b>draft model</b> quickly guesses the next four words.</li>
+      <li>The large model checks all four against the page at once, keeps them up to the first difference, and says the page's word in place of the first wrong one. That ends the round. Write down the kept words and start the next round from there.</li>
+      <li>Go on for three or four sentences, counting rounds and words. Then compare what you wrote with the page.</li>
+    </ol>
+    <p>What you wrote is the page, word for word, however good the guesses were: the guesser decides only how many words a round yields, never which ones. Every round yields at least one word, and long stretches are kept where the text is predictable.</p>
+  </section>
+
+  <div class="stick" data-draw="fig-round" data-explain="draft-model,speculative,forward-pass,memory-bandwidth"></div>
 
   <h2>Check yourself</h2>
   <details class="check"><summary>The draft model is wrong 40% of the time. Why is the output not wrong 40% of the time?</summary><p>Because every drafted token is compared with what the large model itself would write at that position, and replaced at the first difference. A wrong draft costs time, never correctness.</p></details>

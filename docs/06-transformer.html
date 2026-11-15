@@ -52,6 +52,26 @@
   <p>The bend is what makes this a computation. Two matrices in a row with nothing between them do no more than one matrix: multiplying a number by 2 and then by 3 is multiplying it by 6, and the same holds for tables. With the bend in between, the step can react to one pattern and ignore another.</p>
   <p>In our model the MLP stretches the 96 numbers to 384 and brings them back to 96. The bend it uses is a smooth version of the one above, called GELU: it turns −1 into −0.16 instead of 0, and leaves 3 at 3. Smooth matters for the same reason as in the softmax: gradient descent needs slopes. Two thirds of the parameters of every block sit in its MLP, and that is where the model stores most of what it knows.</p>
 
+  <section class="yourturn" aria-label="Your turn, by hand">
+    <h3>Your turn, by hand</h3>
+    <p class="need">Paper and a pencil · about 10 minutes</p>
+    <p>Test the claim that the bend is what makes the MLP compute. Use the same MLP as above: stretch with the columns (1, 0), (0, 1) and (1, 1), bend, bring back with the columns (1, 2, 0) and (0, 1, 1).</p>
+    <p class="predict"><b>Predict first.</b> The two inputs you will use add up to (1, −1), whose result is (1, 0). Will their two results add up to (1, 0) as well? Write your guess down.</p>
+    <ol>
+      <li>Run the vector (1, 0) through it: stretch, bend, bring back.</li>
+      <li>Run the vector (0, −1) through it.</li>
+      <li>The two inputs add up to (1, −1), whose result above was (1, 0). Add your two results and compare. Then do steps 1 and 2 again without the bend, add the results, and compare with the result of (1, −1) without the bend, (−1, −1).</li>
+    </ol>
+    <details class="answer"><summary>Check your working</summary>
+      <ol class="worked">
+        <li>Stretch: (1 × 1 + 0 × 0, 1 × 0 + 0 × 1, 1 × 1 + 0 × 1) = (1, 0, 1). Bend: nothing is negative, so (1, 0, 1). Bring back: (1 × 1 + 0 × 2 + 1 × 0, 1 × 0 + 0 × 1 + 1 × 1) = (1, 1).</li>
+        <li>Stretch: (0, −1, −1). Bend: (0, 0, 0). Bring back: (0, 0). No detector fires.</li>
+        <li>With the bend: (1, 1) + (0, 0) = (1, 1), but the MLP gives (1, 0) for the sum of the inputs. Without the bend: (1, 0, 1) gives (1, 1) as before, and (0, −1, −1) gives (0 × 1 + −1 × 2 + −1 × 0, 0 × 0 + −1 × 1 + −1 × 1) = (−2, −2). Their sum is (−1, −1), exactly the result for (1, −1).</li>
+      </ol>
+      <p>Your prediction: with the bend, no; without it, yes. Without the bend, the result for a sum of inputs is always the sum of the results, as for a single matrix. With the bend it is not: the MLP can treat a combination differently from its parts, and that is what lets it react to one pattern and ignore another.</p>
+    </details>
+  </section>
+
   <h2>Part two: a stream that everything adds to</h2>
   <p>Now stack blocks. The obvious way is a chain: block 1 turns the vector into a new one, block 2 turns that into another, and so on. It fails for deep stacks, and the reason is in chapter 3. The slopes travel backward through every block, multiplying as they go. If each block shrinks them a little, say by a factor of 0.8, then after 30 blocks they have shrunk by 0.8<sup>30</sup> = 0.001. Almost nothing reaches the first blocks, and they never learn. This was the practical obstacle to deep models for years.</p>
   <div class="def"><span class="kind">Definition</span>
@@ -69,7 +89,7 @@
   <div class="eq"><i>x</i> ← <i>x</i> + attention(norm(<i>x</i>)) &nbsp;&nbsp;&nbsp; <i>x</i> ← <i>x</i> + mlp(norm(<i>x</i>))</div>
   <p>Adding fixes the shrinking slopes with almost no machinery. Nudge <i>x</i> by a small amount and <i>x</i> + f(<i>x</i>) moves by that amount, plus whatever f adds. So its slope is 1 plus something. The "1" is a direct path: the slopes reach every block undiminished, however deep the stack. It also changes what a block has to learn. It does not have to rebuild the whole vector. It only contributes a correction.</p>
 
-  <figure class="fig">
+  <figure class="fig" id="fig-block">
     <svg viewBox="0 0 760 210" role="img" aria-labelledby="f6a">
       <title id="f6a">One block. The stream runs straight through from left to right. A first branch leaves it, passes through a normalisation and attention, and is added back. A second branch leaves it, passes through a normalisation and the MLP, and is added back.</title>
       <defs><marker id="c6a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
@@ -185,6 +205,8 @@ def layernorm(x, g, b, eps=1e-5):
       <li>Parameters ≈ vocabulary × <i>d</i> + layers × 12<i>d</i>². Ours: 338,016 by this formula, 345,504 exactly.</li>
     </ul>
   </div>
+
+  <div class="stick" data-draw="fig-block" data-explain="block,mlp,residual-stream,layer-normalisation,gradient"></div>
 
   <h2>Check yourself</h2>
   <details class="check"><summary>Normalise the vector (1, 3) by hand.</summary><p>The average is 2, so subtracting gives (−1, 1). The squares are 1 and 1, their average is 1, and its square root is 1. The result is (−1, 1).</p></details>

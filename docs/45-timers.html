@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Waking itself up | microAI</title>
+<!-- [social] written by tools/build_site.py -->
+<meta name="description" content="Follow-ups and schedules, a scheduler that turns them into events, timers that survive a restart, and what to do with times missed in an outage.">
+<link rel="canonical" href="https://timothee-aubourg.github.io/microai/45-timers.html">
+<meta property="og:site_name" content="microAI">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Waking itself up · microAI">
+<meta property="og:description" content="Follow-ups and schedules, a scheduler that turns them into events, timers that survive a restart, and what to do with times missed in an outage.">
+<meta property="og:url" content="https://timothee-aubourg.github.io/microai/45-timers.html">
+<meta property="og:image" content="https://timothee-aubourg.github.io/microai/cards/45.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Waking itself up · microAI">
+<meta name="twitter:card" content="summary_large_image">
+<!-- [/social] -->
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-ch="45">
+<main>
+  <p class="where">Chapter 45</p>
+  <h1>Waking itself up</h1>
+  <p class="question">"If nobody replies by tomorrow, remind me." Nothing will happen tomorrow to wake the agent. So what does?</p>
+
+  <p>Chapter 44 woke the agent when something arrived from outside. Much of what an assistant promises is the opposite: something should happen when nothing has arrived. Check again in two hours. Send the summary every morning. For that the agent sets its own alarms, and a small, plain program makes sure they ring.</p>
+
+  <div class="def"><span class="kind">Definitions</span>
+    <p>A <dfn>follow-up</dfn> is a deadline the agent sets itself, once: "if there is no reply by 5 pm, look again".</p>
+    <p>A <dfn>schedule</dfn> is a task that repeats: "every weekday at 9, send the summary".</p>
+    <p>A <dfn>scheduler</dfn> is a program that looks at the stored timers every few minutes. For each one that is due, it writes an event into the inbox of chapter 44, marks a follow-up as done, and moves a schedule on to its next time.</p>
+  </div>
+
+  <h3>By hand: three timers and a scheduler that looks every 15 minutes</h3>
+  <p>The scheduler looks at :00, :15, :30 and :45. At 10:07 the agent sets a follow-up for two hours later: due at 12:07. The scheduler next looks at 12:15, so it fires 8 minutes late. A schedule "every day at 9:00" is due exactly when the scheduler looks, so it fires on time. On average a timer fires half the time between two looks late, and at worst a whole one.</p>
+  <p>Now the scheduler is down from 6:00 to 11:00. The 9:00 summary was due while nobody looked. When it comes back at 11:00 it finds the schedule overdue. It can fire it now, once, and move on to tomorrow at 9:00. For a daily summary that is right. For an hourly one, five were missed: fire five summaries at 11:00, or one?</p>
+
+  <figure class="fig" id="fig-timers">
+    <svg viewBox="0 0 760 230" role="img" aria-labelledby="f45a">
+      <title id="f45a">The agent's runs set timers: follow-ups that fire once and schedules that repeat. The timers are kept in a store of their own. A scheduler looks at the store every few minutes, and for each due timer it writes an event into the inbox of chapter 44, marks the follow-up done or moves the schedule to its next time. The worker then starts a run as for any other event.</title>
+      <defs><marker id="c45a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
+      <g class="t-small">
+      <rect x="16" y="80" width="120" height="60" rx="8" class="bx-fwd"/><text x="76" y="106" text-anchor="middle" class="t-big">a run</text><text x="76" y="126" text-anchor="middle" class="t-muted">sets a timer</text>
+      <rect x="176" y="60" width="180" height="100" rx="8" class="bx"/><text x="266" y="84" text-anchor="middle" class="t-big">timer store</text>
+      <text x="190" y="108" class="t-mono">follow-up 12:07</text><text x="190" y="128" class="t-mono">every day 9:00</text><text x="190" y="148" class="t-mono">every hour :30</text>
+      <rect x="396" y="80" width="130" height="60" rx="8" class="bx-soft"/><text x="461" y="106" text-anchor="middle" class="t-big">scheduler</text><text x="461" y="126" text-anchor="middle" class="t-muted">looks every 5 min</text>
+      <rect x="566" y="80" width="80" height="60" rx="8" class="bx-prob"/><text x="606" y="115" text-anchor="middle" class="t-big">inbox</text>
+      <rect x="676" y="80" width="68" height="60" rx="8" class="bx-fwd"/><text x="710" y="115" text-anchor="middle">a run</text>
+      <text x="396" y="190" class="t-muted">due: write an event; follow-up done,</text><text x="396" y="208" class="t-muted">schedule moved to its next time</text>
+      </g>
+      <g class="ln"><line x1="138" y1="110" x2="172" y2="110" marker-end="url(#c45a)"/><line x1="358" y1="110" x2="392" y2="110" marker-end="url(#c45a)"/><line x1="528" y1="110" x2="562" y2="110" marker-end="url(#c45a)"/><line x1="648" y1="110" x2="672" y2="110" marker-end="url(#c45a)"/>
+      <path d="M710 78 L710 30 L76 30 L76 76" class="ln-dash" fill="none" marker-end="url(#c45a)"/></g>
+    </svg>
+    <figcaption><b>Timers become events.</b> The agent never wakes itself directly. It writes a timer, and the scheduler turns it into an inbox event when it is due, so a timer is handled like everything else.</figcaption>
+  </figure>
+
+  <h2>A week of timers</h2>
+  <p><code>code/ch45_timers.py</code> answers three questions, each with a week of simulated timers.</p>
+  <pre class="code" data-src="ch45_timers.py#scheduler">def poll(timers, now, missed='once'):
+    """One look by the scheduler. Returns the events to write to the inbox, and updates the timers.
+    A follow-up fires once and is done. A schedule fires and moves to its next time in the future."""
+    events = []
+    for tm in timers:
+        if tm['done'] or tm['due'] &gt; now:
+            continue
+        if tm['every'] is None:                                  # a follow-up
+            events.append((tm['name'], tm['due']))
+            tm['done'] = True
+            continue
+        late = 0
+        while tm['due'] &lt;= now:                                  # a schedule: how many times was it due?
+            late += 1
+            if missed == 'all':
+                events.append((tm['name'], tm['due']))           # one event per missed time
+            tm['due'] += tm['every']
+        if missed == 'once':
+            events.append((tm['name'], now))                     # one event, whatever was missed
+    return events</pre>
+
+  <h3>1. How often to look</h3>
+  <div class="scroll"><table class="mini">
+    <tr><th>Scheduler looks every</th><th>Late on average</th><th>Late at worst</th></tr>
+    <tr><td class="mono">1 min</td><td class="mono">0.5 min</td><td class="mono">1 min</td></tr>
+    <tr><td class="mono">5 min</td><td class="mono">2.6 min</td><td class="mono">5 min</td></tr>
+    <tr><td class="mono">15 min</td><td class="mono">7.6 min</td><td class="mono">15 min</td></tr>
+    <tr><td class="mono">60 min</td><td class="mono">29.5 min</td><td class="mono">60 min</td></tr>
+  </table></div>
+  <p>Half the time between looks, as the worked example said. Each look costs a small query of the store, so a few minutes is the usual choice for timers that are about people.</p>
+
+  <h3>2. Where the timers live</h3>
+  <p>The agent sets 30 follow-ups a day, due from two minutes to a day later, and the worker restarts twice a day, as workers do when a new version is deployed.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Timers kept in</th><th>Set in a week</th><th>Fired</th><th>Still waiting at the end</th><th>Lost</th></tr>
+    <tr><td>the worker's memory</td><td class="mono">227</td><td class="mono">92</td><td class="mono">16</td><td class="mono">119</td></tr>
+    <tr><td>a store of their own</td><td class="mono">227</td><td class="mono">210</td><td class="mono">17</td><td class="mono">0</td></tr>
+  </table></div>
+  <p>More than half the promises were silently broken when the timers lived inside the worker. Every restart threw away every timer not yet due. A timer is a promise, and it has to live somewhere that outlasts the program that made it.</p>
+
+  <h3>3. After an outage</h3>
+  <p>An hourly summary, and a scheduler that is down for five hours.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Missed times are fired</th><th>Summaries at the moment it comes back</th><th>Summaries in four days</th></tr>
+    <tr><td>all of them</td><td class="mono">6</td><td class="mono">96</td></tr>
+    <tr><td>once</td><td class="mono">1</td><td class="mono">91</td></tr>
+  </table></div>
+  <p>Firing every missed time sends six summaries at once: the five missed and the one due now, all saying nearly the same thing. For a summary, once is right. For something that must happen every time, such as recording each hour's reading, all of them is right. The schedule has to say which it is.</p>
+
+  <section class="bench" id="w-timers">
+    <h3>A morning of timers</h3>
+    <p class="try"><b>Try this.</b> Move the time between looks and watch how late the timers fire. Then switch the outage on and compare the two ways to handle missed times.</p>
+  </section>
+  <p><strong>What you should have seen.</strong> Each timer fires at the first look after it is due, so the gaps grow with the time between looks. With the outage on, nothing fires while the scheduler is down. When it comes back, "all" fires every missed hourly time together, and "once" fires one.</p>
+
+  <section class="yourturn" aria-label="Your turn, by hand">
+    <h3>Your turn, by hand</h3>
+    <p class="need">Paper and a pencil · about 10 minutes</p>
+    <p>The scheduler looks every 10 minutes, at :00, :10, :20 and so on, and fires anything due at or before the look.</p>
+    <p class="predict"><b>Predict first.</b> The scheduler is down from 10:05 to 12:45. When it comes back, how many hourly summaries does "fire all missed times" send at once? Write your guess down.</p>
+    <pre class="code" data-lang="text">follow-up   due 09:03
+follow-up   due 09:58
+follow-up   due 10:00
+schedule    every hour at :30, first at 09:30</pre>
+    <ol>
+      <li>With no outage, when does each follow-up fire, and how late?</li>
+      <li>When does the 09:30 summary fire?</li>
+      <li>Now the scheduler is down from 10:05 to 12:45. At its first look after, which times of the hourly schedule are overdue? What does it send with "all", and with "once"? When is the next summary due after that?</li>
+    </ol>
+    <details class="answer"><summary>Check your working</summary>
+      <ol class="worked">
+        <li>09:03 fires at 09:10, 7 minutes late. 09:58 fires at 10:00, 2 minutes late. 10:00 fires at 10:00, on time, because the scheduler fires what is due at or before its look.</li>
+        <li>At 09:30 exactly, on time: a look falls on it.</li>
+        <li>The first look after the outage is at 12:50. Overdue: 10:30, 11:30 and 12:30. "All" sends three summaries at 12:50; "once" sends one. Either way the schedule moves to 13:30.</li>
+      </ol>
+      <p>Your prediction: three, all at 12:50, all about nearly the same thing. Whether that is right depends on what the schedule is for, so the schedule has to say.</p>
+    </details>
+  </section>
+
+  <h2>At full size</h2>
+  <ul>
+    <li><strong>Timers in their own table.</strong> Follow-ups and schedules sit in a store separate from the inbox, with their next due time, so that a quick query finds what is due.</li>
+    <li><strong>Build it or use one.</strong> A loop that queries every minute is enough for one person's agent. Durable execution engines and job schedulers provide timers that survive restarts as a service.</li>
+    <li><strong>The agent sets its own follow-ups</strong> with a tool, "remind me at", whose description says what a follow-up is for. A follow-up that fires and finds its reason gone (the reply arrived) should do nothing, quietly.</li>
+    <li><strong>Time zones and calendars.</strong> "Every weekday at 9" means the person's 9, which moves when they travel and when clocks change. Real schedules are stored with a time zone.</li>
+  </ul>
+
+  <h2>Build it</h2>
+  <pre class="code" data-lang="text">python code/ch45_timers.py     # three simulated weeks, a fraction of a second; no model needed</pre>
+
+  <div class="note">
+    <h3>What this chapter glossed over</h3>
+    <p><strong>It is a simulation</strong> with chosen numbers of timers, restarts and outages.</p>
+    <p><strong>A restart loses timers only if they were in memory.</strong> Saving them to a file on every change also works for one worker, and fails in the same way as chapter 44's memory when there are several.</p>
+    <p><strong>"Late" ignores the run itself.</strong> After the scheduler writes the event, the inbox and the worker of chapter 44 add their own wait.</p>
+  </div>
+
+  <div class="stick" data-draw="fig-timers" data-explain="follow-up,schedule,scheduler,event-inbox"></div>
+
+  <div class="recap">
+    <h3>In short</h3>
+    <ul>
+      <li>An agent wakes itself with timers: <a class="term" href="glossary.html#follow-up">follow-ups</a> that fire once and <a class="term" href="glossary.html#schedule">schedules</a> that repeat.</li>
+      <li>A <a class="term" href="glossary.html#scheduler">scheduler</a> looks at the stored timers every few minutes and turns each due one into an inbox event. Timers fire half the time between looks late on average.</li>
+      <li>Timers kept in the worker's memory lost 119 of 227 follow-ups to two restarts a day. In a store of their own, none.</li>
+      <li>After an outage, firing every missed time sent six hourly summaries at once. Each schedule has to say whether a missed time is fired once or every time.</li>
+    </ul>
+  </div>
+
+  <h2>Check yourself</h2>
+  <details class="check"><summary>Why does the scheduler write an event into the inbox instead of starting a run itself?</summary><p>So that a timer is handled like every other event: one worker, one run at a time, a record that survives a crash. A scheduler that started runs itself would bring back the overlapping runs of chapter 44.</p></details>
+  <details class="check"><summary>A scheduler looks every 30 minutes. A follow-up is due at 14:31. When does it fire?</summary><p>At 15:00, 29 minutes late, if the looks fall on the hour and the half hour. On average a timer is 15 minutes late with this scheduler.</p></details>
+  <details class="check"><summary>The agent promised "I'll check again tomorrow", and the worker was redeployed overnight. What decides whether the promise is kept?</summary><p>Where the follow-up was stored. In the worker's memory it vanished with the redeploy. In a store of its own it is still there, and the scheduler fires it.</p></details>
+  <details class="check"><summary>Name a schedule where every missed time should be fired, and one where only one should.</summary><p>Every time: recording a reading each hour, where each hour's value is needed. Once: a summary of what is new, where five summaries in a row would repeat each other.</p></details>
+</main>
+
+<script src="assets/glossary.js"></script>
+<script src="assets/micro.js"></script>
+<script>
+M.ready(function () {
+  function paper(cv, H) { var dpr = window.devicePixelRatio || 1, W = Math.max(280, Math.round(cv.getBoundingClientRect().width || 340)); cv.width = W * dpr; cv.height = H * dpr; cv.style.height = H + 'px'; var g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); return [g, W]; }
+  var box = M.$('#w-timers'), every = 15, outage = false, missed = 'all';
+  var FROM = 8 * 60, TO = 13 * 60, DOWN = [9 * 60 + 40, 11 * 60 + 50];
+  var follow = [8 * 60 + 7, 8 * 60 + 44, 9 * 60 + 12, 10 * 60 + 3, 10 * 60 + 58, 12 * 60 + 21];
+  var cv = M.el('canvas', { class: 'cv', style: 'width:100%;display:block', height: '170' }), stat = M.el('p', { class: 'readout' });
+  function run() {
+    var fired = [], hourly = [], due = 8 * 60 + 30;
+    for (var t = FROM; t <= TO; t += every) {
+      if (outage && t >= DOWN[0] && t < DOWN[1]) continue;
+      follow.forEach(function (f, i) { if (f <= t && !fired[i]) fired[i] = t; });
+      var late = 0;
+      while (due <= t) { late++; if (missed === 'all') hourly.push([due, t]); due += 60; }
+      if (late && missed === 'once') hourly.push([due - 60, t]);
+    }
+    return { fired: fired, hourly: hourly };
+  }
+  function x(t, W) { return 10 + (W - 20) * (t - FROM) / (TO - FROM); }
+  function draw() {
+    var r = run(), H = 170, gw = paper(cv, H), g = gw[0], W = gw[1];
+    g.clearRect(0, 0, W, H);
+    g.font = '12px ' + M.css('--sans');
+    if (outage) { g.fillStyle = M.css('--soft'); g.fillRect(x(DOWN[0], W), 8, x(DOWN[1], W) - x(DOWN[0], W), 140); g.fillStyle = M.css('--muted'); g.fillText('scheduler down', x(DOWN[0], W) + 4, 22); }
+    g.strokeStyle = M.css('--line');
+    for (var t = FROM; t <= TO; t += every) { if (outage && t >= DOWN[0] && t < DOWN[1]) continue; g.beginPath(); g.moveTo(x(t, W), 30); g.lineTo(x(t, W), 140); g.stroke(); }
+    var late = 0;
+    follow.forEach(function (f, i) {
+      var y = 46 + i * 10;
+      g.fillStyle = M.css('--prob'); g.beginPath(); g.arc(x(f, W), y, 3.5, 0, 7); g.fill();
+      if (r.fired[i] !== undefined) { g.strokeStyle = M.css('--fwd'); g.lineWidth = 2; g.beginPath(); g.moveTo(x(f, W), y); g.lineTo(x(r.fired[i], W), y); g.stroke(); g.lineWidth = 1; late += r.fired[i] - f; }
+    });
+    var at = {};
+    r.hourly.forEach(function (h) { at[h[1]] = (at[h[1]] || 0) + 1; });
+    Object.keys(at).forEach(function (t) { g.fillStyle = M.css(at[t] > 1 ? '--grad' : '--fwd'); g.fillRect(x(+t, W) - 4, 120, 8, 8 * at[t] > 24 ? 24 : 8 * at[t]); if (at[t] > 1) g.fillText(at[t] + ' at once', x(+t, W) + 6, 132); });
+    g.fillStyle = M.css('--muted'); g.fillText('8:00', 8, H - 6); g.fillText('13:00', W - 40, H - 6); g.fillText('hourly summaries', 10, 116);
+    var most = Math.max.apply(null, Object.keys(at).map(function (k) { return at[k]; }).concat([0]));
+    stat.innerHTML = 'Follow-ups fire <b>' + (late / follow.length).toFixed(1) + ' min</b> late on average. Hourly summaries sent: <b>' + r.hourly.length + '</b>, at most <b>' + most + '</b> at once.';
+  }
+  var eS = M.slider({ label: 'Scheduler looks every', min: 0, max: 4, step: 1, value: 2, fmt: function (k) { return [1, 5, 15, 30, 60][k] + ' min'; }, oninput: function (k) { every = [1, 5, 15, 30, 60][k]; draw(); } });
+  var oC = M.el('input', { type: 'checkbox', id: 'tm-out' }); oC.addEventListener('change', function () { outage = oC.checked; draw(); });
+  var mS = M.select('Missed times', [['all', 'fire all of them'], ['once', 'fire once']], function (v) { missed = v; draw(); });
+  box.appendChild(M.row(eS));
+  box.appendChild(M.row(M.el('label', { class: 'ctl', 'for': 'tm-out', style: 'flex:0 1 auto;min-width:0' }, oC, ' Scheduler down from 9:40 to 11:50'), mS));
+  box.appendChild(cv); box.appendChild(stat);
+  box.appendChild(M.el('p', { class: 'caption', text: 'Grey lines: the scheduler looks. Amber dots: follow-ups fall due; the blue line runs to when they fire. Bottom row: the hourly summary, due at half past.' }));
+  window.addEventListener('resize', draw);
+  draw();
+});
+</script>
+</body>
+</html>

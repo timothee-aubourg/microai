@@ -44,7 +44,7 @@
     <li><strong>Route.</strong> The parser tries first. It fails, so the request goes to the agent. For <code>what is 23 times 45?</code> the parser would have succeeded, and no model would have run.</li>
   </ul>
 
-  <figure class="fig">
+  <figure class="fig" id="fig-paths">
     <svg viewBox="0 0 760 300" role="img" aria-labelledby="f41a">
       <title id="f41a">Four ways to serve a request, from fixed to free. Code only: a parser and the tools, no model. Plan, then code: one model pass writes a plan, code runs it. Agent: the model and the tools take turns until the model answers. Route: a parser tries first; what it cannot read goes to the agent.</title>
       <defs><marker id="c41a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
@@ -128,6 +128,41 @@ def route(run, q):
   </section>
   <p><strong>What you should have seen.</strong> A single sum or a chain is answered by the parser with no model pass, and the route does the same. The agent takes one pass per call plus one, and the workflow one pass in all. Slips are where the model is needed, and where it is unreliable. <code>what is 79 tims 4?</code> was read as times and answered right. <code>what is 65 take away 59?</code> was read as times too. <code>what is 22 x 27?</code> sent the agent into four calls of its own invention, five passes for a wrong answer.</p>
 
+  <section class="yourturn" aria-label="Your turn, by hand">
+    <h3>Your turn, by hand</h3>
+    <p class="need">Paper and a pencil · about 10 minutes</p>
+    <p>First choose a way for each of four jobs, with the table above. Then serve eight requests to the calculator service all four ways and count the model passes.</p>
+    <p class="predict"><b>Predict first.</b> Of the four ways, which will take the fewest model passes without refusing any of the eight requests, and how will it compare with the agent? Write your guess down.</p>
+    <div class="scroll"><table class="mini">
+      <tr><th>Job</th><th>What it is</th></tr>
+      <tr><td class="mono">a</td><td>Turn dates written 2026-11-15 into 15 November 2026.</td></tr>
+      <tr><td class="mono">b</td><td>Read each customer email, write its order number and complaint into a form, then file the form in the folder kept for that kind of complaint.</td></tr>
+      <tr><td class="mono">c</td><td>Find why a test fails, and fix it.</td></tr>
+      <tr><td class="mono">d</td><td>A service whose requests are nearly all in one tidy form, with a few written oddly.</td></tr>
+    </table></div>
+    <pre class="code" data-lang="text">1  what is 12 plus 30?
+2  what is 7 times 8?
+3  what is 50 minus 9?
+4  what is 6 times 7 plus 1?
+5  what is 10 minus 4 times 2?
+6  what is 3 plus 4 times 5 minus 6?
+7  what is 9 tims 9?
+8  what is 20 take away 5?</pre>
+    <ol>
+      <li>For jobs a to d, choose code, a workflow with model steps, an agent, or a route.</li>
+      <li>Which of the eight requests can the hand-written parser read? What does code alone answer to request 5?</li>
+      <li>Count the model passes for all eight requests, each of the four ways. Assume the agent writes one call per link, then the answer, slips included.</li>
+    </ol>
+    <details class="answer"><summary>Check your working</summary>
+      <ol class="worked">
+        <li>a: code, the shape is fixed and code can read it. b: a workflow, a model is needed to read the email, but the steps are always the same. c: an agent, what to read next depends on what the last step found. d: a route, the parser for the many and the agent for the few.</li>
+        <li>Requests 1 to 6 have the shape <code>what is &lt;n&gt; plus|minus|times &lt;n&gt; …?</code>. 7 (<code>tims</code>) and 8 (<code>take away</code>) do not. Request 5, left to right: 10 − 4 = 6, then 6 × 2 = 12.</li>
+        <li>Code only: 0 passes; six answered, two refused. Plan, then code: 1 pass each, 8. Agent: three single sums at 2 passes, 6; chains of 2, 2 and 3 links at 3, 3 and 4, 10; two slips at 2, 4; in all 20, or 2.5 per request. Route: 0 for the six the parser reads, 2 + 2 for the slips, 4 in all, or 0.5 per request.</li>
+      </ol>
+      <p>Your prediction: the route, 4 passes against the agent's 20. The route pays for the model only on the two requests that need it: 0.5 passes per request against the agent's 2.5, close to the chapter's 0.45 against 2.65. Sent through the chapter's code, the eight requests took exactly these passes. The model read <code>tims</code> as times and answered 81, and got <code>take away</code> wrong, so the slips were still the weak point.</p>
+    </details>
+  </section>
+
   <h2>At full size</h2>
   <ul>
     <li><strong>Start with the simplest thing that works.</strong> Builders of large agents give the same advice: a single model call with good context first, then a fixed workflow, and an agent only when the steps cannot be written down in advance.</li>
@@ -158,6 +193,8 @@ def route(run, q):
       <li>Use an agent when the next step depends on a result. Until then, a workflow is cheaper and as good.</li>
     </ul>
   </div>
+
+  <div class="stick" data-draw="fig-paths" data-explain="workflow,agent,routing,plan,latency"></div>
 
   <h2>Check yourself</h2>
   <details class="check"><summary>"Plan, then code" calls the model. Why is it a workflow and not an agent?</summary><p>Because the model is called once, at a fixed place, and code decides everything after that. An agent is called again after each result and decides what comes next.</p></details>

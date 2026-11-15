@@ -68,10 +68,11 @@
 M.ready(function () {
   var seen = {};
   try { seen = JSON.parse(localStorage.getItem('microai.seen') || '{}') || {}; } catch (e) { seen = {}; }
+  var hand = M.byHand();
   var mins = function (n) { return n < 60 ? n + ' min' : Math.floor(n / 60) + ' h ' + (n % 60 ? (n % 60) + ' min' : ''); };
   var chLink = function (c) {
     var C = M.chapters[c - 1];
-    return M.el('a', { href: C[0] }, M.el('b', { text: c + '. ' + C[1] }), M.el('span', { text: (M.minutes[c - 1] || '?') + ' min' + (seen[c] ? ' · opened' : '') }));
+    return M.el('a', { href: C[0] }, M.el('b', { text: c + '. ' + C[1] }), M.el('span', { text: (M.minutes[c - 1] || '?') + ' min' + (hand[c] === 1 ? ' · done by hand' : seen[c] ? ' · opened' : '') }));
   };
 
   /* ---- the map ---- */

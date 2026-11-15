@@ -32,7 +32,7 @@
   <h2>The one thing a language model does</h2>
   <p>Before any definitions, a picture. Below, a model has been given the text <code>ROMEO: Wh</code>. It does not answer with a letter. It answers with a list of scores, one for every character that could come next, saying how likely each one is.</p>
 
-  <figure class="fig">
+  <figure class="fig" id="fig-loop">
     <svg viewBox="0 0 760 240" role="img" aria-labelledby="f1t">
       <title id="f1t">The writing loop: text goes into the model, the model returns a probability for each next character, one is picked at random and appended, and the loop repeats.</title>
       <defs><marker id="c1a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
@@ -224,6 +224,27 @@
     <p>When a model does much better on its training text than on held-out text, it has learned the text instead of the patterns in it. This is called <dfn>memorisation</dfn> or overfitting. Doing well on new text is called <dfn>generalisation</dfn>. Generalisation is the only thing that matters, because new text is the only thing you will ever use a model on.</p>
   </div>
 
+  <section class="yourturn" aria-label="Your turn, by hand">
+    <h3>Your turn, by hand</h3>
+    <p class="need">Paper and a pencil · about 10 minutes</p>
+    <p>Build an order-1 model from this training text, then score it on three held-out texts. Write ␣ for a space.</p>
+    <p class="predict"><b>Predict first.</b> Before you count anything, look at the three held-out texts in the steps below: <code>nana</code>, <code>and</code>, <code>nab</code>. Which one will this table score worst, and why? Write your guess down.</p>
+    <pre class="code" data-lang="text">banana␣bandana</pre>
+    <ol>
+      <li>Find every <code>a</code> and write down the character that follows it. Do the same for every <code>n</code>. Turn each pair of tallies into probabilities.</li>
+      <li>Score the held-out text <code>nana</code>: for each of its three predictions, write the probability your table gives to the character that really comes next, then its surprise −log p. Average them to get the loss. A calculator is fine for the logarithms: log 0.8 ≈ −0.22, log 0.75 ≈ −0.29, log 0.25 ≈ −1.39.</li>
+      <li>Do the same for <code>and</code>, then for <code>nab</code>. What goes wrong with the last one?</li>
+    </ol>
+    <details class="answer"><summary>Check your working</summary>
+      <ol class="worked">
+        <li><strong>The table.</strong> After <code>a</code>: n four times, ␣ once (the last <code>a</code> ends the text), so n 0.8 and ␣ 0.2. After <code>n</code>: a three times, d once, so a 0.75 and d 0.25.</li>
+        <li><strong><code>nana</code></strong>: n→a 0.75 (surprise 0.29), a→n 0.8 (0.22), n→a 0.75 (0.29). Loss = (0.29 + 0.22 + 0.29) / 3 ≈ 0.27.</li>
+        <li><strong><code>and</code></strong>: a→n 0.8 (0.22), n→d 0.25 (1.39). Loss ≈ 0.80: the less common continuation costs most of it. <strong><code>nab</code></strong>: n→a 0.75, then a→b. Your table never saw <code>b</code> after <code>a</code>, so it gives it probability 0 and the surprise is infinite.</li>
+      </ol>
+      <p>Your prediction: <code>nab</code> was the worst, and by far. One unseen pair makes the loss of the whole text infinite. The next section shows this problem at full size, and <em>Build it</em> shows the usual patch: add a small number to every tally, so that nothing has probability exactly 0.</p>
+    </details>
+  </section>
+
   <h2>The wall</h2>
   <p>The widgets above count over a 60,000-character excerpt to stay light in your browser. Here is the same experiment on the full text, run by <code>code/ch01_ngram.py</code>: count on the first 90% of the text (about a million characters), and measure the loss on the rest.</p>
 
@@ -327,6 +348,20 @@ def loss(counts, order, s):
     <p><strong>Units.</strong> Losses here use the natural logarithm, so the unit is the nat. You will also meet bits (log base 2) and perplexity, which is e<sup>loss</sup>: the number of equally likely options the model is effectively hesitating between. A loss of 1.68 is a perplexity of 5.4 characters: at its best, the count table is as uncertain as if it were choosing among about five equally likely characters at every step.</p>
     <p><strong>Unseen is not impossible.</strong> A raw count of zero would mean probability zero and infinite surprise. The code adds a tiny constant to every count so that nothing is ever ruled out completely.</p>
   </div>
+
+  <section class="actout" aria-label="Act it out">
+    <h3>Act it out</h3>
+    <p class="need">Two people, a die · about 5 minutes</p>
+    <p>Play the writing loop of the first figure, with the table you built for <code>banana␣bandana</code> in "Your turn".</p>
+    <ol>
+      <li>One of you is the <b>model</b>. You may only answer with a row of the table, nothing else: "after a: n 0.8, space 0.2".</li>
+      <li>The other is the <b>program</b>. Start from <code>a</code>. Ask the model for its row, roll the die to pick a character (for the row of <code>a</code>: 1 to 4 is n, 5 is a space, roll again on 6; for <code>n</code>: 1 to 3 is a, 4 is d, roll again on 5 or 6; a row with a single entry needs no roll), write it down, and ask again about the new last character.</li>
+      <li>Write ten characters, then swap roles. Which of you decided what came next? Which of you knew any English?</li>
+    </ol>
+    <p>The model never wrote a letter, and the program never knew which letter was likely. Every language model in this course splits the work the same way.</p>
+  </section>
+
+  <div class="stick" data-draw="fig-loop" data-explain="distribution,context,held-out,loss,sparse"></div>
 
   <h2>Check yourself</h2>
   <details class="check"><summary>Why does uniform guessing cost exactly log 65?</summary><p>Each of the 65 characters gets probability 1/65, so the surprise at every position is −log(1/65) = log 65 ≈ 4.17, whatever the text says.</p></details>

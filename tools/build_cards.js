@@ -30,7 +30,7 @@ const question = (file) => {
              foot: (M.minutes[i] || '?') + ' min read · runs on your phone', part: k };
   }));
   cards.forEach((c) => { c.q = question(c.file); });
-  cards.push({ name: 'index', title: 'A language model you can hold in your head', kicker: 'A free course in 43 short chapters',
+  cards.push({ name: 'index', title: 'A language model you can hold in your head', kicker: 'A free course in 48 short chapters',
                q: 'Build a language model and the agent around it, from first principles, with experiments that run in your browser.', foot: 'Start with the map · 10 min' });
   cards.push({ name: 'map', title: 'The map of an agent', kicker: 'Start here',
                q: 'What is an agent made of, and which part do you need today?', foot: 'A live agent, every part on one page, three ways through' });

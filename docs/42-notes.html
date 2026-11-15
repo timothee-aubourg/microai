@@ -52,7 +52,7 @@ M p is 18
 U what is n plus 7?</pre>
   <p>The agent wrote <code>add 28 7</code> and answered 35. 28 is neither the old value of <code>n</code> nor the new one: with five notes in view, it mixed them. If the harness keeps only the latest value of each name and shows only the name in the question, the context holds <code>M n is 50</code> alone, and the agent writes <code>add 50 7</code> and answers 57.</p>
 
-  <figure class="fig">
+  <figure class="fig" id="fig-notes">
     <svg viewBox="0 0 760 250" role="img" aria-labelledby="f42a">
       <title id="f42a">What four ways of keeping notes put into the context before the question "what is n plus 7?". Nothing: no notes. Every note: every fact ever stated, the old value of n next to the new one, cut from the oldest when it does not fit. Latest: one note per name, the newest value. Latest, picked: only the note for n, the name in the question.</title>
       <g class="t-small">
@@ -125,6 +125,30 @@ U what is n plus 7?</pre>
   </section>
   <p><strong>What you should have seen.</strong> The log starts with <code>n is 42, k is 9</code>. After you set n to 50, <code>what is n plus 7?</code> gives 57 with every way that keeps notes, and a guess (12) with none. The context grows from 53 characters with one note to 72 with every note. With so few notes the agent copes with the stale one. Add more names and change a few of them, and "every note" starts to fail, as the table shows it does on average.</p>
 
+  <section class="yourturn" aria-label="Your turn, by hand">
+    <h3>Your turn, by hand</h3>
+    <p class="need">Paper and a pencil · about 10 minutes</p>
+    <p>A person's log, in the order the facts were stated, and the question that comes next. Apply the four ways exactly as the code above does: "every note" keeps every fact in order; "latest" keeps one line per name, with its newest value, in the place where the name was first stated; "latest, picked" keeps from those only the names in the question. If the lines do not fit in the room, the first line is dropped, again and again, until they do.</p>
+    <p class="predict"><b>Predict first.</b> "Latest" removes every stale note. Will it show the model the value of <code>n</code> that this question needs? Write your guess down.</p>
+    <pre class="code" data-lang="text">n is 42    k is 19    p is 18    b is 33    d is 27
+f is 61    n is now 50    g is 75    h is 12    k is now 30
+
+U what is n times 3 minus 11?</pre>
+    <ol>
+      <li>Work out the room for notes: 160 − (characters in the question) − 60. A note line such as <code>M n is 50</code> takes its characters plus one for the end of the line. How many note lines fit?</li>
+      <li>Write the note lines that each of the four ways shows the model.</li>
+      <li>What is the right answer? Which ways show the model the value it needs?</li>
+    </ol>
+    <details class="answer"><summary>Check your working</summary>
+      <ol class="worked">
+        <li>The question has 27 characters, so the room is 160 − 27 − 60 = 73. Every note line here takes 9 + 1 = 10, so seven fit, 70 characters.</li>
+        <li>Nothing: no lines. Every note: 10 lines, 100 characters; the three oldest go (<code>n is 42</code>, <code>k is 19</code>, <code>p is 18</code>), leaving <code>M b is 33</code>, <code>M d is 27</code>, <code>M f is 61</code>, <code>M n is 50</code>, <code>M g is 75</code>, <code>M h is 12</code>, <code>M k is 30</code>. Latest: 8 names in the order first stated, <code>n 50, k 30, p 18, b 33, d 27, f 61, g 75, h 12</code>, 80 characters; the first goes, and that is <code>M n is 50</code>, leaving <code>M k is 30</code>, <code>M p is 18</code>, <code>M b is 33</code>, <code>M d is 27</code>, <code>M f is 61</code>, <code>M g is 75</code>, <code>M h is 12</code>. Latest, picked: <code>M n is 50</code> alone.</li>
+        <li>50 × 3 = 150, and 150 − 11 = 139. "Every note" and "latest, picked" show <code>n is 50</code>. "Latest" does not show <code>n</code> at all.</li>
+      </ol>
+      <p>Your prediction: no, the cut drops <code>M n is 50</code>. "Latest" lost the one note the question needed: replacing a value kept <code>n</code> in its first place at the top, and the cut takes from the top. "Every note" kept it by luck of order. Given these four contexts, the agent of chapter 39 answered 139 only with the picked note. With every note in view it wrote <code>mul 22 3</code> and answered 55, with "latest" <code>mul 12 3</code> and 25, with nothing <code>mul 1 3</code> and −8.</p>
+    </details>
+  </section>
+
   <h2>At full size</h2>
   <ul>
     <li><strong>Memory files.</strong> Coding agents read a file of instructions and facts about the project at the start of every session, and some let the model add to it. It is the "latest" way: the file is edited, not appended to, so old facts are replaced.</li>
@@ -155,6 +179,20 @@ U what is n plus 7?</pre>
       <li>A memory needs updating and forgetting, and its notes are text the agent will obey.</li>
     </ul>
   </div>
+
+  <section class="actout" aria-label="Act it out">
+    <h3>Act it out</h3>
+    <p class="need">Two people, index cards, a pencil · about 5 minutes</p>
+    <p>Play the seven sessions of "By hand", with the notes on index cards.</p>
+    <ol>
+      <li>One of you is the <b>harness</b>, who keeps the cards. The other is the <b>agent</b>, who turns away between sessions and may use only the cards laid on the table.</li>
+      <li>The harness plays sessions 1 to 6. Each time the person states a fact, write a new card as the note line, <code>n is 42</code>, then <code>k is 9</code>, then <code>n is 50</code> (the note holds the value, not the word "now"), and so on. Keep the cards in order.</li>
+      <li>Session 7, every note: lay all five cards in a row and ask <code>what is n plus 7?</code>. Then latest, picked: put away each card that a newer one replaced, and lay only the card that names <code>n</code>. Ask again.</li>
+    </ol>
+    <p>The agent knew <code>n</code> only from the cards, and with every note laid out it had two values for <code>n</code>, and only the order of the cards to say which is current. A person can use that order; the agent of this chapter, given the same five lines, mixed them and answered 35. With one card there was nothing to choose.</p>
+  </section>
+
+  <div class="stick" data-draw="fig-notes" data-explain="long-term-memory,stale-note,context,harness,context-window"></div>
 
   <h2>Check yourself</h2>
   <details class="check"><summary>An assistant "remembers" your name from last week. Where is that memory?</summary><p>Outside the model: a program stored a note and put it back into the context of this session. The model's weights did not change.</p></details>

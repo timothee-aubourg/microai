@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>What a run starts with | microAI</title>
+<!-- [social] written by tools/build_site.py -->
+<meta name="description" content="The fixed beginning every run reads, the cache that saves it, what memory should hold, and tidying the notes between runs.">
+<link rel="canonical" href="https://timothee-aubourg.github.io/microai/46-runstart.html">
+<meta property="og:site_name" content="microAI">
+<meta property="og:type" content="article">
+<meta property="og:title" content="What a run starts with · microAI">
+<meta property="og:description" content="The fixed beginning every run reads, the cache that saves it, what memory should hold, and tidying the notes between runs.">
+<meta property="og:url" content="https://timothee-aubourg.github.io/microai/46-runstart.html">
+<meta property="og:image" content="https://timothee-aubourg.github.io/microai/cards/46.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="What a run starts with · microAI">
+<meta name="twitter:card" content="summary_large_image">
+<!-- [/social] -->
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-ch="46">
+<main>
+  <p class="where">Chapter 46</p>
+  <h1>What a run starts with</h1>
+  <p class="question">Each run starts with an empty context and fills it from what was saved. What goes in first, what does that cost a hundred times a day, and what keeps the saved part from rotting?</p>
+
+  <p>A person in a long conversation carries it in their head. An always-on agent has no head between runs. Each run, the harness builds the context from parts: the same beginning every time, what the agent knows about this person, perhaps the record of an earlier session, and the new events. This chapter weighs those parts.</p>
+
+  <div class="def"><span class="kind">Definitions</span>
+    <p>The <dfn>fixed beginning</dfn> of a run is what every run starts with, whatever the event: the system prompt and the tool descriptions (chapter 15).</p>
+    <p>A run can <dfn>resume a session</dfn>, reading back the record of an earlier one, or start a new session with only the fixed beginning, memory and the events.</p>
+    <p><dfn>Tidying memory</dfn>, sometimes called dreaming, is a pass between runs, while nobody waits, that rewrites the agent's notes: replacing values that changed, removing what is no longer used, writing down patterns seen across sessions.</p>
+  </div>
+
+  <h3>By hand: the same beginning, all day</h3>
+  <p>The harness of chapter 15 starts every request with a system prompt of 205 characters and tool descriptions of 1,317: 1,522 characters before a single word about the task. The inbox of chapter 44 started 126 runs a day. 126 × 1,522 = 191,772, so the same text is read again nearly 200,000 characters a day.</p>
+  <p>The prefix cache of chapter 16 keeps the computed beginning so that the next request starting with the same text can skip it. A provider keeps such a cache for a few minutes after its last use. So what matters is how long the agent sleeps between runs.</p>
+
+  <figure class="fig" id="fig-runstart">
+    <svg viewBox="0 0 760 230" role="img" aria-labelledby="f46a">
+      <title id="f46a">The context of one run, built from parts in order. The fixed beginning, which is the same for every run and can be cached. The person's instructions. The notes the question needs, picked from memory. Optionally the record of an earlier session, resumed, possibly compacted. And the new events from the inbox. At the end of the run, what must last goes back to memory, and between runs a tidy-up pass rewrites the notes.</title>
+      <defs><marker id="c46a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
+      <g class="t-small">
+      <rect x="16" y="40" width="170" height="54" rx="8" class="bx-soft"/><text x="101" y="62" text-anchor="middle" class="t-big">fixed beginning</text><text x="101" y="82" text-anchor="middle" class="t-muted">system prompt, tools</text>
+      <rect x="194" y="40" width="110" height="54" rx="8" class="bx"/><text x="249" y="62" text-anchor="middle">instructions</text><text x="249" y="82" text-anchor="middle" class="t-muted">every run</text>
+      <rect x="312" y="40" width="120" height="54" rx="8" class="bx"/><text x="372" y="62" text-anchor="middle">picked notes</text><text x="372" y="82" text-anchor="middle" class="t-muted">what it needs</text>
+      <rect x="440" y="40" width="150" height="54" rx="8" class="bx" stroke-dasharray="5 4"/><text x="515" y="62" text-anchor="middle">earlier session</text><text x="515" y="82" text-anchor="middle" class="t-muted">if resumed</text>
+      <rect x="598" y="40" width="146" height="54" rx="8" class="bx-prob"/><text x="671" y="62" text-anchor="middle">new events</text><text x="671" y="82" text-anchor="middle" class="t-muted">from the inbox</text>
+      <text x="101" y="116" text-anchor="middle" class="t-muted">cached, if the last run</text><text x="101" y="132" text-anchor="middle" class="t-muted">was a few minutes ago</text>
+      <rect x="194" y="160" width="238" height="50" rx="8" class="bx-fwd"/><text x="313" y="182" text-anchor="middle" class="t-big">memory</text><text x="313" y="200" text-anchor="middle" class="t-muted">what cannot be looked up again</text>
+      <rect x="500" y="160" width="244" height="50" rx="8" class="bx-soft"/><text x="622" y="182" text-anchor="middle">tidy-up, between runs</text><text x="622" y="200" text-anchor="middle" class="t-muted">replace, remove, summarise</text>
+      </g>
+      <g class="ln"><line x1="249" y1="156" x2="249" y2="98" marker-end="url(#c46a)"/><line x1="372" y1="156" x2="372" y2="98" marker-end="url(#c46a)"/><line x1="498" y1="185" x2="436" y2="185" marker-end="url(#c46a)"/><line x1="436" y1="196" x2="498" y2="196"/></g>
+    </svg>
+    <figcaption><b>A run's context, part by part.</b> The left part is the same every time; the middle comes from memory; the right is new. Memory feeds every run and is rewritten between them.</figcaption>
+  </figure>
+
+  <h2>Measured: the beginning, and the cache</h2>
+  <p><code>code/ch46_runstart.py</code> takes the runs of 20 simulated days from chapter 44, batched, and asks, for each run, whether the one before it ended less than five minutes earlier.</p>
+  <pre class="code" data-src="ch46_runstart.py#cache">def day_of_runs(seed):
+    """The start and end times of the runs of one day, from the batched inbox of chapter 44."""
+    events = ib.day_of_events(np.random.default_rng(seed))
+    return [(s, e) for s, e, ok in ib.inbox(events, np.random.default_rng(1000 + seed), batch=True, keep_runs=True)]
+
+def cache_hits(runs, ttl=TTL):
+    """A run finds the fixed beginning in the cache if the run before it ended less than `ttl` ago."""
+    return sum(1 for (s0, e0), (s1, e1) in zip(runs, runs[1:]) if s1 - e0 &lt; ttl)</pre>
+  <div class="scroll"><table class="mini">
+    <tr><th>Runs a day</th><th>Characters of fixed beginning read a day</th><th>Runs that start within 5 minutes of the last</th><th>Median sleep between runs</th></tr>
+    <tr><td class="mono">126</td><td class="mono">191,392</td><td class="mono">95 (76%)</td><td class="mono">90 s</td></tr>
+  </table></div>
+  <p>Three runs in four would find the beginning in a cache that lasts five minutes. On a busy day the cache pays for itself many times. On a quiet day, with an event every hour, it would never be warm, and every run would pay the whole beginning. That is the reason to keep the fixed beginning short: tools loaded only when needed (chapter 38), instructions that say what matters and stop.</p>
+
+  <h2>What to remember, and in what shape</h2>
+  <p>Memory has its own store, outside every run. It holds only what the agent cannot look up again; for anything else, a pointer to where it is. Four kinds are common:</p>
+  <ul>
+    <li><strong>Instructions from the person,</strong> read at the start of every run.</li>
+    <li><strong>Notes</strong> the agent learned: preferences, corrections, facts. Kept as an index, with details read when needed (chapters 38 and 42).</li>
+    <li><strong>What was already said,</strong> so the agent does not report the same thing twice.</li>
+    <li><strong>Progress on a task</strong>: what is done and what is left, the checkpoint of chapter 39.</li>
+  </ul>
+  <p>A resumed session also carries memory, in the form of its record. But a long record has to be compacted (chapter 16), and compacting loses detail. Anything that must last belongs in the store, not in the record.</p>
+
+  <h2>Measured: tidying the notes between runs</h2>
+  <p>Chapter 42 showed that a log of every note ever written, shown in full, confused the agent. Between runs, a tidy-up pass can rewrite the notes: keep only the latest value of each name, and drop names nobody used in the last 20 sessions. The test uses the people of chapter 42, over 80 sessions each, and the agent of chapter 39.</p>
+  <pre class="code" data-src="ch46_runstart.py#tidy">def tidy(log, asked, now, unused=20):
+    """The tidy-up between runs: the latest value of each name, and only names asked about
+    in the last `unused` sessions (or stated in them)."""
+    latest, last_seen = {}, {}
+    for t, n, v in log:
+        latest[n] = v
+        last_seen[n] = max(last_seen.get(n, t), t)
+    for t, n in asked:
+        last_seen[n] = max(last_seen.get(n, t), t)
+    return [(n, v) for n, v in latest.items() if now - last_seen[n] &lt;= unused]</pre>
+  <div class="scroll"><table class="mini">
+    <tr><th>Names per person</th><th>Every note, of the questions</th><th>Tidied, all shown</th><th>Latest, only the note asked about</th></tr>
+    <tr><td class="mono">4</td><td class="mono">62 / 384</td><td class="mono">80 / 384</td><td class="mono">377 / 384</td></tr>
+    <tr><td class="mono">8</td><td class="mono">42 / 372</td><td class="mono">52 / 372</td><td class="mono">365 / 372</td></tr>
+    <tr><td class="mono">16</td><td class="mono">50 / 379</td><td class="mono">51 / 379</td><td class="mono">371 / 379</td></tr>
+  </table></div>
+  <p class="src">Notes shown per question, on average: every note 6.6 to 6.9, tidied 3.7 to 6.4, picked 1.</p>
+  <p>Tidying helped, but only a little: 80 right instead of 62 with four names, and almost nothing with sixteen, where few names go unused for 20 sessions and the tidied list is nearly as long. The agent still reads several notes and mixes them, as chapter 42 found. The note asked about, alone, was right 96% to 98% of the time. Tidying keeps the store clean and small; picking what to show is what decides the answer. A full-size agent needs both.</p>
+
+  <section class="bench" id="w-runstart">
+    <h3>How long the cache lives</h3>
+    <p class="try"><b>Try this.</b> Change how long the cache lives after its last use, and how busy the day is. Watch the share of runs that find the fixed beginning already computed.</p>
+  </section>
+  <p><strong>What you should have seen.</strong> On a busy day most runs start within a few minutes of the last, so even a short-lived cache is warm three times in four. On a quiet day the same cache is almost always cold, and every run pays the full beginning: the quieter the agent, the more its fixed beginning costs per run.</p>
+
+  <section class="yourturn" aria-label="Your turn, by hand">
+    <h3>Your turn, by hand</h3>
+    <p class="need">Paper and a pencil · about 8 minutes</p>
+    <p>A fixed beginning of 1,500 characters. A prefix cache that lasts 5 minutes after the end of the run that used it. Five runs, each one minute long, start at these times:</p>
+    <p class="predict"><b>Predict first.</b> Will the cache save more than half of the fixed beginning's work over these five runs, or less? Write your guess down.</p>
+    <pre class="code" data-lang="text">9:00   9:02   9:10   9:11   9:30</pre>
+    <ol>
+      <li>For each run after the first, write when the run before it ended, and whether the cache is still warm when it starts.</li>
+      <li>Count the characters of fixed beginning the model must compute, with the cache and without it.</li>
+      <li>The person asks the agent to say less, and the run at 9:02 never happens. What changes for the run at 9:10?</li>
+    </ol>
+    <details class="answer"><summary>Check your working</summary>
+      <ol class="worked">
+        <li>9:02: the last run ended 9:01, 1 minute earlier, warm. 9:10: last ended 9:03, 7 minutes, cold. 9:11: last ended 9:11, 0 minutes, warm. 9:30: last ended 9:12, 18 minutes, cold.</li>
+        <li>Without a cache: 5 × 1,500 = 7,500. With it: the first run, 9:10 and 9:30 compute it, 3 × 1,500 = 4,500. Saved: 3,000 of 7,500, 40%.</li>
+        <li>Nothing for 9:10: its last run now ends at 9:01, 9 minutes earlier, still cold. Fewer runs never make the cache warmer.</li>
+      </ol>
+      <p>Your prediction: less than half, 40%. The cache helps runs that come in clusters and does nothing for an agent that wakes rarely, which is when keeping the fixed beginning short matters most.</p>
+    </details>
+  </section>
+
+  <h2>At full size</h2>
+  <ul>
+    <li><strong>Lean beginnings, cached.</strong> Providers keep a cached prefix for minutes, some longer for a price. A beginning that never changes, placed first, gets the most from it; anything that changes, such as the date, goes after it.</li>
+    <li><strong>New or resumed.</strong> A run for a new topic starts a new session; a reply in an ongoing thread resumes its session. Long sessions are compacted or replaced by a summary, and both lose detail.</li>
+    <li><strong>Memory files and an index.</strong> Instructions in one file read every run; notes as an index of short lines, with longer files read only when a line points to them.</li>
+    <li><strong>Tidying runs while nobody waits.</strong> Reviewing the day's sessions overnight, merging duplicates, replacing what changed and writing down patterns, is cheap because no one is waiting for it.</li>
+  </ul>
+
+  <h2>Build it</h2>
+  <pre class="code" data-lang="text">python code/ch46_runstart.py   # the cache over 20 days, and tidying with the agent; about 3 minutes; needs  python code/ch39_plan.py --train</pre>
+
+  <div class="note">
+    <h3>What this chapter glossed over</h3>
+    <p><strong>The fixed beginning is chapter 15's.</strong> Real coding agents start with much more: thousands of tokens of instructions and tool descriptions.</p>
+    <p><strong>The cache rule is simplified:</strong> warm if the last run ended less than five minutes ago. Real caches are per prefix, shared across requests, and priced differently.</p>
+    <p><strong>Tidying is done by rule here.</strong> At full size the tidy-up is itself a model reading sessions and deciding what to keep, with its own mistakes.</p>
+    <p><strong>The agent was trained on up to four notes,</strong> as in chapter 42.</p>
+  </div>
+
+  <div class="stick" data-draw="fig-runstart" data-explain="run,session,prefix-cache,compaction,long-term-memory,tidying"></div>
+
+  <div class="recap">
+    <h3>In short</h3>
+    <ul>
+      <li>Every run builds its context from parts: a fixed beginning, the person's instructions, the notes it needs, perhaps an earlier session, and the new events.</li>
+      <li>The fixed beginning of chapter 15's harness, read by 126 runs a day, is about 191,000 characters a day. A cache that lasts five minutes was warm for 76% of runs on a busy day, and would be cold on a quiet one.</li>
+      <li>Memory holds what cannot be looked up again: instructions, notes, what was already said, task progress. What must last belongs there, not in a session that will be compacted.</li>
+      <li><a class="term" href="glossary.html#tidying">Tidying memory</a> between runs helped a little (80 against 62 right). Showing only the note asked about helped most (377 of 384).</li>
+    </ul>
+  </div>
+
+  <h2>Check yourself</h2>
+  <details class="check"><summary>Why does a quiet agent pay more for its fixed beginning per run than a busy one?</summary><p>Because its runs are far apart, so the cached beginning has expired by the next run and must be computed again. A busy agent's runs come within minutes of each other and find it warm.</p></details>
+  <details class="check"><summary>The person told the agent their new address in a session last month. Where should that fact be now?</summary><p>In memory, as a note that replaced the old address. Not only in the old session's record, which may have been compacted, summarised or never resumed.</p></details>
+  <details class="check"><summary>Tidying removed stale notes, but the agent was still often wrong. Why?</summary><p>Because it still saw several notes at once and mixed them up. Tidying makes the store correct; deciding which notes go into the context for this question is what keeps the model from being distracted.</p></details>
+  <details class="check"><summary>"Store only what cannot be looked up again." Give one thing to store and one to point to.</summary><p>Store: the person said "never schedule anything before 10", which exists nowhere else. Point to: the content of a document in their drive, which can be read again when needed, so memory keeps only where it is.</p></details>
+</main>
+
+<script src="assets/glossary.js"></script>
+<script src="assets/micro.js"></script>
+<script>
+M.ready(function () {
+  var box = M.$('#w-runstart'), ttl = 5, busy = 40, presses = 0;
+  function day(rnd) {                 /* batched inbox of chapter 44, eight hours, `busy` bursts of messages */
+    var ev = [];
+    for (var i = 0; i < busy; i++) { var t = rnd() * 28800, k = 1 + Math.floor(rnd() * 3); for (var j = 0; j < k; j++) ev.push(t + 15 * j); }
+    for (var i = 0; i < busy * 1.5; i++) ev.push(rnd() * 28800);
+    ev.sort(function (a, b) { return a - b; });
+    var runs = [], i = 0, free = 0;
+    while (i < ev.length) {
+      var s = Math.max(ev[i], free), n = 0;
+      while (i < ev.length && ev[i] <= s) { i++; n++; }
+      runs.push([s, s + 20 + 10 * n]); free = s + 20 + 10 * n;
+    }
+    return runs;
+  }
+  var bars = M.el('div'), stat = M.el('p', { class: 'readout' });
+  function go() {
+    var runs = day(M.rng(11 + presses)), warm = 0;
+    for (var i = 1; i < runs.length; i++) if (runs[i][0] - runs[i - 1][1] < ttl * 60) warm++;
+    var share = runs.length > 1 ? warm / (runs.length - 1) : 0;
+    M.bars(bars, [{ label: 'cache warm', p: share, text: Math.round(100 * share) + '%', hl: true }, { label: 'computed again', p: 1 - share, text: Math.round(100 * (1 - share)) + '%' }], 1);
+    stat.innerHTML = '<b>' + runs.length + '</b> runs in the day; fixed beginning computed <b>' + (runs.length - warm) + '</b> times, ' + ((runs.length - warm) * 1522).toLocaleString('en-US') + ' characters.';
+  }
+  var tS = M.slider({ label: 'Cache lives', min: 1, max: 60, step: 1, value: 5, fmt: function (v) { return v + ' min'; }, oninput: function (v) { ttl = v; go(); } });
+  var bS = M.slider({ label: 'Bursts of messages a day', min: 2, max: 60, step: 1, value: 40, fmt: function (v) { return v; }, oninput: function (v) { busy = v; go(); } });
+  box.appendChild(M.row(tS)); box.appendChild(M.row(bS)); box.appendChild(M.row(M.button('Another day', function () { presses++; go(); }, 'go')));
+  box.appendChild(bars); box.appendChild(stat);
+  box.appendChild(M.el('p', { class: 'caption', text: 'A simulated eight-hour day: bursts of messages and half as many again notifications, handled by the batched inbox of chapter 44. The fixed beginning is chapter 15\'s, 1,522 characters.' }));
+  go();
+});
+</script>
+</body>
+</html>

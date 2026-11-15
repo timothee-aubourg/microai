@@ -74,7 +74,7 @@ with open(js, 'w', encoding='utf-8') as f:
 
 blurbs = [b.replace("\\'", "'") for b in re.findall(r"^    '((?:[^'\\]|\\.)*)',?$", src[src.find('M.blurbs = ['):src.find('];', src.find('M.blurbs = ['))], re.M)]
 assert len(blurbs) == len(chapters), (len(blurbs), len(chapters))
-OTHER = {'index.html': ('microAI: a language model you can hold in your head', 'Build and understand a language model and the agent around it, from first principles: 43 short interactive chapters that run on your phone.', 'index'),
+OTHER = {'index.html': ('microAI: a language model you can hold in your head', 'Build and understand a language model and the agent around it, from first principles: 48 short interactive chapters that run on your phone.', 'index'),
          'map.html': ('The map of an agent · microAI', 'What an agent is made of, on one page: a live agent in your browser, every part with its chapters, and three ways through.', 'map'),
          'glossary.html': ('Glossary · microAI', 'Every technical term of the microAI course in plain words, with the chapter that introduces it.', 'index')}
 

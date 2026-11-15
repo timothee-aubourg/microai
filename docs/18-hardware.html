@@ -52,7 +52,7 @@
   <p>A CPU is built for variety. It has few cores, often 8 to 16, and each is very good at following instructions that branch and change from one moment to the next. Each core can also do the same operation on 8 or 16 numbers at once.</p>
   <p>A GPU was built to colour millions of pixels, which is the same small calculation for each pixel. It is poor at varied work and superb at regular work.</p>
 
-  <figure class="fig">
+  <figure class="fig" id="fig-lanes">
     <svg viewBox="0 0 760 210" role="img" aria-labelledby="f18a">
       <title id="f18a">Two processors side by side. The CPU has a few large cores, each drawn as a wide box that can do varied work. The GPU has a great many small lanes, drawn as a grid of small squares, that all do the same step at once, with its own memory beside them.</title>
       <g class="t-small">
@@ -108,6 +108,28 @@
 
   <p><strong>What you should have seen.</strong> At 8 billion weights the model is 5.0 GB, it fits, and the ceiling is 202 tokens per second, with 101 to 151 to expect in practice. At 20 billion it is 12.5 GB and the ceiling falls to 81: a larger model is slower on the same machine. At 40 billion it is 25.0 GB and does not fit in 24 GB, and the widget says the ceiling no longer applies. At 3 bits per weight the same 40 billion weights take 15.0 GB, fit again, and have a ceiling of 67.</p>
 
+  <section class="yourturn" aria-label="Your turn, by hand">
+    <h3>Your turn, by hand</h3>
+    <p class="need">Paper and a pencil · about 10 minutes</p>
+    <p>A machine has two limits: its memory delivers 100 GB per second, and its processor does 2,000 billion multiply-adds per second. Find which limit decides the speed of an 8-billion-weight model at 4 bits per weight, first when it writes and then when it reads.</p>
+    <p class="predict"><b>Predict first.</b> Will memory or arithmetic set the speed when the model writes? And will the same limit decide when it reads a prompt? Write your guess down.</p>
+    <ol>
+      <li>How many gigabytes is the model? How many multiply-adds does one token cost?</li>
+      <li>Writing, one token at a time: what is the ceiling set by memory, and the ceiling set by arithmetic? Which one is lower?</li>
+      <li>Reading a prompt of 2,000 tokens, all positions together, so that the weights travel from memory only once: how long does the memory take, and how long the arithmetic? How many tokens per second is that?</li>
+      <li>A server writes for several users at once and reads the weights once per step for all of them. How many users can it serve before arithmetic, not memory, becomes the limit?</li>
+    </ol>
+    <details class="answer"><summary>Check your working</summary>
+      <ol class="worked">
+        <li>8 billion × 4 bits ÷ 8 = 4 billion bytes, 4 GB. One multiply-add per weight: 8 billion per token.</li>
+        <li>Memory: 100 ÷ 4 = 25 tokens per second. Arithmetic: 2,000 billion ÷ 8 billion = 250 tokens per second. Memory is lower, by a factor of 10, so it decides: at most 25.</li>
+        <li>Memory: 4 GB once, 4 ÷ 100 = 0.04 seconds. Arithmetic: 2,000 × 8 billion = 16,000 billion multiply-adds, which take 16,000 ÷ 2,000 = 8 seconds. Arithmetic decides: 2,000 tokens in 8 seconds is 250 tokens per second.</li>
+        <li>One step reads 4 GB in 0.04 seconds. Each user's token needs 8 billion multiply-adds, 0.004 seconds. Ten users fill the 0.04 seconds exactly: 10 users at 25 tokens per second each, 250 in all. An eleventh user makes the step longer.</li>
+      </ol>
+      <p>Your prediction: memory decides writing, arithmetic decides reading. The same machine reads a prompt ten times faster per token than it writes, and it can write for ten users almost as fast as for one. Writing a single stream wastes nine tenths of the arithmetic, waiting for memory.</p>
+    </details>
+  </section>
+
   <h2>It has to fit</h2>
   <p>The second number on a graphics card is the size of its memory. The weights, plus the KV cache of chapter 8, must fit in it. If they do not, part of the model stays in ordinary RAM and is computed by the CPU, and the speed falls toward the slower of the two. A card with less memory is not a slightly slower card. For a model that does not fit, it is a different class of machine.</p>
   <p>Apple's recent computers make the opposite trade. Their memory is one pool shared by CPU and GPU: slower than a graphics card's own memory, and much larger. They run big models at moderate speed, where a single graphics card cannot load them at all. Chapter 22 goes through these kinds of memory one by one.</p>
@@ -154,6 +176,20 @@
       <li>The model and its cache have to fit in the fast memory. One that does not fit runs far slower than the sum predicts.</li>
     </ul>
   </div>
+
+  <section class="actout" aria-label="Act it out">
+    <h3>Act it out</h3>
+    <p class="need">Two people, ten books, a shelf a few steps from a table, a watch · about 8 minutes</p>
+    <p>Play one token being written: the books are the weights, the shelf is memory, and the person at the table is the processor.</p>
+    <ol>
+      <li>One of you is the memory: carry the books from the shelf to the table one at a time, and take each one back before fetching the next. The other is the processor: for each book that arrives, make one tally mark on a sheet, one multiply-add, then hand it back. Time one pass over all ten books. That is one token.</li>
+      <li>Now write for three users at once: the processor makes three marks per book, one on each of three sheets. Time it again.</li>
+      <li>Last, the processor tallies as fast as it can and the memory walks at its usual pace. Which change made a token faster?</li>
+    </ol>
+    <p>Three users cost almost no extra time, and a faster processor saved none: the processor spent most of the token waiting for the next book. When a model writes, the speed of memory sets the pace, and a batch fills the waiting time with useful work.</p>
+  </section>
+
+  <div class="stick" data-draw="fig-lanes" data-explain="multiply-add,cpu,gpu,memory-bandwidth"></div>
 
   <h2>Check yourself</h2>
   <details class="check"><summary>A matrix has 96 rows and 384 columns. How many multiply-adds does it cost to multiply one vector by it?</summary><p>96 × 384 = 36,864, one for each weight in the matrix. This is the first matrix of the MLP in our model, used once for every position.</p></details>

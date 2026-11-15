@@ -36,7 +36,7 @@
     <p>An <dfn>API</dfn> is the agreed form of those requests and answers. Here it is a list of messages sent as text in a format called JSON.</p>
   </div>
 
-  <figure class="fig">
+  <figure class="fig" id="fig-layers">
     <svg viewBox="0 0 760 210" role="img" aria-labelledby="f10a">
       <title id="f10a">Four layers side by side. Your program, the client, sends messages to the server. The server keeps the model loaded and writes the messages into one document. The runtime does the arithmetic. The model file holds the weights. The answer travels back the same way.</title>
       <defs><marker id="c10a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
@@ -102,6 +102,50 @@ What is the capital of France?&lt;|im_end|&gt;
   <p><strong>What you should have seen.</strong> The first document has 5 special tokens and ends where the assistant is about to speak. With the second turn ticked it has 9, and it contains everything again: the instruction, the first question, the answer <code>Paris.</code>, and the new question. The whole conversation is sent on every turn, because the model keeps nothing between calls. The other families write the same conversation with other tokens: 15 of them in the Llama 3 style, 8 in the Gemma style, which has no separate system role and puts the instruction at the start of the first user turn.</p>
 
   <p>Each model family has its own chat template, and it is stored inside the model file so the server can apply it for you. If the wrong template is used, the model still produces text, because it always can. It just produces worse text, since the document no longer looks like the ones it was trained on. When a local model behaves strangely, this is one of the first things to check.</p>
+
+  <section class="yourturn" aria-label="Your turn, by hand">
+    <h3>Your turn, by hand</h3>
+    <p class="need">Paper and a pencil · about 10 minutes</p>
+    <p>Here is a short conversation. Your program sent three requests: after <code>Hi</code>, after <code>2+2?</code> and after <code>And 3+3?</code>. Write out what the model receives, and count.</p>
+    <p class="predict"><b>Predict first.</b> Over the three requests, will the model read the text of the conversation about once, about twice, or about three times over? Write your guess down.</p>
+    <div class="scroll"><table class="mini">
+      <tr><th>Role</th><th>Text</th></tr>
+      <tr><td>system</td><td class="mono">Be brief.</td></tr>
+      <tr><td>user</td><td class="mono">Hi</td></tr>
+      <tr><td>assistant</td><td class="mono">Hello.</td></tr>
+      <tr><td>user</td><td class="mono">2+2?</td></tr>
+      <tr><td>assistant</td><td class="mono">4</td></tr>
+      <tr><td>user</td><td class="mono">And 3+3?</td></tr>
+    </table></div>
+    <ol>
+      <li>Write the document of the third request, line by line, in the template of the by-hand example.</li>
+      <li>Count its special tokens. Then count those of the first and the second request. What rule gives the count for request number n?</li>
+      <li>Count the characters of message text in each request: only the Text column, with spaces and punctuation, without special tokens or line breaks. Add the three. How many characters does the conversation itself hold?</li>
+    </ol>
+    <details class="answer"><summary>Check your working</summary>
+      <ol class="worked">
+        <li>
+          <pre class="code" data-lang="text">&lt;|im_start|&gt;system
+Be brief.&lt;|im_end|&gt;
+&lt;|im_start|&gt;user
+Hi&lt;|im_end|&gt;
+&lt;|im_start|&gt;assistant
+Hello.&lt;|im_end|&gt;
+&lt;|im_start|&gt;user
+2+2?&lt;|im_end|&gt;
+&lt;|im_start|&gt;assistant
+4&lt;|im_end|&gt;
+&lt;|im_start|&gt;user
+And 3+3?&lt;|im_end|&gt;
+&lt;|im_start|&gt;assistant
+</pre>
+          It ends just after <code>assistant</code>, where the answer is to begin.</li>
+        <li>13 special tokens. The first request has 5 and the second 9, as in the experiment above. Each question and its answer add 4: a start and an end for each. Request n has 4n + 1.</li>
+        <li>Request 1: 9 + 2 = 11. Request 2: 11 + 6 + 4 = 21. Request 3: 21 + 1 + 8 = 30. In all 11 + 21 + 30 = 62 characters, for a conversation of 30. <code>Be brief.</code> was read three times.</li>
+      </ol>
+      <p>Your prediction: about twice, 62 characters for a conversation of 30. The model receives the whole conversation on every request, so what it reads grows faster than the conversation does. A long chat pays again for its beginning at every turn.</p>
+    </details>
+  </section>
 
   <h2>Do it</h2>
   <p>The quickest route is Ollama, a free program that contains a runtime, a server and a tool to download model files. Pick a model whose size fits your memory by the arithmetic of chapter 9.</p>
@@ -190,6 +234,8 @@ def stream(messages, model=None, **options):
       <li>A complete client is about thirty lines: send the messages as JSON, read the reply.</li>
     </ul>
   </div>
+
+  <div class="stick" data-draw="fig-layers" data-explain="runtime,server,chat-template,special-token,quantization"></div>
 
   <h2>Check yourself</h2>
   <details class="check"><summary>Write the document the server would send for a single user message, <code>Hi</code>, with no system message, in the template of the by-hand example.</summary><p><code>&lt;|im_start|&gt;user</code>, a line break, <code>Hi&lt;|im_end|&gt;</code>, a line break, then <code>&lt;|im_start|&gt;assistant</code> and a line break. Three special tokens, and the document stops where the assistant is about to speak.</p></details>

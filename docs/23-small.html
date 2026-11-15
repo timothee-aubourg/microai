@@ -68,13 +68,40 @@
 
   <p><strong>What you should have seen.</strong> Five weights of &minus;1 give the byte 0. Five weights of +1 give 242, the largest. The values 243 to 255 are never used: 13 of 256 are wasted, which is why this packing costs 1.6 bits per weight and not the 1.58 that three values strictly need.</p>
 
+  <section class="yourturn" aria-label="Your turn, by hand">
+    <h3>Your turn, by hand</h3>
+    <p class="need">Paper and a pencil · about 10 minutes</p>
+    <p>Round a small matrix to three values, then use it on one input with additions only. The rule: the scale is the average size of the weights, ignoring their signs. Each weight is divided by the scale, rounded to the nearest whole number, and kept between &minus;1 and +1.</p>
+    <p class="predict"><b>Predict first.</b> Before you divide anything, look at the two columns of weights. After rounding, will both outputs stay close to the originals? If one goes wrong, which column, and because of which weight? Write your guess down.</p>
+    <div class="scroll"><table class="mini">
+      <tr><th>Input</th><th>Value</th><th>Weight in column A</th><th>Weight in column B</th></tr>
+      <tr><td>1</td><td class="mono">2</td><td class="mono">0.5</td><td class="mono">&minus;0.2</td></tr>
+      <tr><td>2</td><td class="mono">1</td><td class="mono">&minus;0.1</td><td class="mono">0.4</td></tr>
+      <tr><td>3</td><td class="mono">&minus;1</td><td class="mono">&minus;0.3</td><td class="mono">0.0</td></tr>
+      <tr><td>4</td><td class="mono">3</td><td class="mono">0.2</td><td class="mono">&minus;0.7</td></tr>
+    </table></div>
+    <ol>
+      <li>Find the scale of the matrix: add the eight weights without their signs and divide by 8. Then turn each weight into &minus;1, 0 or +1.</li>
+      <li>Compute the two outputs with the three-valued weights: for each column, add the inputs that have +1, subtract those that have &minus;1, and multiply once by the scale.</li>
+      <li>Compute the same two outputs with the original weights, with multiply-adds, and compare.</li>
+    </ol>
+    <details class="answer"><summary>Check your working</summary>
+      <ol class="worked">
+        <li>0.5 + 0.1 + 0.3 + 0.2 + 0.2 + 0.4 + 0 + 0.7 = 2.4, and 2.4 &divide; 8 = 0.3. Column A: 0.5 &divide; 0.3 = 1.67, rounds to 2, kept at +1; &minus;0.1 &divide; 0.3 = &minus;0.33 gives 0; &minus;0.3 &divide; 0.3 = &minus;1; 0.2 &divide; 0.3 = 0.67 gives +1. Column B: &minus;0.67 gives &minus;1; 1.33 gives +1; 0 gives 0; &minus;0.7 &divide; 0.3 = &minus;2.33, rounds to &minus;2, kept at &minus;1. So A is +1, 0, &minus;1, +1 and B is &minus;1, +1, 0, &minus;1.</li>
+        <li>A: 2 + 3 &minus; (&minus;1) = 6, and 0.3 &times; 6 = 1.8. B: 1 &minus; 2 &minus; 3 = &minus;4, and 0.3 &times; (&minus;4) = &minus;1.2. Two multiplications in all, one per output.</li>
+        <li>A: 2 &times; 0.5 + 1 &times; (&minus;0.1) + (&minus;1) &times; (&minus;0.3) + 3 &times; 0.2 = 1.0 &minus; 0.1 + 0.3 + 0.6 = 1.8, the same. B: 2 &times; (&minus;0.2) + 1 &times; 0.4 + (&minus;1) &times; 0 + 3 &times; (&minus;0.7) = &minus;0.4 + 0.4 + 0 &minus; 2.1 = &minus;2.1, against &minus;1.2.</li>
+      </ol>
+      <p>Your prediction: column B goes wrong, because of its &minus;0.7. In column A the small errors happen to cancel. In column B the weight &minus;0.7, more than twice the scale, was cut to &minus;0.3, and the output lost almost half its size: one scale for the whole matrix cannot fit its small and its large weights at once. A model has thousands of such errors at the same moment, which is how rounding afterwards reached 0 of 3,000.</p>
+    </details>
+  </section>
+
   <h2>Train it rounded</h2>
   <p>Rounding a finished model to three values gave 0 of 3,000. The way out is to stop treating rounding as something done to a model afterwards.</p>
   <div class="def"><span class="kind">Definition</span>
     <p><dfn>Quantization-aware training</dfn> rounds the weights in every forward pass of training, so the model learns to do its job with the rounded values. The full-precision weights are kept underneath and are the ones gradient descent adjusts.</p>
   </div>
 
-  <figure class="fig">
+  <figure class="fig" id="fig-qat">
     <svg viewBox="0 0 760 200" role="img" aria-labelledby="f23a">
       <title id="f23a">Each training step. The full-precision weights are rounded to minus one, zero or plus one. The forward pass and the loss use the rounded weights. The gradient skips the rounding and adjusts the full-precision weights.</title>
       <defs><marker id="c23a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker>
@@ -234,6 +261,8 @@ python code/ch23_tiny.py --sweep       # every candidate of the table (about an 
       <li>Smaller has a price that has to be measured. At width 32, three-valued weights miss 215 questions where ordinary ones miss 1, and below width 32 they learned nothing.</li>
     </ul>
   </div>
+
+  <div class="stick" data-draw="fig-qat" data-explain="ternary,qat,quantization,gradient,held-out"></div>
 
   <h2>Check yourself</h2>
   <details class="check"><summary>The chapter 19 model rounded to three values scores 0. A model trained with three values scores almost everything. Both files hold only &minus;1, 0 and +1. What is the difference?</summary><p>Which model the values belong to. The first set are the nearest three-valued neighbours of weights that were trained to work at full precision; nothing ever checked that the neighbours work. The second set were used in every forward pass of training, so the loss was measured on them and the training adjusted them until they worked.</p></details>

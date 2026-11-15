@@ -2,7 +2,7 @@
 
 **Build and understand a local language model, and the agent around it, from first principles.**
 
-An interactive course in forty-three chapters, in sixteen parts. Each chapter starts
+An interactive course in forty-eight chapters, in seventeen parts. Each chapter starts
 from a question and a ten-second guess, gives you an experiment to play with in
 the browser, shows the few lines of code that implement the idea, and ends with
 one line to keep. One small GPT, trained from scratch with numpy, runs through
@@ -31,7 +31,14 @@ outside: a small Model Context Protocol server, tool poisoning, and loading
 descriptions only when they are needed. Chapters 39 to 43 put an agent to work
 on jobs of several steps: a plan or one step at a time, failures and how to
 recover from them, when a fixed workflow beats an agent, memory that lasts
-between sessions, and when to stop and ask a person.
+between sessions, and when to stop and ask a person. Chapters 44 to 48 make it
+an always-on agent: an event inbox, timers, what each run starts with,
+permissions when nobody is watching, and what to send the person.
+
+Every chapter also asks the reader to rebuild its mechanism: recall the last
+chapter, predict then work an exercise out on paper, redraw the key figure
+from memory, explain the idea back with given terms, and, in twenty chapters,
+act it out.
 
 By the end you can re-implement every piece of a minimal local AI system and
 you know what each component of a full-size one is doing.
@@ -124,6 +131,11 @@ branch `main`, folder `/docs`, and save. The course appears at
 | 41 | A workflow or an agent? | Which requests need a model to decide each step, and what does a wrong choice cost? |
 | 42 | Memory that lasts | What should the harness write down between sessions, and what should it put back? |
 | 43 | Asking first | When should the agent stop and ask you before it acts? |
+| 44 | Asleep most of the time | What wakes an always-on agent, and what stops two wake-ups from trampling each other? |
+| 45 | Waking itself up | "If nobody replies by tomorrow, remind me." What wakes the agent tomorrow? |
+| 46 | What a run starts with | What goes into each run's context, what does it cost a hundred times a day, and what keeps memory from rotting? |
+| 47 | Nobody watching | Which actions should run, which should wait for you, and where should your passwords be? |
+| 48 | Earning attention | Everything it did, or almost nothing: which way do you read the message that matters? |
 
 ## Run the code
 
@@ -243,6 +255,18 @@ python code/ch42_memory.py             # ~3 min: four ways to keep notes between
 python code/ch43_ask.py                # ~10 s: when to ask a person, from the model's own confidence
 ```
 
+Chapters 44 to 48 build an always-on agent. They simulate the code around the
+model and need no model, except chapter 46's second half, which uses the
+agent of chapter 39:
+
+```bash
+python code/ch44_inbox.py              # seconds: direct calls against an event inbox, 20 simulated days
+python code/ch45_timers.py             # seconds: how often to look, where timers live, outages
+python code/ch46_runstart.py           # ~3 min: the fixed beginning and its cache; tidying memory
+python code/ch47_unattended.py         # seconds: allow, block or hold; waiting against deferred calls
+python code/ch48_outbox.py             # seconds: four ways to send, with a stated model of attention
+```
+
 `ch15_harness.py` runs real shell commands when used with a real model. Use a
 folder you can afford to lose and read chapter 17 first.
 
@@ -297,6 +321,11 @@ code/
   ch41_workflow.py          a parser, plan-then-code, an agent and a route, on one mix of requests
   ch42_memory.py            notes between sessions: none, every note, the latest, the latest that the question names
   ch43_ask.py               the confidence of a call, and four rules for when to ask a person
+  ch44_inbox.py             events, runs, and an inbox with one worker, against direct calls
+  ch45_timers.py            follow-ups, schedules and a scheduler; restarts and outages
+  ch46_runstart.py          the fixed beginning of every run, its cache, and tidying the notes
+  ch47_unattended.py        allow, block or hold by kind of action; deferred calls
+  ch48_outbox.py            what a background agent sends, under a stated model of attention
   mock_server.py            fake model server for testing without a model
 data/
   shakespeare.txt           training text (public domain, 1.1 MB)
@@ -446,6 +475,10 @@ own runs; after retraining or re-measuring those, update the tables in the pages
   the pages say so. Chapter 41's times were measured on one machine.
 - `ch43_ask.py` uses a list of slips written for the test, not a sample of
   real requests, and assumes that a person who is asked stops every wrong call.
+- `ch44_inbox.py` to `ch48_outbox.py` are simulations with chosen numbers:
+  events, crash rates, mistakes, and in chapter 48 a model of attention that
+  the page states in full. The pages say which results follow from the
+  mechanism and which depend on the choices.
 - The harness and injection runs of chapters 15 and 17 use a scripted model in
   `mock_server.py`; the pages say so. The GPU figures in chapter 18 are published
   specifications, not measurements.
@@ -482,7 +515,8 @@ self-training, and chapter 34 assembles the system a second time. Chapters
 35 and 36 attack that system, repair it, release it and watch it. Chapters
 37 and 38 connect an agent to tools and instructions from outside. Chapters 39
 to 43 cover jobs of several steps: planning, recovery, workflows, memory between
-sessions and asking a person first.
+sessions and asking a person first. Chapters 44 to 48 cover agents that run
+unattended: events, timers, what a run starts with, permissions and messages.
 
 Not covered yet, in rough order of how much an agent builder would miss them:
 

@@ -30,7 +30,7 @@
   <p>By accepting one limit and working inside it. While it runs, the model knows exactly two things: what training left in its weights, and what is written in its context window. Your program cannot change the weights. So everything a system does to make a model useful in <em>your</em> situation comes down to choosing what text to put in the window.</p>
   <p>Remembering a conversation, searching documents and using tools sound like three features. They are one mechanism used three ways.</p>
 
-  <figure class="fig">
+  <figure class="fig" id="fig-window">
     <svg viewBox="0 0 760 220" role="img" aria-labelledby="f11a">
       <title id="f11a">The context window in the middle, as one box of text. Three things write into it: the conversation so far, passages found in your documents, and the results of tools. The model reads the window and writes text, which is either an answer or a request for a tool.</title>
       <defs><marker id="c11a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
@@ -102,6 +102,29 @@
     <p>An <dfn>embedding model</dfn> is a model that turns a whole passage into one vector, trained so that passages with similar meaning get vectors pointing the same way.</p>
   </div>
   <p>It is a transformer like the one you built, and the server of chapter 10 can run one next to the chat model. The script in this repository uses one if you name it, and falls back to word counts otherwise.</p>
+
+  <section class="yourturn" aria-label="Your turn, by hand">
+    <h3>Your turn, by hand</h3>
+    <p class="need">Paper and a pencil · about 10 minutes</p>
+    <p>Score two notes for a question with word counts, as in the by-hand example. Then score them again without the small words.</p>
+    <p class="predict"><b>Predict first.</b> Which note will word counts put into the window: the one about speed and memory, or the one about a dog? Write your guess down.</p>
+    <pre class="code" data-lang="text">question   why is my laptop slow
+note 1     speed is set by memory bandwidth
+note 2     my dog is my best friend</pre>
+    <ol>
+      <li>Write the word counts of each text, and the length of each vector: the square root of the sum of the squared counts. You will need √5 ≈ 2.24, √6 ≈ 2.45 and √8 ≈ 2.83.</li>
+      <li>Compute the cosine of each note with the question. Which note goes into the window?</li>
+      <li>Now leave out the words <code>why</code>, <code>is</code> and <code>my</code> everywhere, and score both notes again.</li>
+    </ol>
+    <details class="answer"><summary>Check your working</summary>
+      <ol class="worked">
+        <li>The question has five words, each once: length √5 ≈ 2.24. Note 1 has six words, each once: length √6 ≈ 2.45. It shares one word with the question, <code>is</code>. Note 2 has <code>my</code> twice and four other words once: 4 + 1 + 1 + 1 + 1 = 8, length √8 ≈ 2.83. It shares <code>is</code> and <code>my</code>.</li>
+        <li>Note 1: the dot product is 1 × 1 = 1, so the cosine is 1 / (2.24 × 2.45) = 0.18. Note 2: the dot product is 1 × 2 for <code>my</code> plus 1 × 1 for <code>is</code>, so 3, and the cosine is 3 / (2.24 × 2.83) = 0.47. Note 2, about a dog, goes into the window.</li>
+        <li>The question is now <code>laptop slow</code>, note 1 <code>speed set by memory bandwidth</code>, note 2 <code>dog best friend</code>. No word is shared, so both cosines are 0. There is nothing to choose between them.</li>
+      </ol>
+      <p>Your prediction: the note about a dog, 0.47 against 0.18. Counting words matched only the small words. The note that answers the question says speed and memory, not slow and laptop, and word counts cannot see that these are related. That is the gap an embedding model fills.</p>
+    </details>
+  </section>
 
   <h2>Hands: tools</h2>
   <p>A model can only write text. It cannot look at a clock, multiply reliably, or read a file. But your program can, so the two make a deal.</p>
@@ -212,6 +235,8 @@ TOOLS = [
       <li>An <a class="term" href="glossary.html#agent">agent</a> is that exchange in a loop, and its whole state is the list of messages.</li>
     </ul>
   </div>
+
+  <div class="stick" data-draw="fig-window" data-explain="context-window,rag,chunk,tool-call,agent"></div>
 
   <h2>Check yourself</h2>
   <details class="check"><summary>With word counts, what is the cosine between the question <code>dog</code> and the note <code>the dog ran</code>?</summary><p>The question is (0, 0, 0, 1, 0), of length 1. The note is (1, 0, 0, 1, 1), of length 1.73. Their dot product is 1, so the cosine is 1 / 1.73 = 0.58.</p></details>

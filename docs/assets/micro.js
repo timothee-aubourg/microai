@@ -49,6 +49,11 @@
     ['41-workflows.html', 'A workflow or an agent?', 'route'],
     ['42-notes.html', 'Memory that lasts', 'remember'],
     ['43-asking.html', 'Asking first', 'ask'],
+    ['44-inbox.html', 'Asleep most of the time', 'wake'],
+    ['45-timers.html', 'Waking itself up', 'timer'],
+    ['46-runstart.html', 'What a run starts with', 'start'],
+    ['47-unattended.html', 'Nobody watching', 'permit'],
+    ['48-outbox.html', 'Earning attention', 'send'],
   ];
 
   /* One sentence per chapter: the contents page, link previews and share cards. */
@@ -95,7 +100,12 @@
     'A tool that fails one call in five: stop, retry quietly, or tell the model. A dead tool and a loop guard, and the writes a half-done job leaves behind.',
     'A parser, a one-pass workflow, an agent and a route on the same 300 requests: right answers, model passes and time.',
     'Notes kept between sessions, four ways: none, every note, the latest of each, the latest the question names. What goes stale, and what distracts.',
-    'When to stop and ask a person: the model\'s own confidence in a call, measured on 600 requests, and the mistakes it is sure of.'
+    'When to stop and ask a person: the model\'s own confidence in a call, measured on 600 requests, and the mistakes it is sure of.',
+    'An agent that sleeps until an event wakes it: direct calls lose and repeat events and overwrite memory; an inbox with one worker does not.',
+    'Follow-ups and schedules, a scheduler that turns them into events, timers that survive a restart, and what to do with times missed in an outage.',
+    'The fixed beginning every run reads, the cache that saves it, what memory should hold, and tidying the notes between runs.',
+    'Allow, block or hold each action when nobody is watching; keys kept outside the agent; held actions that do not block the worker.',
+    'What a background agent should send: everything, a digest, only what matters, or start quiet. A month of a simple, stated model of attention.'
   ];
 
   // ---------- DOM helpers ----------
@@ -744,6 +754,9 @@
       pager.appendChild(next ? M.el('a', { class: 'next', href: next[0], html: '<small>Next</small>' + next[1] }) : M.el('a', { class: 'next', href: 'index.html', html: '<small>Back to</small>Contents' }));
       main.appendChild(pager);
       lesson(ch, main, pager);
+      yourTurn(ch, main);
+      stick(ch, main);
+      remember(ch, main);
       glance(ch, main);
       pathBar(ch, main, pager);
     }
@@ -808,6 +821,13 @@
     const list = M.el('ol', { class: 'secs' });
     secs.forEach((s) => list.appendChild(M.el('li', { class: s.h.id === last ? 'last' : '' }, M.el('a', { href: '#' + s.h.id }, M.el('span', { text: s.h.textContent }), M.el('small', { text: s.min + ' min' + (s.h.id === last ? ' · you were here' : '') })))));
     box.appendChild(list);
+    const turn = M.$('.yourturn', main);
+    if (turn) {
+      const mins = ((M.$('.need', turn) || {}).textContent || '').match(/(\d+) minutes/);
+      const done = M.byHand()[ch];
+      box.appendChild(M.el('p', { class: 'turnlink' }, M.icon('pencil'), M.el('a', { href: '#yourturn', text: 'Your turn, by hand' }),
+        M.el('small', { text: (mins ? ' · ' + mins[1] + ' min' : '') + (done === 1 ? ' · done' : '') })));
+    }
     if (L) {
       const ans = M.el('p', { class: 'answer', hidden: '' }, M.el('b', { text: 'The short answer: ' }), M.el('span', { text: L.keep }));
       const reveal = M.button('Show the short answer', () => { ans.hidden = false; reveal.remove(); });
@@ -835,6 +855,140 @@
       }), { rootMargin: '0px 0px -70% 0px' });
       heads.forEach((h) => seen.observe(h));
     }
+  }
+
+  /* ---------- your turn, by hand ----------
+     The answer is checked one step at a time, a hint only if the page gives one, a plain record of
+     "I got it" kept in this browser, and a button that prints the exercise alone, without the answer. */
+  M.byHand = function (set) {
+    let s = {};
+    try { s = JSON.parse(localStorage.getItem('microai.byhand') || '{}') || {}; } catch (e) { s = {}; }
+    if (set) { Object.assign(s, set); try { localStorage.setItem('microai.byhand', JSON.stringify(s)); } catch (e) { /* no storage */ } }
+    return s;
+  };
+  function yourTurn(ch, main) {
+    const box = M.$('.yourturn', main);
+    if (!box) return;
+    box.id = box.id || 'yourturn';
+    const need = M.$('.need', box);
+    if (need && window.print) need.appendChild(M.button('Print this exercise', () => {
+      document.body.classList.add('print-one'); box.classList.add('printing');
+      const done = () => { document.body.classList.remove('print-one'); box.classList.remove('printing'); window.removeEventListener('afterprint', done); };
+      window.addEventListener('afterprint', done);
+      window.print();
+    }));
+    const ans = M.$('details.answer', box), worked = ans && M.$('ol.worked', ans);
+    if (ans) {                                                  // a plain record, in this browser only
+      const say = M.el('span', { class: 'readout' });
+      const mark = (v) => { M.byHand({ [ch]: v }); say.textContent = v ? ' Marked as done, in this browser only.' : ' Fine: try it again later, or reread the section before it.'; };
+      const row = M.el('p', { class: 'selfcheck' }, M.el('span', { text: 'Did you get it? ' }), M.button('I got it', () => mark(1)), M.button('Not yet', () => mark(0)), say);
+      if (M.byHand()[ch] === 1) say.textContent = ' You marked this as done.';
+      ans.appendChild(row);
+    }
+    if (worked && worked.children.length > 1) {                 // one step at a time
+      const items = Array.from(worked.children), more = M.el('p', { class: 'more' });
+      let shown = 1;
+      const show = () => {
+        items.forEach((li, i) => { li.hidden = i >= shown; });
+        Array.from(ans.children).forEach((el) => { if (el !== worked && el.tagName !== 'SUMMARY' && el !== more) el.hidden = shown < items.length; });   // the closing lines and "did you get it?" wait for the last step
+        more.textContent = '';
+        if (shown < items.length) {
+          more.appendChild(M.button('Check step ' + (shown + 1), () => { shown++; show(); }, 'go'));
+          more.appendChild(M.button('Show all', () => { shown = items.length; show(); }));
+        }
+      };
+      worked.after(more);
+      M.$('summary', ans).textContent = 'Check step 1';
+      ans.addEventListener('toggle', () => { M.$('summary', ans).textContent = ans.open ? 'Your working, step by step' : 'Check step 1'; });
+      show();
+    }
+  }
+
+  /* ---------- make it stick: rebuild the mechanism from memory ----------
+     Remember: before a chapter, recall the one you read before it, without looking.
+     Draw it from memory: redraw the chapter's key figure blank, then compare.
+     Explain it back: answer the chapter's question in your own words, with a few given terms.
+     Act it out: where the page has one, a short way to play the mechanism with people or objects.
+     A page asks for the block with <div class="stick" data-draw="figure id" data-explain="glossary keys">. */
+  function remember(ch, main) {
+    let seen = {};
+    try { seen = JSON.parse(localStorage.getItem('microai.seen') || '{}') || {}; } catch (e) { seen = {}; }
+    const P = M.paths.find((p) => p.key === M.readPath()), i = P ? P.ch.indexOf(ch) : -1;
+    const before = i > 0 ? P.ch[i - 1] : ch - 1, L = M.lesson[before];
+    if (before < 1 || !L || !seen[before]) return;               // only a chapter this reader has opened
+    const C = M.chapters[before - 1];
+    const keep = M.el('p', { class: 'recall-a', hidden: '' }, M.el('b', { text: 'Chapter ' + before + ': ' }), M.el('span', { text: L.keep + ' ' }), M.el('a', { href: C[0], text: 'Reread it' }));
+    const show = M.button('Show it', () => { keep.hidden = false; show.remove(); });
+    const box = M.el('aside', { class: 'recall', 'aria-label': 'Remember first' },
+      M.el('p', { class: 'tag' }, M.icon('keep'), 'Remember first · twenty seconds'),
+      M.el('p', { text: 'Without looking: what was the one idea of chapter ' + before + ', "' + C[1] + '"? Say it, or write it, in one sentence.' }), show, keep);
+    const at = M.$('.question', main);
+    if (at) at.parentNode.insertBefore(box, at);
+  }
+
+  function sketchpad() {                                         // a finger-drawing pad, for readers without paper
+    const cv = M.el('canvas', { class: 'pad touch', height: '520', width: '680', 'aria-label': 'Drawing pad' });
+    const g = cv.getContext('2d');
+    let down = false, last = null;
+    const at = (e) => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) * cv.width / r.width, (e.clientY - r.top) * cv.height / r.height]; };
+    cv.addEventListener('pointerdown', (e) => { down = true; last = at(e); cv.setPointerCapture(e.pointerId); });
+    cv.addEventListener('pointermove', (e) => {
+      if (!down) return;
+      const p = at(e);
+      g.strokeStyle = M.css('--ink'); g.lineWidth = 3; g.lineCap = 'round';
+      g.beginPath(); g.moveTo(last[0], last[1]); g.lineTo(p[0], p[1]); g.stroke(); last = p;
+    });
+    ['pointerup', 'pointercancel'].forEach((t) => cv.addEventListener(t, () => { down = false; }));
+    return M.el('div', null, cv, M.row(M.button('Clear', () => g.clearRect(0, 0, cv.width, cv.height))));
+  }
+
+  function stick(ch, main) {
+    const mark = M.$('.stick', main);
+    if (!mark) return;
+    const sec = M.el('section', { class: 'stick-box', 'aria-label': 'Make it stick' });
+    const h = M.el('h2', { id: 'make-it-stick', text: 'Make it stick' });
+    sec.appendChild(M.el('p', { class: 'stick-why', text: 'Reading an idea is not the same as having it. These take five minutes, and each one makes you rebuild the mechanism yourself.' }));
+    // draw it from memory
+    const fig = document.getElementById(mark.getAttribute('data-draw') || '') || M.$('figure.fig', main);
+    if (fig) {
+      const cap = M.$('figcaption b', fig), art = M.$('svg, img', fig);
+      const name = cap ? cap.textContent.replace(/\.$/, '') : 'the main figure';
+      const holder = M.el('div', { class: 'stick-fig fig' }), pad = M.el('div');
+      const showFig = M.button('Show the figure', () => {
+        if (!holder.firstChild && art) { const c = art.cloneNode(true); c.removeAttribute('aria-labelledby'); c.setAttribute('aria-label', 'The figure, to compare with your drawing'); holder.appendChild(c); }
+        showFig.remove();
+      }, 'go');
+      const drawHere = M.button('Or draw here', () => { pad.appendChild(sketchpad()); drawHere.remove(); });
+      sec.appendChild(M.el('div', { class: 'stick-part' }, M.el('h3', null, M.icon('pencil'), 'Draw it from memory'),
+        M.el('p', { html: 'On paper, redraw the figure <b>' + name.replace(/</g, '&lt;') + '</b> without scrolling back: every box, arrow and label you can. Then compare. What you left out is what to reread.' }),
+        M.row(showFig, drawHere), pad, holder));
+    }
+    // explain it back
+    const G = window.MICRO_GLOSSARY || {}, keys = (mark.getAttribute('data-explain') || '').split(',').map((k) => k.trim()).filter((k) => G[k]);
+    const q = M.$('.question', main), recap = M.$('.recap ul', main);
+    if (q) {
+      const note = M.el('textarea', { rows: '4', 'aria-label': 'Your explanation', placeholder: 'In three or four sentences of your own…' });
+      const store = 'microai.explain.' + ch;
+      try { note.value = localStorage.getItem(store) || ''; } catch (e) { /* no storage */ }
+      note.addEventListener('input', () => { try { localStorage.setItem(store, note.value); } catch (e) { /* no storage */ } });
+      const cmp = M.el('div', { class: 'stick-cmp', hidden: '' });
+      if (recap) cmp.appendChild(recap.cloneNode(true));
+      const showCmp = M.button('Compare with the chapter\'s summary', () => { cmp.hidden = false; showCmp.remove(); });
+      const terms = keys.length ? M.el('p', { class: 'stick-terms' }, M.el('span', { text: 'Use these words: ' }),
+        ...keys.map((k, i) => M.el('span', null, M.el('a', { class: 'term', href: 'glossary.html#' + k, text: G[k].term.toLowerCase() }), M.el('span', { text: i < keys.length - 1 ? ', ' : '.' })))) : null;
+      sec.appendChild(M.el('div', { class: 'stick-part' }, M.el('h3', null, M.icon('recap'), 'Explain it back'),
+        M.el('p', { html: 'Answer the question this chapter opened with, as if to a friend: <em>' + q.textContent.replace(/</g, '&lt;') + '</em>' }), terms, note,
+        M.el('p', { class: 'caption', text: 'What you type stays in this browser.' }), showCmp, cmp));
+    }
+    // act it out, if the page has one
+    const act = M.$('.actout', main);
+    if (act) {
+      act.classList.add('stick-part');
+      const t = M.$('h3', act);
+      if (t && !t.querySelector('.ic')) t.insertBefore(M.icon('try'), t.firstChild);
+      sec.appendChild(act);
+    }
+    mark.replaceWith(h, sec);
   }
 
   /* A reader who chose a path on the map gets its next chapter above the pager, wherever they are in it. */
@@ -886,6 +1040,7 @@
     rough: dab(24, 24, 11, 'fr', U) + ink('M6 26 L11 18 L14 30 L19 17 L22 31 L27 16 L30 30 L35 19 L38 27 L42 22'),                  // a scribble: where the telling was rougher than the truth
     keep:  dab(26, 25, 11, 'nt', U) + ink('M5 32 C 14 32, 20 30, 22 24 C 24 16, 33 16, 32 23 C 31 30, 22 30, 23 25 C 24 21, 30 32, 43 31'),  // a knot in a thread
     word:  dab(24, 25, 12, 'wd', U) + ink('M8 14 C 14 12, 20 13, 24 16 C 28 13, 34 12, 40 14 L40 34 C 34 32, 28 33, 24 36 C 20 33, 14 32, 8 34 Z M24 16 L24 36', 2.8),  // an open book
+    pencil: dab(25, 26, 12, 'pn', U) + ink('M13 37 L33 15 L38 20 L18 41 Z M13 37 L11 43 L18 41'),                                  // a pencil: do it by hand
     recap: dab(28, 24, 12, 'rc', U) + ink('M9 16 C 15 15, 27 17, 38 16 M9 24 C 15 23, 27 25, 38 24 M9 32 C 14 31, 20 33, 27 32'),    // three lines
     right: dab(24, 26, 12, 'ok', 'var(--ok)', 0.85) + ink('M12 25 L20 33 L37 13'),
     wrong: dab(24, 24, 11, 'no', 'var(--grad)', 0.8) + ink('M15 15 C 21 21, 27 27, 33 33 M33 15 C 27 21, 21 27, 15 33')
@@ -902,7 +1057,7 @@
     ['Part nine', 'shaping behaviour', 24, '#5c6b7a'], ['Part ten', 'faster, and for many', 26, '#9a5a7d'],
     ['Part eleven', 'models that help models', 28, '#6a7f3a'], ['Part twelve', 'inside current models', 30, '#7a6fae'],
     ['Part thirteen', 'the agent, further', 32, '#96806a'], ['Part fourteen', 'safe to release', 35, '#3f6b5c'],
-    ['Part fifteen', 'plugging things in', 37, '#7f8a8f'], ['Part sixteen', 'the agent at work', 39, '#c27c4e']
+    ['Part fifteen', 'plugging things in', 37, '#7f8a8f'], ['Part sixteen', 'the agent at work', 39, '#c27c4e'], ['Part seventeen', 'always on', 44, '#5e7f9a']
   ];
   /* ---------- the map: the course by what an agent is made of, not by the order of the chapters ----------
      Three layers: what the agent does, the model inside it, and what makes the model.
@@ -931,9 +1086,12 @@
     { key: 'composition', name: 'Workflows and several agents', layer: 'agent', what: 'Fixed paths written in code, routing between them, and jobs split between a lead and helpers with their own contexts.',
       need: 'When you decide how much of the path the model chooses, or one context cannot hold the whole job.', ch: [41, 32, 34],
       gaps: ['A lead that is itself a model and plans the split'] },
+    { key: 'always', name: 'Always on', layer: 'agent', what: 'An agent that sleeps until an event or a timer wakes it, works unattended within set permissions, and sends only what is worth sending.',
+      need: 'When the agent should act without being asked: answer at night, follow up tomorrow, watch something for you.', ch: [44, 45, 46, 47, 48],
+      gaps: ['Several workers and many people: queues at scale', 'Judging what matters, learned instead of labelled'] },
     { key: 'safety', name: 'Safety', layer: 'agent', what: 'Text the agent reads can give it orders. Bound what it can do: gates, sandboxes, a guard model, attacks you run yourself.',
-      need: 'Before the agent reads anything you did not write, or can do anything you cannot undo.', ch: [17, 43, 28, 35],
-      gaps: ['Permissions at full size: scoped credentials, a sandbox per tool'] },
+      need: 'Before the agent reads anything you did not write, or can do anything you cannot undo.', ch: [17, 43, 47, 28, 35],
+      gaps: ['A sandbox per tool, and credentials scoped to one task'] },
     { key: 'evaluation', name: 'Evaluation', layer: 'agent', what: 'Traces to see what happened, fixed tests to know whether a change helped, and a gate before release.',
       need: 'Before you change anything you want to keep. Without a test, you are guessing.', ch: [14, 36],
       gaps: ['Cost and speed per task in production', 'Judging open-ended answers'] },
@@ -951,7 +1109,7 @@
   /* Three ways through the course. The chapters stay as they are; a path is an order to read them in. */
   M.paths = [
     { key: 'build', name: 'Build an agent', who: 'You want a working agent and to know why it fails. The model stays a black box until you ask why.',
-      ch: [15, 11, 13, 37, 16, 38, 14, 39, 40, 41, 42, 25, 32, 17, 43, 28, 35, 36, 19] },
+      ch: [15, 11, 13, 37, 16, 38, 14, 39, 40, 41, 42, 25, 32, 17, 43, 28, 35, 36, 44, 45, 46, 47, 48, 19] },
     { key: 'understand', name: 'Understand the model', who: 'You want to know what happens between the text going in and the next token coming out, and how it learns.',
       ch: [1, 2, 3, 4, 5, 6, 7, 8, 21, 24, 20, 30, 31] },
     { key: 'run', name: 'Run it yourself', who: 'You want a model on your own machine, fast enough and small enough, and to know what limits it.',
@@ -963,7 +1121,7 @@
   // [/site]
   /* Minutes to read each chapter, counted from the pages by tools/build_site.py. */
   // [minutes]
-  M.minutes = [15,12,12,12,12,11,10,10,10,9,11,9,12,13,11,10,11,10,11,10,9,15,14,14,10,9,9,11,8,8,7,8,8,7,10,13,13,8,11,9,8,8,9];
+  M.minutes = [17,15,14,14,15,13,11,12,12,10,13,11,15,15,14,12,14,12,13,13,11,17,16,15,13,12,12,13,10,11,9,11,10,10,13,15,15,10,15,13,10,11,11,9,7,9,9,7];
   // [/minutes]
   M.mins = (chs) => chs.reduce((s, c) => s + (M.minutes[c - 1] || 0), 0);
   M.readPath = function (key) {
@@ -993,6 +1151,7 @@
     });
     document.querySelectorAll('.def .kind').forEach((k) => put(k, M.icon('word')));
     document.querySelectorAll('.recap > h3').forEach((h) => put(h, M.icon('recap')));
+    document.querySelectorAll('.yourturn > h3').forEach((h) => put(h, M.icon('pencil')));
     document.querySelectorAll('p.part').forEach((p, k) => { if (M.parts[k]) put(p, M.partIcon(k)); });
   }
 
@@ -1129,7 +1288,22 @@
           keep: 'Memory is notes the harness keeps and shows: replace old values, and show only what the question needs.' },
     43: { q: 'The agent asks you first whenever it is less than 99% sure of a call. Of 102 wrong calls, how many does that stop?', o: ['All 102.', 'About 90.', 'About 20.'], a: 1,
           why: '89, by asking about one call in four. The 13 it let through were misreadings it was sure of, such as "less" read as plus at 0.996.',
-          keep: 'Ask before an action for two reasons: it cannot be undone, or the model is unsure. Its doubt catches most mistakes, but not the ones it is sure of.' }
+          keep: 'Ask before an action for two reasons: it cannot be undone, or the model is unsure. Its doubt catches most mistakes, but not the ones it is sure of.' },
+    44: { q: 'Every event calls the agent directly, and a run sometimes crashes. Over a day of 150 events, what goes wrong?', o: ['Nothing: each event gets its own run.', 'Events are lost, some are handled twice, and runs overwrite each other.', 'Only the crashed runs need retrying.'], a: 1,
+          why: 'About 6 events a day were lost in crashed runs, 8 repeated notifications handled twice, and overlapping runs overwrote each other\'s memory 52 times. An inbox with one worker had none of these.',
+          keep: 'Write every event into an inbox first, drop repeats by id, and let one worker take them: a crash then delays an event instead of losing it.' },
+    45: { q: 'An agent keeps its follow-ups in the worker\'s memory, and the worker restarts twice a day. Of 227 follow-ups in a week, how many are lost?', o: ['None.', 'About a tenth.', 'More than half.'], a: 2,
+          why: '119 of 227: every restart threw away every timer not yet due. In a store of their own, none were lost.',
+          keep: 'A timer is a promise: keep it in a store that outlives the worker, and let a scheduler turn it into an event when it is due.' },
+    46: { q: 'Every run starts with the same 1,522 characters of system prompt and tools. How many times a day could a five-minute cache spare a busy agent from computing them?', o: ['Almost never.', 'About three runs in four.', 'Every run.'], a: 1,
+          why: '95 of 126 runs began within five minutes of the last. On a quiet day the cache would be cold every time.',
+          keep: 'Keep the fixed beginning short and first, store what must last in memory, tidy it between runs, and show each run only what it needs.' },
+    47: { q: 'A week of 1,400 actions. Hold sends and payments, block deletions, allow the rest. How often is the person asked?', o: ['About 20 times.', 'About 170 times.', 'All 1,400.'], a: 1,
+          why: 'About 171 times, and no mistake that cannot be undone ran. A checker on ordinary sends brought it down to 41.',
+          keep: 'Decide allow, block or hold by kind of action; keep keys where the agent cannot read them; and end a run instead of waiting for an answer.' },
+    48: { q: 'An agent sends all 22 of its daily updates as they happen. Over a month, how many of the 56 things that mattered get read?', o: ['Nearly all: nothing was held back.', 'About half.', 'Almost none.'], a: 2,
+          why: 'About 2. Volume divided attention and routine messages wore trust down. Sending only what matters got 43 read; a daily digest, 36.',
+          keep: 'Every message divides the attention every other message gets: send what matters, gather the rest, and start quiet.' }
   };
   function guesses(set) {
     let s = {};
