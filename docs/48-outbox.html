@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Earning attention | microAI</title>
+<!-- [social] written by tools/build_site.py -->
+<meta name="description" content="What a background agent should send: everything, a digest, only what matters, or start quiet. A month of a simple, stated model of attention.">
+<link rel="canonical" href="https://timothee-aubourg.github.io/microai/48-outbox.html">
+<meta property="og:site_name" content="microAI">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Earning attention · microAI">
+<meta property="og:description" content="What a background agent should send: everything, a digest, only what matters, or start quiet. A month of a simple, stated model of attention.">
+<meta property="og:url" content="https://timothee-aubourg.github.io/microai/48-outbox.html">
+<meta property="og:image" content="https://timothee-aubourg.github.io/microai/cards/48.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Earning attention · microAI">
+<meta name="twitter:card" content="summary_large_image">
+<!-- [/social] -->
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body data-ch="48">
+<main>
+  <p class="where">Chapter 48</p>
+  <h1>Earning attention</h1>
+  <p class="question">An agent that works in the background can tell you everything it did, or almost nothing. Which way do you end up reading the message that matters?</p>
+
+  <p>When you ask an agent something and wait, you see its work as it goes. An always-on agent works while you are elsewhere, so you see only what it decides to send. Every run ends in one of three ways: it sends a message, it decides that nothing needs sending, or it asks for an approval (chapter 47). The second ending is the one that is easy to forget, and this chapter is about why it matters most.</p>
+
+  <div class="def"><span class="kind">Definitions</span>
+    <p>The <dfn>outbox</dfn> is where a run puts the messages it wants delivered. A small program, the <dfn>dispatcher</dfn>, delivers them: now, or later, together with others, or not at all.</p>
+    <p>A <dfn>digest</dfn> is one message that gathers many small updates, sent at a fixed time instead of one by one.</p>
+  </div>
+
+  <h3>By hand: what a busy day does to a reader</h3>
+  <p>This chapter measures with a small model of attention, stated in full so you can disagree with it. A message is read with probability <i>trust</i> × 1 / (1 + <i>n</i> / 6), where <i>n</i> is the number of messages the person got in the last 24 hours. Reading a message that mattered raises trust by 0.04; reading one that did not lowers it by 0.03.</p>
+  <p>Start with trust 0.6. With no other message that day, a message is read with probability 0.6. After 6 others it is 0.6 / 2 = 0.3. After 22 others, 0.6 / (1 + 22/6) ≈ 0.13. And each routine message that is read lowers trust a little, so tomorrow starts lower. A message that matters, sent on a day of 22 others, is read about one time in eight.</p>
+
+  <figure class="fig" id="fig-outbox">
+    <svg viewBox="0 0 760 220" role="img" aria-labelledby="f48a">
+      <title id="f48a">A run ends in one of three ways: a message to the outbox, nothing to send, or a deferred approval. The dispatcher reads the outbox and decides: send at once what matters, gather the rest into a daily digest, or drop it. On the person's side, how likely a message is to be read depends on trust and on how many messages came recently, and trust rises when what is read mattered and falls when it did not.</title>
+      <defs><marker id="c48a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
+      <g class="t-small">
+      <rect x="16" y="70" width="110" height="60" rx="8" class="bx-fwd"/><text x="71" y="96" text-anchor="middle" class="t-big">a run ends</text><text x="71" y="116" text-anchor="middle" class="t-muted">three ways</text>
+      <rect x="166" y="20" width="150" height="40" rx="8" class="bx"/><text x="241" y="45" text-anchor="middle">a message</text>
+      <rect x="166" y="80" width="150" height="40" rx="8" class="bx-soft"/><text x="241" y="105" text-anchor="middle">nothing to send</text>
+      <rect x="166" y="140" width="150" height="40" rx="8" class="bx"/><text x="241" y="165" text-anchor="middle">an approval (ch. 47)</text>
+      <rect x="356" y="10" width="170" height="60" rx="8" class="bx-prob"/><text x="441" y="34" text-anchor="middle" class="t-big">outbox, dispatcher</text><text x="441" y="54" text-anchor="middle" class="t-muted">now, in a digest, or drop</text>
+      <rect x="566" y="10" width="178" height="110" rx="8" class="bx"/><text x="655" y="34" text-anchor="middle" class="t-big">the person</text><text x="655" y="56" text-anchor="middle" class="t-muted">read with probability</text><text x="655" y="76" text-anchor="middle" class="t-mono">trust / (1 + n/6)</text><text x="655" y="98" text-anchor="middle" class="t-muted">trust: up if it mattered,</text><text x="655" y="114" text-anchor="middle" class="t-muted">down if it did not</text>
+      </g>
+      <g class="ln"><line x1="128" y1="90" x2="162" y2="44" marker-end="url(#c48a)"/><line x1="128" y1="100" x2="162" y2="100" marker-end="url(#c48a)"/><line x1="128" y1="110" x2="162" y2="158" marker-end="url(#c48a)"/><line x1="318" y1="40" x2="352" y2="40" marker-end="url(#c48a)"/><line x1="528" y1="40" x2="562" y2="40" marker-end="url(#c48a)"/></g>
+    </svg>
+    <figcaption><b>From a run to a reader.</b> Most runs should end in the middle box. What reaches the person is decided by the dispatcher, and whether they read it depends on everything sent before.</figcaption>
+  </figure>
+
+  <h2>Four weeks, four ways to send</h2>
+  <p><code>code/ch48_outbox.py</code> simulates four weeks with this model of attention. Each day the agent has 2 things that matter (a reply arrived, a payment failed) and 20 that do not much (a task finished as planned, a small update). Trust starts at 0.6. Four ways to send, each run 50 times.</p>
+  <pre class="code" data-src="ch48_outbox.py#ways">def month(way, rng):
+    person = {'trust': 0.6, 'sent': [], 'opened': []}
+    digest_on = way in ('digest', 'everything')
+    read_important = sent = routine_read = 0
+    for day in range(DAYS):
+        items = sorted([(day * 24 + float(rng.uniform(8, 20)), True) for _ in range(IMPORTANT)] +
+                       [(day * 24 + float(rng.uniform(8, 20)), False) for _ in range(ROUTINE)])
+        pending = 0
+        for t, matters in items:
+            if matters:
+                read_important += deliver(rng, person, t, True); sent += 1
+            elif way == 'everything':
+                routine_read += deliver(rng, person, t, False); sent += 1
+            elif digest_on:
+                pending += 1                                      # kept for the end of the day
+        if pending and way != 'everything':
+            routine_read += pending * deliver(rng, person, day * 24 + 20, False); sent += 1   # one digest
+        if way == 'start quiet':                                  # earn attention, and give it back
+            last = person['opened'][-10:]
+            if len(last) == 10 and sum(last) &gt;= 8:
+                digest_on = True
+            elif len(last) == 10 and sum(last) &lt; 5:
+                digest_on = False
+    return {'sent': sent, 'important_read': read_important, 'important': DAYS * IMPORTANT,
+            'routine_read': routine_read, 'trust': person['trust']}</pre>
+  <div class="scroll"><table class="mini">
+    <tr><th>Way</th><th>Messages sent</th><th>Things that mattered and were read, of 56</th><th>Other updates read</th><th>Trust at the end</th></tr>
+    <tr><td>Everything, as it happens</td><td class="mono">616</td><td class="mono">2.1</td><td class="mono">22.8</td><td class="mono">0.05</td></tr>
+    <tr><td>Digest: what matters at once, the rest daily</td><td class="mono">84</td><td class="mono">35.7</td><td class="mono">360.4</td><td class="mono">0.97</td></tr>
+    <tr><td>Only what matters</td><td class="mono">56</td><td class="mono">42.9</td><td class="mono">0</td><td class="mono">1.00</td></tr>
+    <tr><td>Start quiet, add the digest when trusted</td><td class="mono">73</td><td class="mono">39.3</td><td class="mono">259.6</td><td class="mono">0.97</td></tr>
+  </table></div>
+  <p class="src">A digest that is read counts all the updates in it as read.</p>
+  <ul>
+    <li><strong>Sending everything is the worst way to inform.</strong> 616 messages, and only 2 of the 56 things that mattered were read. Each routine message that was read cost trust, and the volume divided what was left. By the end the person was ignoring the agent.</li>
+    <li><strong>A digest kept what matters visible.</strong> 22 items a day became 3 messages, trust stayed high, and the person read 36 of the 56 things that mattered, plus most of the routine news, because one digest read delivers twenty updates.</li>
+    <li><strong>Only what matters got the most of what matters,</strong> 43 of 56, and nothing else. Whether that is best depends on whether the routine news has any value.</li>
+    <li><strong>Starting quiet</strong> earned the digest after a few days of being read, and ended between the two: 39 that mattered and most of the routine updates. It is the shape advised for new agents: begin with little, and send more only once the person reads what is sent.</li>
+  </ul>
+  <p>The numbers depend on the model of attention, which is a choice. The direction does not: every extra message divides the attention every other message gets.</p>
+
+  <section class="bench" id="w-outbox">
+    <h3>A month of messages</h3>
+    <p class="try"><b>Try this.</b> Pick a way to send and run a month. Then change how many routine updates the agent produces a day and see which way holds up.</p>
+  </section>
+  <p><strong>What you should have seen.</strong> With "everything", trust falls within days and the things that matter go unread. With a digest or only what matters, trust climbs and stays near 1. The more routine updates the agent produces, the worse "everything" gets, while the others barely change: they do not pass the volume on to the person.</p>
+
+  <section class="yourturn" aria-label="Your turn, by hand">
+    <h3>Your turn, by hand</h3>
+    <p class="need">Paper and a pencil, a calculator · about 8 minutes</p>
+    <p>A person with trust 0.8. Use the model of attention above.</p>
+    <p class="predict"><b>Predict first.</b> On a day when the agent sends all 22 of its items, is the last message, one that matters, read more or less than one time in four? Write your guess down.</p>
+    <ol>
+      <li>The agent has already sent 21 messages today. What is the chance its 22nd, one that matters, is read?</li>
+      <li>On a digest day, the agent has sent 2 messages today. What is the chance the digest is read?</li>
+      <li>On the "everything" day, about how much trust do 20 routine messages cost, if each is read with probability 0.178?</li>
+    </ol>
+    <details class="answer"><summary>Check your working</summary>
+      <ol class="worked">
+        <li>0.8 / (1 + 21/6) = 0.8 / 4.5 ≈ 0.18.</li>
+        <li>0.8 / (1 + 2/6) = 0.8 / 1.33 = 0.6.</li>
+        <li>Expected routine messages read: 20 × 0.178 ≈ 3.6, each costing 0.03: about 0.11 of trust lost in a day, from 0.8 towards 0.69. The next day starts lower, and the chance in step 1 falls with it.</li>
+      </ol>
+      <p>Your prediction: less, about one time in five and a half. The cost of a message is not in itself; it is in what it does to the chance of every other message being read.</p>
+    </details>
+  </section>
+
+  <h2>At full size</h2>
+  <ul>
+    <li><strong>A send tool is often enough.</strong> The agent calls it with a message; doing nothing is always an option it is told about. A formal outbox with a dispatcher helps when many runs send, to pace them, gather them and retry failed deliveries.</li>
+    <li><strong>Start quiet.</strong> Builders of always-on agents advise beginning with few messages and earning attention, rather than flooding first and cutting back later.</li>
+    <li><strong>Tune the volume with evaluations.</strong> Whether a message was opened, acted on or muted is a signal. A fixed set of past situations, replayed after each change (chapter 14), shows whether the agent got noisier.</li>
+    <li><strong>Deciding to stay silent is a skill.</strong> The model is asked not "what did you do?" but "would the person want to know this now?". That judgement is part of what has improved in recent models.</li>
+  </ul>
+
+  <h2>Build it</h2>
+  <pre class="code" data-lang="text">python code/ch48_outbox.py     # four ways over 50 simulated months; a few seconds; no model needed</pre>
+
+  <div class="note">
+    <h3>What this chapter glossed over</h3>
+    <p><strong>Attention is a model we chose:</strong> a formula with three numbers in it. Real attention is not measured here. The direction of the result follows from any model in which more messages mean less attention for each.</p>
+    <p><strong>"Matters" is known exactly.</strong> Here every item comes labelled. A real agent has to judge it, and its mistakes in judging are what tuning the volume is about.</p>
+    <p><strong>A digest read counts as every item in it read.</strong> In reality people skim digests.</p>
+  </div>
+
+  <div class="stick" data-draw="fig-outbox" data-explain="outbox,digest,approval-fatigue,run"></div>
+
+  <div class="recap">
+    <h3>In short</h3>
+    <ul>
+      <li>An always-on agent's runs end in a message, in nothing, or in an approval. The <a class="term" href="glossary.html#outbox">outbox</a> and its dispatcher decide what reaches the person, and when.</li>
+      <li>With a simple, stated model of attention, sending all 22 items a day led to 2 of 56 important things read in a month, and trust near zero.</li>
+      <li>A daily <a class="term" href="glossary.html#digest">digest</a> got 36 read, sending only what matters 43, and starting quiet then earning the digest 39, with trust near 1.</li>
+      <li>Every message divides the attention every other message gets. Staying silent is part of the job.</li>
+    </ul>
+  </div>
+
+  <h2>Check yourself</h2>
+  <details class="check"><summary>Why did sending everything lead to fewer important messages read than sending only those?</summary><p>Because each extra message lowered the chance that any message was read that day, and every routine message read lowered trust for the days after. The important ones drowned in the rest.</p></details>
+  <details class="check"><summary>A run finds nothing new. What should it send?</summary><p>Nothing. "Nothing to send" is one of the three ways a run ends, and for a background agent it should be the most common one.</p></details>
+  <details class="check"><summary>How would you find out, for your own agent, whether it sends too much?</summary><p>Record what happens to each message: opened, acted on, ignored, muted. Replay a fixed set of past situations after each change to the agent and compare how many messages it sends and how many are acted on.</p></details>
+  <details class="check"><summary>The model of attention here is made up. What, then, can the chapter claim?</summary><p>The direction: if attention per message falls as messages pile up, more messages bury the important ones. The sizes, 2 against 43, belong to this model and would change with another.</p></details>
+</main>
+
+<script src="assets/glossary.js"></script>
+<script src="assets/micro.js"></script>
+<script>
+M.ready(function () {
+  function paper(cv, H) { var dpr = window.devicePixelRatio || 1, W = Math.max(280, Math.round(cv.getBoundingClientRect().width || 340)); cv.width = W * dpr; cv.height = H * dpr; cv.style.height = H + 'px'; var g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); return [g, W]; }
+  var box = M.$('#w-outbox'), way = 'everything', routine = 20, presses = 0;
+  function month(rnd) {
+    var p = { trust: 0.6, sent: [], opened: [] }, imp = 0, rout = 0, sent = 0, digestOn = way === 'digest' || way === 'everything', trustDays = [];
+    function deliver(t, matters) {
+      var recent = p.sent.filter(function (s) { return t - s < 24; }).length, seen = rnd() < p.trust / (1 + recent / 6);
+      p.sent.push(t); p.opened.push(seen);
+      if (seen) p.trust = Math.min(1, Math.max(0.05, p.trust + (matters ? 0.04 : -0.03)));
+      return seen;
+    }
+    for (var d = 0; d < 28; d++) {
+      var items = [];
+      for (var i = 0; i < 2; i++) items.push([d * 24 + 8 + rnd() * 12, true]);
+      for (var i = 0; i < routine; i++) items.push([d * 24 + 8 + rnd() * 12, false]);
+      items.sort(function (a, b) { return a[0] - b[0]; });
+      var pending = 0;
+      items.forEach(function (it) {
+        if (it[1]) { imp += deliver(it[0], true); sent++; }
+        else if (way === 'everything') { rout += deliver(it[0], false); sent++; }
+        else if (digestOn) pending++;
+      });
+      if (pending && way !== 'everything') { rout += pending * deliver(d * 24 + 20, false); sent++; }
+      if (way === 'quiet') { var last = p.opened.slice(-10), r = last.filter(Boolean).length; if (last.length === 10 && r >= 8) digestOn = true; else if (last.length === 10 && r < 5) digestOn = false; }
+      trustDays.push(p.trust);
+    }
+    return { imp: imp, rout: rout, sent: sent, trust: trustDays };
+  }
+  var cv = M.el('canvas', { class: 'cv', style: 'width:100%;display:block', height: '140' }), stat = M.el('p', { class: 'readout' });
+  function go() {
+    var r = month(M.rng(5 + presses)), H = 140, gw = paper(cv, H), g = gw[0], W = gw[1];
+    g.clearRect(0, 0, W, H);
+    g.strokeStyle = M.css('--line'); g.beginPath(); g.moveTo(10, H - 20); g.lineTo(W - 10, H - 20); g.stroke();
+    g.strokeStyle = M.css('--fwd'); g.lineWidth = 2; g.beginPath();
+    r.trust.forEach(function (t, i) { var x = 10 + (W - 20) * i / 27, y = H - 20 - (H - 40) * t; if (i) g.lineTo(x, y); else g.moveTo(x, y); });
+    g.stroke(); g.lineWidth = 1;
+    g.fillStyle = M.css('--muted'); g.font = '12px ' + M.css('--sans'); g.fillText('trust, day by day, over four weeks', 10, 14);
+    stat.innerHTML = '<b>' + r.sent + '</b> messages sent · things that mattered read <b>' + r.imp + '</b> of 56 · other updates read <b>' + r.rout + '</b>';
+  }
+  var wS = M.select('Way', [['everything', 'Everything, as it happens'], ['digest', 'Digest: what matters now, the rest daily'], ['important', 'Only what matters'], ['quiet', 'Start quiet, add the digest when trusted']], function (v) { way = v; go(); });
+  var rS = M.slider({ label: 'Routine updates a day', min: 0, max: 50, step: 5, value: 20, fmt: function (v) { return v; }, oninput: function (v) { routine = v; go(); } });
+  box.appendChild(M.row(wS)); box.appendChild(M.row(rS)); box.appendChild(M.row(M.button('Another month', function () { presses++; go(); }, 'go')));
+  box.appendChild(cv); box.appendChild(stat);
+  box.appendChild(M.el('p', { class: 'caption', text: 'The model of attention of this chapter, simulated in your browser: read with probability trust / (1 + messages in the last 24 hours / 6); trust +0.04 when what was read mattered, -0.03 when it did not.' }));
+  window.addEventListener('resize', go);
+  go();
+});
+</script>
+</body>
+</html>

@@ -4,6 +4,20 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Waking itself up | microAI</title>
+<!-- [social] written by tools/build_site.py -->
+<meta name="description" content="Follow-ups and schedules, a scheduler that turns them into events, timers that survive a restart, and what to do with times missed in an outage.">
+<link rel="canonical" href="https://timothee-aubourg.github.io/microai/45-timers.html">
+<meta property="og:site_name" content="microAI">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Waking itself up · microAI">
+<meta property="og:description" content="Follow-ups and schedules, a scheduler that turns them into events, timers that survive a restart, and what to do with times missed in an outage.">
+<meta property="og:url" content="https://timothee-aubourg.github.io/microai/45-timers.html">
+<meta property="og:image" content="https://timothee-aubourg.github.io/microai/cards/45.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Waking itself up · microAI">
+<meta name="twitter:card" content="summary_large_image">
+<!-- [/social] -->
 <link rel="stylesheet" href="assets/style.css">
 </head>
 <body data-ch="45">
@@ -45,7 +59,26 @@
 
   <h2>A week of timers</h2>
   <p><code>code/ch45_timers.py</code> answers three questions, each with a week of simulated timers.</p>
-  <pre class="code" data-src="ch45_timers.py#scheduler">PLACEHOLDER</pre>
+  <pre class="code" data-src="ch45_timers.py#scheduler">def poll(timers, now, missed='once'):
+    """One look by the scheduler. Returns the events to write to the inbox, and updates the timers.
+    A follow-up fires once and is done. A schedule fires and moves to its next time in the future."""
+    events = []
+    for tm in timers:
+        if tm['done'] or tm['due'] &gt; now:
+            continue
+        if tm['every'] is None:                                  # a follow-up
+            events.append((tm['name'], tm['due']))
+            tm['done'] = True
+            continue
+        late = 0
+        while tm['due'] &lt;= now:                                  # a schedule: how many times was it due?
+            late += 1
+            if missed == 'all':
+                events.append((tm['name'], tm['due']))           # one event per missed time
+            tm['due'] += tm['every']
+        if missed == 'once':
+            events.append((tm['name'], now))                     # one event, whatever was missed
+    return events</pre>
 
   <h3>1. How often to look</h3>
   <div class="scroll"><table class="mini">
@@ -146,10 +179,11 @@ schedule    every hour at :30, first at 09:30</pre>
 <script src="assets/micro.js"></script>
 <script>
 M.ready(function () {
+  function paper(cv, H) { var dpr = window.devicePixelRatio || 1, W = Math.max(280, Math.round(cv.getBoundingClientRect().width || 340)); cv.width = W * dpr; cv.height = H * dpr; cv.style.height = H + 'px'; var g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); return [g, W]; }
   var box = M.$('#w-timers'), every = 15, outage = false, missed = 'all';
   var FROM = 8 * 60, TO = 13 * 60, DOWN = [9 * 60 + 40, 11 * 60 + 50];
   var follow = [8 * 60 + 7, 8 * 60 + 44, 9 * 60 + 12, 10 * 60 + 3, 10 * 60 + 58, 12 * 60 + 21];
-  var cv = M.el('canvas', { class: 'cv', height: '170' }), stat = M.el('p', { class: 'readout' });
+  var cv = M.el('canvas', { class: 'cv', style: 'width:100%;display:block', height: '170' }), stat = M.el('p', { class: 'readout' });
   function run() {
     var fired = [], hourly = [], due = 8 * 60 + 30;
     for (var t = FROM; t <= TO; t += every) {
@@ -163,7 +197,7 @@ M.ready(function () {
   }
   function x(t, W) { return 10 + (W - 20) * (t - FROM) / (TO - FROM); }
   function draw() {
-    var r = run(), g = M.canvas(cv), W = cv.clientWidth, H = 170;
+    var r = run(), H = 170, gw = paper(cv, H), g = gw[0], W = gw[1];
     g.clearRect(0, 0, W, H);
     g.font = '12px ' + M.css('--sans');
     if (outage) { g.fillStyle = M.css('--soft'); g.fillRect(x(DOWN[0], W), 8, x(DOWN[1], W) - x(DOWN[0], W), 140); g.fillStyle = M.css('--muted'); g.fillText('scheduler down', x(DOWN[0], W) + 4, 22); }

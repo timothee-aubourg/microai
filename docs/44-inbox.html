@@ -4,6 +4,20 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Asleep most of the time | microAI</title>
+<!-- [social] written by tools/build_site.py -->
+<meta name="description" content="An agent that sleeps until an event wakes it: direct calls lose and repeat events and overwrite memory; an inbox with one worker does not.">
+<link rel="canonical" href="https://timothee-aubourg.github.io/microai/44-inbox.html">
+<meta property="og:site_name" content="microAI">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Asleep most of the time · microAI">
+<meta property="og:description" content="An agent that sleeps until an event wakes it: direct calls lose and repeat events and overwrite memory; an inbox with one worker does not.">
+<meta property="og:url" content="https://timothee-aubourg.github.io/microai/44-inbox.html">
+<meta property="og:image" content="https://timothee-aubourg.github.io/microai/cards/44.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Asleep most of the time · microAI">
+<meta name="twitter:card" content="summary_large_image">
+<!-- [/social] -->
 <link rel="stylesheet" href="assets/style.css">
 </head>
 <body data-ch="44">
@@ -50,7 +64,40 @@
 
   <h2>A working day, three ways</h2>
   <p><code>code/ch44_inbox.py</code> simulates 20 working days of eight hours for one person. Each day brings 40 bursts of one to three messages from the person, half a minute apart at most, and 60 notifications from other services, of which 15% are sent a second time with the same id. One run in twenty crashes part-way. Every run reads the agent's memory when it starts and writes it back when it ends. Nothing here needs a model: a run's length stands for its model passes.</p>
-  <pre class="code" data-src="ch44_inbox.py#inbox">PLACEHOLDER</pre>
+  <pre class="code" data-src="ch44_inbox.py#inbox">def inbox(events, rng, batch, keep_runs=False):
+    """Events go into a table first (duplicates by id are dropped), and one worker reads the table.
+    A crashed run leaves its events in the table, and the next worker takes them again."""
+    table, order = {}, []                                        # id -&gt; {'at', 'status'}
+    handled, runs, waits = {}, [], []
+    arrivals = list(events)
+    t, i, worker_free = 0.0, 0, 0.0
+    while i &lt; len(arrivals) or any(e['status'] == 'pending' for e in table.values()):
+        while i &lt; len(arrivals) and arrivals[i][0] &lt;= max(t, worker_free):
+            at, eid, _ = arrivals[i]
+            if eid not in table:                                 # the same id twice: written once
+                table[eid] = {'at': at, 'status': 'pending'}
+                order.append(eid)
+            i += 1
+        pending = [e for e in order if table[e]['status'] == 'pending']
+        if not pending:
+            if i &gt;= len(arrivals):
+                break
+            t = arrivals[i][0]                                   # asleep until the next event
+            continue
+        t = max(t, worker_free)
+        take = pending if batch else pending[:1]                 # batched: every event that is waiting
+        length = START + PER_EVENT * len(take)
+        if rng.random() &lt; CRASH:                                 # crash: nothing is marked done
+            runs.append((t, t + length, False))
+            worker_free = t + rng.uniform(0, length) + RESTART
+            continue
+        for e in take:
+            table[e]['status'] = 'done'
+            handled[e] = handled.get(e, 0) + 1
+            waits.append(t + length - table[e]['at'])
+        runs.append((t, t + length, True))
+        worker_free = t + length
+    return runs if keep_runs else summary(events, handled, set(), runs, 1, 0, waits)</pre>
   <div class="scroll"><table class="mini">
     <tr><th>Way</th><th>Events lost</th><th>Handled twice</th><th>Runs</th><th>Most runs at once</th><th>Memory overwritten</th><th>Slowest wait</th></tr>
     <tr><td>Direct: every event starts a run</td><td class="mono">6.3</td><td class="mono">8.0</td><td class="mono">150</td><td class="mono">3.7</td><td class="mono">51.9</td><td class="mono">30 s</td></tr>
@@ -141,6 +188,7 @@
 <script src="assets/micro.js"></script>
 <script>
 M.ready(function () {
+  function paper(cv, H) { var dpr = window.devicePixelRatio || 1, W = Math.max(280, Math.round(cv.getBoundingClientRect().width || 340)); cv.width = W * dpr; cv.height = H * dpr; cv.style.height = H + 'px'; var g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); return [g, W]; }
   var box = M.$('#w-inbox'), way = 'direct', crash = 0.05, presses = 0;
   var DAY = 3 * 3600, START = 20, PER = 10;               /* three hours, to keep the picture readable */
   function events(rnd) {
@@ -174,9 +222,9 @@ M.ready(function () {
     }
     return { runs: runs, lost: 0, twice: 0 };
   }
-  var cv = M.el('canvas', { class: 'cv', height: '150' }), stat = M.el('p', { class: 'readout' });
+  var cv = M.el('canvas', { class: 'cv', style: 'width:100%;display:block', height: '150' }), stat = M.el('p', { class: 'readout' });
   function draw(r) {
-    var g = M.canvas(cv), W = cv.clientWidth, lanes = [], H = 150;
+    var H = 150, gw = paper(cv, H), g = gw[0], W = gw[1], lanes = [];
     g.clearRect(0, 0, W, H);
     r.runs.forEach(function (run) {
       var lane = 0; while (lanes[lane] !== undefined && lanes[lane] > run.s) lane++;

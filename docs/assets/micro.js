@@ -49,6 +49,11 @@
     ['41-workflows.html', 'A workflow or an agent?', 'route'],
     ['42-notes.html', 'Memory that lasts', 'remember'],
     ['43-asking.html', 'Asking first', 'ask'],
+    ['44-inbox.html', 'Asleep most of the time', 'wake'],
+    ['45-timers.html', 'Waking itself up', 'timer'],
+    ['46-runstart.html', 'What a run starts with', 'start'],
+    ['47-unattended.html', 'Nobody watching', 'permit'],
+    ['48-outbox.html', 'Earning attention', 'send'],
   ];
 
   /* One sentence per chapter: the contents page, link previews and share cards. */
@@ -95,7 +100,12 @@
     'A tool that fails one call in five: stop, retry quietly, or tell the model. A dead tool and a loop guard, and the writes a half-done job leaves behind.',
     'A parser, a one-pass workflow, an agent and a route on the same 300 requests: right answers, model passes and time.',
     'Notes kept between sessions, four ways: none, every note, the latest of each, the latest the question names. What goes stale, and what distracts.',
-    'When to stop and ask a person: the model\'s own confidence in a call, measured on 600 requests, and the mistakes it is sure of.'
+    'When to stop and ask a person: the model\'s own confidence in a call, measured on 600 requests, and the mistakes it is sure of.',
+    'An agent that sleeps until an event wakes it: direct calls lose and repeat events and overwrite memory; an inbox with one worker does not.',
+    'Follow-ups and schedules, a scheduler that turns them into events, timers that survive a restart, and what to do with times missed in an outage.',
+    'The fixed beginning every run reads, the cache that saves it, what memory should hold, and tidying the notes between runs.',
+    'Allow, block or hold each action when nobody is watching; keys kept outside the agent; held actions that do not block the worker.',
+    'What a background agent should send: everything, a digest, only what matters, or start quiet. A month of a simple, stated model of attention.'
   ];
 
   // ---------- DOM helpers ----------
@@ -1047,7 +1057,7 @@
     ['Part nine', 'shaping behaviour', 24, '#5c6b7a'], ['Part ten', 'faster, and for many', 26, '#9a5a7d'],
     ['Part eleven', 'models that help models', 28, '#6a7f3a'], ['Part twelve', 'inside current models', 30, '#7a6fae'],
     ['Part thirteen', 'the agent, further', 32, '#96806a'], ['Part fourteen', 'safe to release', 35, '#3f6b5c'],
-    ['Part fifteen', 'plugging things in', 37, '#7f8a8f'], ['Part sixteen', 'the agent at work', 39, '#c27c4e']
+    ['Part fifteen', 'plugging things in', 37, '#7f8a8f'], ['Part sixteen', 'the agent at work', 39, '#c27c4e'], ['Part seventeen', 'always on', 44, '#5e7f9a']
   ];
   /* ---------- the map: the course by what an agent is made of, not by the order of the chapters ----------
      Three layers: what the agent does, the model inside it, and what makes the model.
@@ -1076,9 +1086,12 @@
     { key: 'composition', name: 'Workflows and several agents', layer: 'agent', what: 'Fixed paths written in code, routing between them, and jobs split between a lead and helpers with their own contexts.',
       need: 'When you decide how much of the path the model chooses, or one context cannot hold the whole job.', ch: [41, 32, 34],
       gaps: ['A lead that is itself a model and plans the split'] },
+    { key: 'always', name: 'Always on', layer: 'agent', what: 'An agent that sleeps until an event or a timer wakes it, works unattended within set permissions, and sends only what is worth sending.',
+      need: 'When the agent should act without being asked: answer at night, follow up tomorrow, watch something for you.', ch: [44, 45, 46, 47, 48],
+      gaps: ['Several workers and many people: queues at scale', 'Judging what matters, learned instead of labelled'] },
     { key: 'safety', name: 'Safety', layer: 'agent', what: 'Text the agent reads can give it orders. Bound what it can do: gates, sandboxes, a guard model, attacks you run yourself.',
-      need: 'Before the agent reads anything you did not write, or can do anything you cannot undo.', ch: [17, 43, 28, 35],
-      gaps: ['Permissions at full size: scoped credentials, a sandbox per tool'] },
+      need: 'Before the agent reads anything you did not write, or can do anything you cannot undo.', ch: [17, 43, 47, 28, 35],
+      gaps: ['A sandbox per tool, and credentials scoped to one task'] },
     { key: 'evaluation', name: 'Evaluation', layer: 'agent', what: 'Traces to see what happened, fixed tests to know whether a change helped, and a gate before release.',
       need: 'Before you change anything you want to keep. Without a test, you are guessing.', ch: [14, 36],
       gaps: ['Cost and speed per task in production', 'Judging open-ended answers'] },
@@ -1096,7 +1109,7 @@
   /* Three ways through the course. The chapters stay as they are; a path is an order to read them in. */
   M.paths = [
     { key: 'build', name: 'Build an agent', who: 'You want a working agent and to know why it fails. The model stays a black box until you ask why.',
-      ch: [15, 11, 13, 37, 16, 38, 14, 39, 40, 41, 42, 25, 32, 17, 43, 28, 35, 36, 19] },
+      ch: [15, 11, 13, 37, 16, 38, 14, 39, 40, 41, 42, 25, 32, 17, 43, 28, 35, 36, 44, 45, 46, 47, 48, 19] },
     { key: 'understand', name: 'Understand the model', who: 'You want to know what happens between the text going in and the next token coming out, and how it learns.',
       ch: [1, 2, 3, 4, 5, 6, 7, 8, 21, 24, 20, 30, 31] },
     { key: 'run', name: 'Run it yourself', who: 'You want a model on your own machine, fast enough and small enough, and to know what limits it.',
@@ -1108,7 +1121,7 @@
   // [/site]
   /* Minutes to read each chapter, counted from the pages by tools/build_site.py. */
   // [minutes]
-  M.minutes = [15,12,12,12,12,11,10,10,10,9,11,9,12,13,11,10,11,10,11,10,9,15,14,14,10,9,9,11,8,8,7,8,8,7,10,13,13,8,11,9,8,8,9];
+  M.minutes = [17,15,14,14,15,13,11,12,12,10,13,11,15,15,14,12,14,12,13,13,11,17,16,15,13,12,12,13,10,11,9,11,10,10,13,15,15,10,15,13,10,11,11,9,7,9,9,7];
   // [/minutes]
   M.mins = (chs) => chs.reduce((s, c) => s + (M.minutes[c - 1] || 0), 0);
   M.readPath = function (key) {
@@ -1275,7 +1288,22 @@
           keep: 'Memory is notes the harness keeps and shows: replace old values, and show only what the question needs.' },
     43: { q: 'The agent asks you first whenever it is less than 99% sure of a call. Of 102 wrong calls, how many does that stop?', o: ['All 102.', 'About 90.', 'About 20.'], a: 1,
           why: '89, by asking about one call in four. The 13 it let through were misreadings it was sure of, such as "less" read as plus at 0.996.',
-          keep: 'Ask before an action for two reasons: it cannot be undone, or the model is unsure. Its doubt catches most mistakes, but not the ones it is sure of.' }
+          keep: 'Ask before an action for two reasons: it cannot be undone, or the model is unsure. Its doubt catches most mistakes, but not the ones it is sure of.' },
+    44: { q: 'Every event calls the agent directly, and a run sometimes crashes. Over a day of 150 events, what goes wrong?', o: ['Nothing: each event gets its own run.', 'Events are lost, some are handled twice, and runs overwrite each other.', 'Only the crashed runs need retrying.'], a: 1,
+          why: 'About 6 events a day were lost in crashed runs, 8 repeated notifications handled twice, and overlapping runs overwrote each other\'s memory 52 times. An inbox with one worker had none of these.',
+          keep: 'Write every event into an inbox first, drop repeats by id, and let one worker take them: a crash then delays an event instead of losing it.' },
+    45: { q: 'An agent keeps its follow-ups in the worker\'s memory, and the worker restarts twice a day. Of 227 follow-ups in a week, how many are lost?', o: ['None.', 'About a tenth.', 'More than half.'], a: 2,
+          why: '119 of 227: every restart threw away every timer not yet due. In a store of their own, none were lost.',
+          keep: 'A timer is a promise: keep it in a store that outlives the worker, and let a scheduler turn it into an event when it is due.' },
+    46: { q: 'Every run starts with the same 1,522 characters of system prompt and tools. How many times a day could a five-minute cache spare a busy agent from computing them?', o: ['Almost never.', 'About three runs in four.', 'Every run.'], a: 1,
+          why: '95 of 126 runs began within five minutes of the last. On a quiet day the cache would be cold every time.',
+          keep: 'Keep the fixed beginning short and first, store what must last in memory, tidy it between runs, and show each run only what it needs.' },
+    47: { q: 'A week of 1,400 actions. Hold sends and payments, block deletions, allow the rest. How often is the person asked?', o: ['About 20 times.', 'About 170 times.', 'All 1,400.'], a: 1,
+          why: 'About 171 times, and no mistake that cannot be undone ran. A checker on ordinary sends brought it down to 41.',
+          keep: 'Decide allow, block or hold by kind of action; keep keys where the agent cannot read them; and end a run instead of waiting for an answer.' },
+    48: { q: 'An agent sends all 22 of its daily updates as they happen. Over a month, how many of the 56 things that mattered get read?', o: ['Nearly all: nothing was held back.', 'About half.', 'Almost none.'], a: 2,
+          why: 'About 2. Volume divided attention and routine messages wore trust down. Sending only what matters got 43 read; a daily digest, 36.',
+          keep: 'Every message divides the attention every other message gets: send what matters, gather the rest, and start quiet.' }
   };
   function guesses(set) {
     let s = {};

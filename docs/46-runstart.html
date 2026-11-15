@@ -4,6 +4,20 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>What a run starts with | microAI</title>
+<!-- [social] written by tools/build_site.py -->
+<meta name="description" content="The fixed beginning every run reads, the cache that saves it, what memory should hold, and tidying the notes between runs.">
+<link rel="canonical" href="https://timothee-aubourg.github.io/microai/46-runstart.html">
+<meta property="og:site_name" content="microAI">
+<meta property="og:type" content="article">
+<meta property="og:title" content="What a run starts with · microAI">
+<meta property="og:description" content="The fixed beginning every run reads, the cache that saves it, what memory should hold, and tidying the notes between runs.">
+<meta property="og:url" content="https://timothee-aubourg.github.io/microai/46-runstart.html">
+<meta property="og:image" content="https://timothee-aubourg.github.io/microai/cards/46.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="What a run starts with · microAI">
+<meta name="twitter:card" content="summary_large_image">
+<!-- [/social] -->
 <link rel="stylesheet" href="assets/style.css">
 </head>
 <body data-ch="46">
@@ -45,7 +59,14 @@
 
   <h2>Measured: the beginning, and the cache</h2>
   <p><code>code/ch46_runstart.py</code> takes the runs of 20 simulated days from chapter 44, batched, and asks, for each run, whether the one before it ended less than five minutes earlier.</p>
-  <pre class="code" data-src="ch46_runstart.py#cache">PLACEHOLDER</pre>
+  <pre class="code" data-src="ch46_runstart.py#cache">def day_of_runs(seed):
+    """The start and end times of the runs of one day, from the batched inbox of chapter 44."""
+    events = ib.day_of_events(np.random.default_rng(seed))
+    return [(s, e) for s, e, ok in ib.inbox(events, np.random.default_rng(1000 + seed), batch=True, keep_runs=True)]
+
+def cache_hits(runs, ttl=TTL):
+    """A run finds the fixed beginning in the cache if the run before it ended less than `ttl` ago."""
+    return sum(1 for (s0, e0), (s1, e1) in zip(runs, runs[1:]) if s1 - e0 &lt; ttl)</pre>
   <div class="scroll"><table class="mini">
     <tr><th>Runs a day</th><th>Characters of fixed beginning read a day</th><th>Runs that start within 5 minutes of the last</th><th>Median sleep between runs</th></tr>
     <tr><td class="mono">126</td><td class="mono">191,392</td><td class="mono">95 (76%)</td><td class="mono">90 s</td></tr>
@@ -64,7 +85,16 @@
 
   <h2>Measured: tidying the notes between runs</h2>
   <p>Chapter 42 showed that a log of every note ever written, shown in full, confused the agent. Between runs, a tidy-up pass can rewrite the notes: keep only the latest value of each name, and drop names nobody used in the last 20 sessions. The test uses the people of chapter 42, over 80 sessions each, and the agent of chapter 39.</p>
-  <pre class="code" data-src="ch46_runstart.py#tidy">PLACEHOLDER</pre>
+  <pre class="code" data-src="ch46_runstart.py#tidy">def tidy(log, asked, now, unused=20):
+    """The tidy-up between runs: the latest value of each name, and only names asked about
+    in the last `unused` sessions (or stated in them)."""
+    latest, last_seen = {}, {}
+    for t, n, v in log:
+        latest[n] = v
+        last_seen[n] = max(last_seen.get(n, t), t)
+    for t, n in asked:
+        last_seen[n] = max(last_seen.get(n, t), t)
+    return [(n, v) for n, v in latest.items() if now - last_seen[n] &lt;= unused]</pre>
   <div class="scroll"><table class="mini">
     <tr><th>Names per person</th><th>Every note, of the questions</th><th>Tidied, all shown</th><th>Latest, only the note asked about</th></tr>
     <tr><td class="mono">4</td><td class="mono">62 / 384</td><td class="mono">80 / 384</td><td class="mono">377 / 384</td></tr>

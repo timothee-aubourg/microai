@@ -427,4 +427,12 @@ window.MICRO_GLOSSARY = {
     short: 'What every run starts with, whatever the event: the system prompt and the tool descriptions. Read again by every run, so it is worth keeping short and cached.' },
   'tidying': { term: 'Tidying memory (dreaming)', ch: 46,
     short: 'A pass between runs, while nobody waits, that rewrites the agent\'s notes: replacing values that changed, removing what is no longer used, writing down patterns seen across sessions.' },
+  'deferred-call': { term: 'Deferred call', ch: 47,
+    short: 'A held action that does not keep the run waiting: the run saves its session and ends, the person is asked, and their answer arrives later as an event that resumes the session.' },
+  'credential-proxy': { term: 'Credential proxy', ch: 47,
+    short: 'A program outside the agent that adds passwords and keys to the requests allowed to carry them. The key is never in the agent\'s context, so nothing it reads can make it repeat the key.' },
+  'outbox': { term: 'Outbox', ch: 48,
+    short: 'Where a run puts the messages it wants delivered. A dispatcher delivers them: now, later together with others, or not at all.' },
+  'digest': { term: 'Digest', ch: 48,
+    short: 'One message that gathers many small updates, sent at a fixed time instead of one by one.' },
 };
