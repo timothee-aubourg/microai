@@ -210,7 +210,7 @@
   <div class="recap">
     <h3>In short</h3>
     <ul>
-      <li><a class="term" href="glossary.html#attention">Attention</a> lets each token collect information from the tokens before it, chosen by content. Each token makes a query, a key and a value by multiplying its vector with three learned <a class="term" href="glossary.html#matrix">matrices</a>.</li>
+      <li><a class="term" href="glossary.html#attention">Attention</a> lets each token collect information from itself and the tokens before it, chosen by content. Each token makes a query, a key and a value by multiplying its vector with three learned <a class="term" href="glossary.html#matrix">matrices</a>.</li>
       <li>Query · key gives a score for every earlier token. The <a class="term" href="glossary.html#softmax">softmax</a> turns scores into shares that add up to 1. The token receives the values, averaged with those shares. By hand, scores of 2, 0 and 1 gave shares of 0.67, 0.09 and 0.24.</li>
       <li>Scores are divided by √<i>d</i>, or wide vectors would make the softmax pick one token and ignore the rest: 97% on one token at 1,024 dimensions without it, about 35% with it.</li>
       <li>The <a class="term" href="glossary.html#causal-mask">causal mask</a> gives later positions a share of 0, so every position predicts from what came before.</li>

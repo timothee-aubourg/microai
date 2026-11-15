@@ -139,7 +139,7 @@
 
   <h3>Output</h3>
   <p>Now jump to the far end of the model. Chapters 5 and 6 fill in the middle. All that matters here is what comes out of it: for the position being predicted, one final vector of 96 numbers, which is the model's summary of the text so far.</p>
-  <p>A vector is not a prediction. Chapter 1 asked for a probability for every possible next token, so the final vector must become 65 numbers, one per token. The model gets them with the dot product again: the score of a token is the dot product of the final vector with that token's row of the embedding table. A high score means the final vector points along that token's row.</p>
+  <p>A vector is not a prediction. Chapter 1 asked for a probability for every possible next token, so the final vector must become 65 numbers, one per token. The model gets them with the dot product again: the score of a token is the dot product of the final vector with that token's row of the embedding table. A high score means the final vector points along that token's row, and that the row is long: the dot product counts length as well as direction.</p>
   <p>By hand, with the small table: suppose the final vector is (1.0, 0.2).</p>
   <div class="scroll"><table class="mini">
     <tr><th>Token</th><th>Its row</th><th>Score: dot product with (1.0, 0.2)</th></tr>

@@ -99,8 +99,8 @@
   <p>Between steps 2,250 and 2,500 the held-out loss drops from 1.69 to 1.67, below the 1.68 of the best count table of chapter 1.</p>
 
   <h2>Reading the numbers</h2>
-  <p>The loss starts at 4.18, a hair above 4.17. That is log 65, the know-nothing score of chapter 1: the model starts with random numbers and spreads its bets evenly over all characters. It ends at <span id="finalval">1.5</span> on text it has never seen.</p>
-  <p>What does <span class="fv2">1.5</span> mean? The loss is an average of −log <i>p</i>. Undo the logarithm: e<sup>−<span class="fv2">1.5</span></sup> ≈ <span id="typp">22</span>%. So the model gives the correct next character a typical probability of about one in five, up from 1.5%, one in 65, at the start.</p>
+  <p>The loss starts at 4.18, a hair above 4.17. That is log 65, the know-nothing score of chapter 1: the model starts with random numbers and spreads its bets evenly over all characters. It ends at <span id="finalval">1.56</span> on text it has never seen.</p>
+  <p>What does <span class="fv2">1.56</span> mean? The loss is an average of −log <i>p</i>. Undo the logarithm: e<sup>−<span class="fv2">1.56</span></sup> ≈ <span id="typp">21</span>%. So the model gives the correct next character a typical probability of about one in five, up from 1.5%, one in 65, at the start.</p>
   <p>Compare with chapter 1. The best count table reached 1.68 on unseen text and got <em>worse</em> when given more context. This model <span id="beats">does better</span>, and it does so while reading 64 characters of context, a length at which a table would be hopeless. It has the same text. The difference is the one chapter 4 showed: it shares what it learns between similar contexts.</p>
   <p>The gap between the training line and the held-out dots tells you how much is memorisation. Here it stays small, because the model is small compared with a million characters of text: it has no room to memorise. Give a much larger model the same text and the dots would eventually turn upward while the line keeps falling. That turn is the overfitting of chapter 1, and the held-out loss exists to catch it.</p>
 

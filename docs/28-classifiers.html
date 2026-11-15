@@ -154,7 +154,7 @@ def train_probe(x, y, steps=2000, rate=0.5):
     <figcaption><b>A cascade.</b> The probe settles most requests for nothing. The classifier is paid for only where the probe is unsure.</figcaption>
   </figure>
 
-  <p>With the probe deciding below 0.2 and above 0.8, the classifier is asked for 58 of the 288 requests, one in five. The cascade catches 73 of 96 and blocks 27 of 192 by mistake: between the probe alone and the classifier alone, for a fifth of the classifier's cost.</p>
+  <p>With the probe deciding below 0.2 and above 0.8, the classifier is asked for 58 of the 288 requests, one in five. The cascade catches 73 of 96 and blocks 27 of 192 by mistake: between the probe alone and the classifier alone, for a fifth of the classifier's extra cost. The model's own reading of each request is paid either way.</p>
 
   <section class="yourturn" aria-label="Your turn, by hand">
     <h3>Your turn, by hand</h3>

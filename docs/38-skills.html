@@ -42,7 +42,7 @@
   <pre class="code" data-lang="text">T plus=at minus=hx times=sv mod=wu</pre>
   <p>The tools for <code>max, min</code> are gone. Nothing warns the agent or the user. And the cost is paid on every request, including the ones that need no tool at all. Now scale it:</p>
   <div class="scroll"><table class="mini">
-    <tr><th>Tools in the catalogue</th><th>Characters to list them all</th><th>Characters to list the one that is needed</th></tr>
+    <tr><th>Tools in the catalogue</th><th>Characters to list them all, without the <code>T</code></th><th>Characters to list the one that is needed</th></tr>
     <tr><td class="mono">6</td><td class="mono">47</td><td class="mono">8</td></tr>
     <tr><td class="mono">60</td><td class="mono">468</td><td class="mono">8</td></tr>
     <tr><td class="mono">600</td><td class="mono">4,680</td><td class="mono">8</td></tr>
@@ -104,6 +104,7 @@ def agent_asks(model, question):
     <tr><td>Harness picks</td><td class="mono">300</td><td class="mono">0</td><td class="mono">74</td><td class="mono">1</td></tr>
     <tr><td>Agent asks</td><td class="mono">300</td><td class="mono">0</td><td class="mono">125</td><td class="mono">2</td></tr>
   </table></div>
+  <p class="src">"Characters read" counts everything in the context at the end of each pass, including the line break the harness writes first.</p>
   <ul>
     <li><strong>Everything: 210 right, and the most to read in one pass.</strong> The 90 questions on max and min were answered <code>i have no tool</code>: 0 of 52 and 0 of 38 right. Both tools were in the catalogue, past the cut. And each question cost 95 characters, most of them a list it did not need.</li>
     <li><strong>Harness picks: 300 right with 74 characters.</strong> One entry in the list instead of four. It is the cheapest way, and it works here because the question contains the very word of the description.</li>

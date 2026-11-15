@@ -115,6 +115,7 @@
   </table></div>
   <p>One token every 0.202 seconds is at most 4.9 tokens per second. The smaller part of the model, the part in RAM, takes more than seven times as long as the larger part on the card. With all 40 GB in RAM the ceiling would be 2.2. With a 24 GB model entirely on the card it would be 42.</p>
   <div class="eq">tokens per second &le; 1 / (GB in the first memory / its speed + GB in the second / its speed + &hellip;)</div>
+  <p>This counts the weights only. Each new token also reads the whole KV cache, which grows with the conversation (see below), so with a long context the real ceiling is lower still.</p>
 
   <section class="bench" id="w-fit">
     <h3>Where does it go, and how fast is that?</h3>
