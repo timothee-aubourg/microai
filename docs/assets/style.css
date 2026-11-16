@@ -247,7 +247,6 @@ figure.fig figcaption b { color: var(--ink); }
 .fig .ln-dash { stroke: var(--muted); stroke-width: 1.2; stroke-dasharray: 4 4; fill: none; }
 .fig .bar-prob { fill: var(--prob-fill); }
 .fig .bar-fwd { fill: var(--fwd); }
-.fig .bar-grad { fill: var(--grad); }
 .fig text { fill: var(--ink); font-size: 14px; }
 .fig .t-mono { font-family: var(--mono); }
 .fig .t-muted { fill: var(--muted); }
@@ -256,6 +255,11 @@ figure.fig figcaption b { color: var(--ink); }
 .fig .t-fwd { fill: var(--fwd); }
 .fig .t-prob { fill: var(--prob); }
 .fig .t-grad { fill: var(--grad); }
+/* two curves of the same kind are told apart by pigment, never by the three meaning colours */
+.fig .ln-pig2 { stroke: var(--pig2); stroke-width: 2; fill: none; }
+.fig .ln-pig4 { stroke: var(--pig4); stroke-width: 2; fill: none; }
+.fig .bar-pig2, .fig .t-pig2 { fill: var(--pig2); }
+.fig .bar-pig4, .fig .t-pig4 { fill: var(--pig4); }
 .fig .t-bold { font-weight: 700; }
 .fig .arrowhead { fill: var(--muted); }
 .fig .arrowhead-fwd { fill: var(--fwd); }
