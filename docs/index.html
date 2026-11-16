@@ -52,6 +52,13 @@
 
   <h2>All chapters</h2>
   <p>The chapters are numbered in the order they build on each other: the model first, then the system around it, then what full-size models add. When a chapter leans on an earlier one, it names it, so you can also start in the middle. The <a href="map.html">map</a> groups them by what they are for.</p>
+  <div class="search" role="search" id="search">
+    <label for="q">Search the course</label>
+    <input type="text" id="q" inputmode="search" enterkeyhint="search" placeholder="a chapter, a section or a term" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <p class="readout" id="q-count" aria-live="polite"></p>
+    <ol class="hits" id="hits"></ol>
+  </div>
+  <p class="readout" id="progress"></p>
   <p class="readout" id="guess-score"></p>
   <p id="offline"></p>
 
@@ -110,17 +117,76 @@ python code/ch08_sample.py --prompt "ROMEO:"</pre>
 <script src="assets/micro.js"></script>
 <script>
 M.ready(function () {
+  var seen = {}, at = {}, last = 0, hand = M.byHand();
+  try { seen = JSON.parse(localStorage.getItem('microai.seen') || '{}') || {}; at = JSON.parse(localStorage.getItem('microai.at') || '{}') || {}; last = +localStorage.getItem('microai.last') || 0; } catch (e) { seen = {}; }
   M.chapters.forEach(function (c, i) {
     var list = M.$(i < 6 ? '#toc1' : i < 9 ? '#toc2' : i < 12 ? '#toc3' : i < 14 ? '#toc4' : i < 17 ? '#toc5' : i < 19 ? '#toc6' : i < 21 ? '#toc7' : i < 23 ? '#toc8' : i < 25 ? '#toc9' : i < 27 ? '#toc10' : i < 29 ? '#toc11' : i < 31 ? '#toc12' : i < 34 ? '#toc13' : i < 36 ? '#toc14' : i < 38 ? '#toc15' : i < 43 ? '#toc16' : i < 48 ? '#toc17' : '#toc18');
-    list.appendChild(M.el('li', null, M.el('a', { href: c[0] }, M.el('b', { text: c[1] }), M.el('span', { text: M.blurbs[i] }), M.el('span', { class: 'min', text: (M.minutes[i] || '?') + ' min' }))));
+    list.appendChild(M.el('li', null, M.el('a', { href: c[0] }, M.el('b', { text: c[1] }), M.el('span', { text: M.blurbs[i] }),
+      M.el('span', { class: 'min', text: (M.minutes[i] || '?') + ' min' + (hand[i + 1] === 1 ? ' · done by hand' : seen[i + 1] ? ' · opened' : '') }))));
   });
+  var opened = Object.keys(seen).length;                         // where this reader is, kept in this browser only
+  if (opened) M.$('#progress').textContent = 'You have opened ' + opened + ' of ' + M.chapters.length + ' chapters.';
   var start = M.$('#start'), mine = M.readPath();               // the three paths of the map, as ways in
+  if (last && M.chapters[last - 1]) {                            // a returning reader goes back to where they stopped
+    var L = M.chapters[last - 1], P = M.paths.filter(function (p) { return p.key === mine; })[0], i = P ? P.ch.indexOf(last) : -1;
+    var after = P && i >= 0 ? P.ch[i + 1] : last + 1, N = M.chapters[after - 1];
+    start.querySelector('.first').classList.remove('first');
+    start.insertBefore(M.el('a', { class: 'first', href: L[0] + (at[last] ? '#' + at[last] : '') },
+      M.el('b', { text: 'Continue: ' + last + '. ' + L[1] }), M.el('span', { text: 'Where you stopped' + (N ? ' · next: ' + after + '. ' + N[1] : '') })), start.firstChild);
+  }
   M.paths.forEach(function (P) {
     var first = M.chapters[P.ch[0] - 1], min = M.mins(P.ch);
     start.appendChild(M.el('a', { href: mine === P.key ? 'map.html#paths' : first[0], onclick: function () { if (mine !== P.key) M.readPath(P.key); } },
       M.el('b', { text: P.name + (mine === P.key ? ' · your path' : '') }),
       M.el('span', { text: P.ch.length + ' chapters · about ' + Math.round(min / 60 * 2) / 2 + ' h · starts with ' + P.ch[0] + '. ' + first[1] })));
   });
+
+  /* ---- search: chapter titles and blurbs, section headings, glossary terms. The two lists it needs are fetched on first use. ---- */
+  (function () {
+    var q = M.$('#q'), hits = M.$('#hits'), count = M.$('#q-count'), items = null, loading = false, MAX = 12;
+    function load(then) {
+      if (items) return then();
+      if (loading) return;
+      loading = true;
+      var left = 2, done = function () { if (--left) return; build(); then(); };
+      ['assets/search.js', 'assets/glossary.js'].forEach(function (src) {
+        var s = document.createElement('script'); s.src = src; s.onload = done; s.onerror = done; document.head.appendChild(s);
+      });
+    }
+    function build() {
+      items = [];
+      M.chapters.forEach(function (c, i) { items.push({ t: (i + 1) + '. ' + c[1], sub: M.blurbs[i], href: c[0], text: (c[1] + ' ' + M.blurbs[i]).toLowerCase(), rank: 0 }); });
+      (window.MICRO_SEARCH || []).forEach(function (s) {
+        var c = M.chapters[s[0] - 1];
+        if (c) items.push({ t: s[1], sub: 'Section of chapter ' + s[0] + ': ' + c[1], href: c[0] + '#' + (s[2] || M.slug(s[1])), text: s[1].toLowerCase(), rank: 1 });
+      });
+      var G = window.MICRO_GLOSSARY || {};
+      Object.keys(G).forEach(function (k) {
+        var g = G[k];
+        items.push({ t: g.term, sub: 'Term · ' + g.short, href: 'glossary.html#' + k, text: (g.term + ' ' + g.short).toLowerCase(), head: g.term.toLowerCase(), rank: 2 });
+      });
+    }
+    function run() {
+      var words = q.value.toLowerCase().split(/\s+/).filter(Boolean);
+      hits.textContent = ''; count.textContent = '';
+      if (!words.length || !items) return;
+      var found = items.filter(function (it) { return words.every(function (w) { return it.text.indexOf(w) >= 0; }); });
+      var score = function (it) {                              // a name that starts with the words typed comes first, then names that hold them
+        var h = (it.head || it.t.toLowerCase()).replace(/^\d+\. /, '');
+        return h.indexOf(words.join(' ')) === 0 ? -5 + it.rank : (words.every(function (w) { return h.indexOf(w) >= 0; }) ? 0 : 10) + it.rank;
+      };
+      found.sort(function (a, b) { return score(a) - score(b); });
+      found.slice(0, MAX).forEach(function (it) {
+        hits.appendChild(M.el('li', null, M.el('a', { href: it.href }, M.el('b', { text: it.t }), M.el('span', { text: it.sub.length > 110 ? it.sub.slice(0, 108) + '…' : it.sub }))));
+      });
+      count.textContent = found.length ? found.length + (found.length === 1 ? ' result' : ' results') + (found.length > MAX ? ', the first ' + MAX + ' shown. Add a word to narrow it.' : '') : 'Nothing found. Try one word, or look in the glossary.';
+    }
+    q.addEventListener('focus', function () { load(run); });
+    q.addEventListener('input', function () { load(run); });
+    document.addEventListener('keydown', function (e) { if (e.key === '/' && document.activeElement !== q && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) { e.preventDefault(); q.focus(); } });
+    var jump = function () { if (location.hash === '#search') { q.scrollIntoView({ block: 'center' }); q.focus(); } };
+    window.addEventListener('hashchange', jump); jump();
+  })();
 
   var m = M.loadModel(), hero = M.$('#hero'), stat = M.$('#herostat'), timer = 0, seed = 7;
   var fallback = (window.MICRO_DATA && MICRO_DATA.log.samples.slice(-1)[0][1]) || '';

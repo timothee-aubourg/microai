@@ -26,6 +26,11 @@
   <p class="where">Reference</p>
   <h1>Glossary</h1>
   <p>Every technical term in the course, in plain words, with the chapter that introduces it. In the chapters, terms with a dotted underline show their definition when you point at them, and link here.</p>
+  <div class="search" role="search">
+    <label for="q">Filter the terms</label>
+    <input type="text" id="q" inputmode="search" placeholder="a word, such as cache or token" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <p class="readout" id="q-count" aria-live="polite"></p>
+  </div>
   <dl class="gloss" id="gloss"></dl>
   <noscript><p>The glossary is built from <code>assets/glossary.js</code> and needs JavaScript.</p></noscript>
 </main>
@@ -42,6 +47,19 @@ M.ready(function () {
     if (ch) dd.appendChild(M.el('a', { class: 'ch', href: ch[0], text: 'Chapter ' + g.ch + ': ' + ch[1] }));
     dl.appendChild(dd);
   });
+  var q = M.$('#q'), count = M.$('#q-count'), terms = Array.prototype.slice.call(dl.querySelectorAll('dt'));
+  function filter() {                                            // keep the terms whose name or definition holds every word typed
+    var words = q.value.toLowerCase().split(/\s+/).filter(Boolean), kept = 0;
+    terms.forEach(function (dt) {
+      var dd = dt.nextElementSibling, text = (dt.textContent + ' ' + dd.textContent).toLowerCase();
+      var hide = !words.every(function (w) { return text.indexOf(w) >= 0; });
+      dt.classList.toggle('hide', hide); dd.classList.toggle('hide', hide);
+      if (!hide) kept++;
+    });
+    count.textContent = words.length ? kept + ' of ' + terms.length + ' terms' : terms.length + ' terms';
+  }
+  q.addEventListener('input', filter);
+  filter();
   if (location.hash) { var t = document.getElementById(location.hash.slice(1)); if (t) t.scrollIntoView(); }
 });
 </script>

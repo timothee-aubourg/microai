@@ -8,7 +8,7 @@ the region of code/gpt.py between `# [snippet:attention]` and `# [/snippet]`.
 The pages therefore always show the code that actually runs. Re-run after
 editing any file in code/.
 """
-import glob, html, os, re, sys, textwrap
+import glob, html, os, re, sys, textwrap, json
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
 
@@ -59,6 +59,23 @@ if out == src and 'M.minutes = [' not in src:
 with open(js, 'w', encoding='utf-8') as f:
     f.write(out)
 print(f'counted reading time for {len(minutes)} chapters, {sum(minutes)} minutes in all')
+
+
+# The section headings of every chapter, for the search box of the contents page. The glossary and the
+# chapter titles are searched from the files that already hold them; only the headings need collecting.
+SKIP = {'Build it', 'Check yourself', 'Do it'}
+sections = []
+for n, page in enumerate(chapters, 1):
+    with open(page, encoding='utf-8') as f:
+        body = f.read()
+    for attrs, inner in re.findall(r'<h2([^>]*)>(.*?)</h2>', body, flags=re.S):
+        text = html.unescape(re.sub(r'<[^>]+>', '', inner)).strip()
+        if text and text not in SKIP:
+            given = re.search(r'id="([^"]+)"', attrs)
+            sections.append([n, text] + ([given.group(1)] if given else []))
+with open(os.path.join(ROOT, 'docs', 'assets', 'search.js'), 'w', encoding='utf-8') as f:
+    f.write('// written by tools/build_site.py: [chapter, heading] for every section\nwindow.MICRO_SEARCH = ' + json.dumps(sections, ensure_ascii=False, separators=(',', ':')) + ';\n')
+print(f'indexed {len(sections)} section headings for search')
 
 
 # ---------- link previews: what X, Mastodon or a chat app shows when a page is shared ----------

@@ -724,7 +724,7 @@
     });
     const bar = M.el('div', { class: 'progress', 'aria-hidden': 'true' }, M.el('i'));
     const top = M.el('header', { class: 'top' }, M.el('div', { class: 'top-in' }, M.el('a', { class: 'brand', href: 'index.html', html: 'micro<span>AI</span>' }), trail,
-      M.el('a', { class: 'gl', href: 'map.html', text: 'Map' }), M.el('a', { class: 'gl', href: 'glossary.html', text: 'Glossary' }), themeButton()));
+      M.el('a', { class: 'gl find', href: 'index.html#search', text: 'Search' }), M.el('a', { class: 'gl', href: 'map.html', text: 'Map' }), M.el('a', { class: 'gl', href: 'glossary.html', text: 'Glossary' }), themeButton()));
     document.body.insertBefore(top, document.body.firstChild);
     if (ch) {                                          // how far down the chapter the reader is
       top.appendChild(bar);
@@ -753,7 +753,7 @@
           where.parentNode.insertBefore(on, where.nextSibling);
         }
       }
-      try { const seen = JSON.parse(localStorage.getItem('microai.seen') || '{}'); if (!Object.keys(seen).length) welcome(ch, main); seen[ch] = 1; localStorage.setItem('microai.seen', JSON.stringify(seen)); } catch (e) { /* no storage */ }
+      try { const seen = JSON.parse(localStorage.getItem('microai.seen') || '{}'); if (!Object.keys(seen).length) welcome(ch, main); seen[ch] = 1; localStorage.setItem('microai.seen', JSON.stringify(seen)); localStorage.setItem('microai.last', String(ch)); } catch (e) { /* no storage */ }
       const prev = M.chapters[ch - 2], next = M.chapters[ch];
       const pager = M.el('nav', { class: 'pager', 'aria-label': 'Previous and next chapter' });
       pager.appendChild(prev ? M.el('a', { href: prev[0], html: '<small>Previous</small>' + prev[1] }) : M.el('a', { href: 'index.html', html: '<small>Back to</small>Contents' }));
