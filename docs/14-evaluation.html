@@ -143,6 +143,62 @@
     </details>
   </section>
 
+  <h2>The same task, several times</h2>
+  <p>Every count so far gave each task one run. A model that samples its answer (chapter 8) can pass a task now and fail it a minute later, so one run of a task is one draw from many. For an agent this matters more than for a single answer, because an agent draws at every step.</p>
+  <div class="def"><span class="kind">Definitions</span>
+    <p>A <dfn>trial</dfn> is one attempt at one task. Running each task <i>k</i> times gives <i>k</i> trials per task.</p>
+    <p><dfn>pass@k</dfn>, read "pass at <i>k</i>", is the share of tasks on which at least one of the <i>k</i> trials passes. <dfn>pass^k</dfn>, read "pass to the <i>k</i>", is the share of tasks on which every one of the <i>k</i> trials passes.</p>
+  </div>
+  <h3>By hand: three trials at 75%</h3>
+  <p>Suppose a trial passes with probability 0.75, and trials do not depend on each other. All three pass with probability 0.75 × 0.75 × 0.75 = 0.42. All three fail with probability 0.25 × 0.25 × 0.25 = 0.016, so at least one passes with probability 1 − 0.016 = 0.98. The same agent on the same task is a 98% agent or a 42% agent. It depends on which of the two you count.</p>
+  <div class="eq">pass^<i>k</i> = <i>p</i><sup><i>k</i></sup> &nbsp;&nbsp;&nbsp; pass@<i>k</i> = 1 &minus; (1 &minus; <i>p</i>)<sup><i>k</i></sup></div>
+  <p>where <i>p</i> is the chance that one trial passes. Both formulas assume every task has the same <i>p</i>, which real tasks do not, so the next table is measured and not computed.</p>
+  <h3>Measured: 300 sums, ten trials each</h3>
+  <p>The model is the one chapter 24 starts from. It was trained on conversations as they were found, and on a sum it calls the calculator about half the time and makes up a number the other half. The script ran 300 sums ten times each: 3,000 trials, of which 1,461 passed, 48.7%.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Trials per task</th><th>At least one passes</th><th>Every one passes</th></tr>
+    <tr><td class="mono">1</td><td class="mono">43.0%</td><td class="mono">43.0%</td></tr>
+    <tr><td class="mono">2</td><td class="mono">73.3%</td><td class="mono">18.7%</td></tr>
+    <tr><td class="mono">3</td><td class="mono">86.3%</td><td class="mono">10.3%</td></tr>
+    <tr><td class="mono">5</td><td class="mono">96.0%</td><td class="mono">3.3%</td></tr>
+    <tr><td class="mono">10</td><td class="mono">100.0%</td><td class="mono">0.0%</td></tr>
+  </table></div>
+  <p class="src">Measured by <code>code/ch14_trials.py</code>. With one trial the two columns are the same number.</p>
+  <figure class="fig" id="fig-trials">
+    <svg viewBox="0 0 760 262" role="img" aria-labelledby="f14t">
+      <title id="f14t">A chart of 300 tasks, each run up to ten times. Both curves start at 43 percent for one trial. The share of tasks with at least one pass rises to 86 percent at three trials and 100 percent at nine. The share of tasks where every trial passes falls to 10 percent at three trials and to zero at seven.</title>
+      <line x1="70" y1="210" x2="720" y2="210" class="ln-dash"/><text x="62" y="214" text-anchor="end" class="t-small t-muted">0%</text><line x1="70" y1="120" x2="720" y2="120" class="ln-dash"/><text x="62" y="124" text-anchor="end" class="t-small t-muted">50%</text><line x1="70" y1="30" x2="720" y2="30" class="ln-dash"/><text x="62" y="34" text-anchor="end" class="t-small t-muted">100%</text>
+      <polyline points="70,132.6 142,78.0 214,54.6 287,43.2 359,37.2 431,34.2 503,31.2 576,31.2 648,30.0 720,30.0" class="ln-pig2"/><polyline points="70,132.6 142,176.4 214,191.4 287,200.4 359,204.0 431,207.6 503,210.0 576,210.0 648,210.0 720,210.0" class="ln-pig4"/>
+      <circle cx="70" cy="132.6" r="3.5" class="bar-pig2"/><circle cx="70" cy="132.6" r="3.5" class="bar-pig4"/><circle cx="142" cy="78.0" r="3.5" class="bar-pig2"/><circle cx="142" cy="176.4" r="3.5" class="bar-pig4"/><circle cx="214" cy="54.6" r="3.5" class="bar-pig2"/><circle cx="214" cy="191.4" r="3.5" class="bar-pig4"/><circle cx="287" cy="43.2" r="3.5" class="bar-pig2"/><circle cx="287" cy="200.4" r="3.5" class="bar-pig4"/><circle cx="359" cy="37.2" r="3.5" class="bar-pig2"/><circle cx="359" cy="204.0" r="3.5" class="bar-pig4"/><circle cx="431" cy="34.2" r="3.5" class="bar-pig2"/><circle cx="431" cy="207.6" r="3.5" class="bar-pig4"/><circle cx="503" cy="31.2" r="3.5" class="bar-pig2"/><circle cx="503" cy="210.0" r="3.5" class="bar-pig4"/><circle cx="576" cy="31.2" r="3.5" class="bar-pig2"/><circle cx="576" cy="210.0" r="3.5" class="bar-pig4"/><circle cx="648" cy="30.0" r="3.5" class="bar-pig2"/><circle cx="648" cy="210.0" r="3.5" class="bar-pig4"/><circle cx="720" cy="30.0" r="3.5" class="bar-pig2"/><circle cx="720" cy="210.0" r="3.5" class="bar-pig4"/>
+      <text x="70" y="230" text-anchor="middle" class="t-small t-muted">1</text><text x="142" y="230" text-anchor="middle" class="t-small t-muted">2</text><text x="214" y="230" text-anchor="middle" class="t-small t-muted">3</text><text x="287" y="230" text-anchor="middle" class="t-small t-muted">4</text><text x="359" y="230" text-anchor="middle" class="t-small t-muted">5</text><text x="431" y="230" text-anchor="middle" class="t-small t-muted">6</text><text x="503" y="230" text-anchor="middle" class="t-small t-muted">7</text><text x="576" y="230" text-anchor="middle" class="t-small t-muted">8</text><text x="648" y="230" text-anchor="middle" class="t-small t-muted">9</text><text x="720" y="230" text-anchor="middle" class="t-small t-muted">10</text>
+      <text x="395" y="252" text-anchor="middle" class="t-small t-muted">trials per task</text>
+      <text x="297" y="65" class="t-small t-pig2">at least one trial passes</text>
+      <text x="297" y="188" class="t-small t-pig4">every trial passes</text>
+      <text x="80" y="137" class="t-small">one trial: 43%</text>
+    </svg>
+    <figcaption><b>One agent, two opposite scores.</b> Measured on 300 sums, ten trials each, with a model that passes a trial about half the time.</figcaption>
+  </figure>
+  <p>Three things to read from it. First, the first run alone scored 129 of 300, 43.0%, while all ten runs together give 48.7%. That is 5.7 points apart, twice the standard error of 2.9 points that the formula above gives for 300 runs: one run per task is one sample, as the last section said. Second, the two curves leave in opposite directions at once. With five trials, at least one passes on 96.0% of the tasks and all five pass on 3.3%. Third, no task was safe: none of the 300 passed ten times of ten, and none failed ten times of ten. The tasks sorted by number of passes, from none to ten, count 0, 5, 13, 32, 70, 79, 56, 37, 8, 0, 0.</p>
+
+  <section class="bench" id="w-trials">
+    <h3>Which of the two numbers is yours?</h3>
+    <p class="try"><b>Try this.</b> Set the chance that one trial passes to 75% and the number of trials to 3, and check the two results against the by-hand sum. Then set the chance to 95%, which sounds like a finished agent, and raise the trials to 10. Last, find the chance a trial needs for all ten trials to pass nine times in ten.</p>
+  </section>
+
+  <p><strong>What you should have seen.</strong> At 75% and three trials: at least one passes 98.4% of the time, all three 42.2%. At 95% and ten trials, at least one passes practically always, and all ten pass 59.9% of the time: an agent that is right 19 times in 20 fails a person who uses it ten times, at least once, in four cases out of ten. For all ten to pass nine times in ten, one trial has to pass 99% of the time (90.4%).</p>
+  <p>Which number to report depends on what happens after a failure. If a failure costs only another try, because a test can tell a good result from a bad one, count "at least one": chapter 25 builds exactly that, a verifier that asks again. If the person receives whatever comes out, count "every one": that is what someone who uses the agent every morning lives with. A score that does not say which of the two it is cannot be compared with another score.</p>
+
+  <h3>Three kinds of grader, two kinds of evaluation</h3>
+  <p>The grader of this chapter is code. Two other kinds exist, and each chapter that grades something uses one of the three.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Grader</th><th>Good at</th><th>Weak at</th><th>In this course</th></tr>
+    <tr><td>Code</td><td>Fast, free, the same verdict every time</td><td>Fails a right answer worded another way</td><td>This chapter, and nearly every count in the course</td></tr>
+    <tr><td>A model</td><td>Answers with no single right form</td><td>Costs a model call, and makes its own mistakes</td><td>Chapter 28 trains one and measures its misses</td></tr>
+    <tr><td>A person</td><td>The reference the other two are checked against</td><td>Slow and costly</td><td>Chapter 24: the rankings a reward is learned from</td></tr>
+  </table></div>
+  <p>An evaluation also has one of two jobs. A <dfn>capability evaluation</dfn> asks what the agent can do. It should start with a low score, so there is room to see progress. A <dfn>regression evaluation</dfn> asks whether the agent still does what it did last week. It should sit near 100%, so that any drop is news. A task moves from the first list to the second on the day the agent starts passing it reliably.</p>
+  <p class="src">The names pass@k and pass^k, the three kinds of grader and the two kinds of evaluation follow Anthropic's guide "Demystifying evals for AI agents" (January 2026). That guide calls the trace a transcript, and the state things are left in at the end the outcome.</p>
+
   <h2>The working loop</h2>
   <p>Put together, this is how an agent gets better.</p>
   <ol>
@@ -353,6 +409,17 @@ M.ready(function () {
 
   // ---------- widget 2: how much does a score wobble ----------
   (function () {
+    (function () {                                                // the same task, k times
+      var box = M.$('#w-trials'), out = M.el('div'), note = M.el('p', { class: 'readout' });
+      var p = M.slider({ label: 'Chance that one trial passes', min: 5, max: 99, step: 1, value: 75, fmt: function (v) { return v + '%'; }, oninput: draw });
+      var k = M.slider({ label: 'Trials per task', min: 1, max: 10, step: 1, value: 3, oninput: draw });
+      function draw() {
+        var q = p.value / 100, all = Math.pow(q, k.value), any = 1 - Math.pow(1 - q, k.value);
+        M.bars(out, [{ label: 'at least one passes', p: any, text: (100 * any).toFixed(1) + '%', hl: true }, { label: 'every one passes', p: all, text: (100 * all).toFixed(1) + '%' }], 1);
+        note.textContent = k.value === 1 ? 'With one trial the two are the same number.' : 'Out of 10 people who each use it ' + k.value + ' times, about ' + Math.round(10 * (1 - all)) + (Math.round(10 * (1 - all)) === 1 ? ' sees' : ' see') + ' at least one failure.';
+      }
+      box.appendChild(M.row(p, k)); box.appendChild(out); box.appendChild(note); draw();
+    })();
     var box = M.$('#w-noise'), R = 400, stat = M.el('p', { class: 'readout' }), hA = [], hB = [], bins = 1;
     var n = M.slider({ label: 'Tasks per evaluation', min: 5, max: 400, step: 5, value: 20, oninput: sim });
     var pa = M.slider({ label: 'True pass rate of A', min: 30, max: 90, step: 5, value: 70, fmt: function (v) { return v + '%'; }, oninput: sim });

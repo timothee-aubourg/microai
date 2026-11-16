@@ -117,10 +117,10 @@ and the guarded `prefers-color-scheme` block.
   "What this chapter glossed over", definition, recap, guess and line to keep,
   so a page never draws one itself. A new kind of recurring piece gets one new
   entry in `ICONS`: a `dab(...)` plus one `ink(...)` path on a 48 by 48 grid.
-- **Each part has a sign.** The seventeen parts are listed in `M.parts` with a
+- **Each part has a sign.** The eighteen parts are listed in `M.parts` with a
   pigment each. A part's sign is its pigment as the dab and a gesture derived
   from its name, shown in the contents and at the top of each of its chapters.
-  The seventeen pigments are used for nothing else, and none is close to the three
+  The eighteen pigments are used for nothing else, and none is close to the three
   meaning colours.
 - **Four more pigments say "which one".** `--pig1` to `--pig4` tell apart
   several things of the same kind in one experiment, such as the four experts
@@ -147,6 +147,13 @@ and the guarded `prefers-color-scheme` block.
 - **A figure opens to fill the screen.** On a phone every `<figure class="fig">`
   gets an "Enlarge" button, and a wide diagram is turned on its side. Draw
   figures on the usual 760-wide grid and they need nothing else.
+- **Readers find things by your headings.** `tools/build_site.py` collects the
+  `<h2>` of every chapter into `docs/assets/search.js`. The search box of the
+  contents page looks through those headings, the chapter titles and one-line
+  summaries in `M.chapters` and `M.blurbs`, and the glossary. So a heading
+  should say what its section is about, and a new term needs its glossary
+  entry to be found. The contents page also shows a returning reader where
+  they stopped. All of that is kept in the reader's browser and nowhere else.
 - **The site stays plain files.** No framework and no build step for the
   pages: a page must open from a folder with no server. A manifest and a small
   worker (`docs/manifest.webmanifest`, `docs/sw.js`) let a phone install the

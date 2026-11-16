@@ -2,7 +2,7 @@
 
 **Build and understand a local language model, and the agent around it, from first principles.**
 
-An interactive course in forty-eight chapters, in seventeen parts. Each chapter starts
+An interactive course in fifty chapters, in eighteen parts. Each chapter starts
 from a question and a ten-second guess, gives you an experiment to play with in
 the browser, shows the few lines of code that implement the idea, and ends with
 one line to keep. One small GPT, trained from scratch with numpy, runs through
@@ -33,7 +33,9 @@ on jobs of several steps: a plan or one step at a time, failures and how to
 recover from them, when a fixed workflow beats an agent, memory that lasts
 between sessions, and when to stop and ask a person. Chapters 44 to 48 make it
 an always-on agent: an event inbox, timers, what each run starts with,
-permissions when nobody is watching, and what to send the person.
+permissions when nobody is watching, and what to send the person. Chapters 49
+and 50 steer a finished model without changing a weight: by what its prompt
+says or shows, and by reading and changing the numbers inside it.
 
 Every chapter also asks the reader to rebuild its mechanism: recall the last
 chapter, predict then work an exercise out on paper, redraw the key figure
@@ -136,6 +138,8 @@ branch `main`, folder `/docs`, and save. The course appears at
 | 46 | What a run starts with | What goes into each run's context, what does it cost a hundred times a day, and what keeps memory from rotting? |
 | 47 | Nobody watching | Which actions should run, which should wait for you, and where should your passwords be? |
 | 48 | Earning attention | Everything it did, or almost nothing: which way do you read the message that matters? |
+| 49 | Telling it or showing it | You can tell a model what to do or show it examples. Which works, when, and what does each cost? |
+| 50 | Looking inside | Where, among the numbers a model computes, is a choice made, and can you change it without changing a weight? |
 
 ## Run the code
 
@@ -267,6 +271,15 @@ python code/ch47_unattended.py         # seconds: allow, block or hold; waiting 
 python code/ch48_outbox.py             # seconds: four ways to send, with a stated model of attention
 ```
 
+Chapters 49 and 50 steer a finished model without changing a weight, and one
+script adds repeated trials to chapter 14:
+
+```bash
+python code/ch49_prompt.py             # ~25 min: one model, told a code by name or shown it by examples
+python code/ch50_inside.py             # ~2 min: swap and push the activations of the chapter 19 agent
+python code/ch14_trials.py             # ~1 min: 300 tasks, ten trials each, counted two ways
+```
+
 `ch15_harness.py` runs real shell commands when used with a real model. Use a
 folder you can afford to lose and read chapter 17 first.
 
@@ -290,6 +303,7 @@ code/
   ch13_constrain.py         constrained decoding: a format as a mask on the scores
   ch14_trace.py             spans and traces around the agent loop
   ch14_eval.py              tasks, graders, pass rate and standard error
+  ch14_trials.py            the same tasks ten times each: at least one pass, every one passes
   ch15_harness.py           a coding harness: read, write, edit, bash, and the loop
   ch16_context.py           prefix cache, trimming and compaction
   ch17_guard.py             prompt-injection runs and a permission gate
@@ -326,6 +340,8 @@ code/
   ch46_runstart.py          the fixed beginning of every run, its cache, and tidying the notes
   ch47_unattended.py        allow, block or hold by kind of action; deferred calls
   ch48_outbox.py            what a background agent sends, under a stated model of attention
+  ch49_prompt.py            one model steered by a name or by examples in its prompt
+  ch50_inside.py            reading, swapping and steering the activations of an agent
   mock_server.py            fake model server for testing without a model
 data/
   shakespeare.txt           training text (public domain, 1.1 MB)
@@ -479,6 +495,13 @@ own runs; after retraining or re-measuring those, update the tables in the pages
   events, crash rates, mistakes, and in chapter 48 a model of attention that
   the page states in full. The pages say which results follow from the
   mechanism and which depend on the choices.
+- `ch49_prompt.py` uses letter codes over eight letters, chosen so that both
+  ways of asking can be graded exactly. What it shows about names and examples
+  is the mechanism. The sizes of the effects belong to this model and its
+  training mix, and the page says which behaviours were never trained.
+- `ch50_inside.py` studies one choice, the tool, in one model of 108,032
+  weights. Its three results about full-size models are published ones and are
+  labelled as such.
 - The harness and injection runs of chapters 15 and 17 use a scripted model in
   `mock_server.py`; the pages say so. The GPU figures in chapter 18 are published
   specifications, not measurements.
@@ -517,6 +540,8 @@ self-training, and chapter 34 assembles the system a second time. Chapters
 to 43 cover jobs of several steps: planning, recovery, workflows, memory between
 sessions and asking a person first. Chapters 44 to 48 cover agents that run
 unattended: events, timers, what a run starts with, permissions and messages.
+Chapters 49 and 50 cover the prompt as a means of steering, by name or by
+example, and what can be read and changed inside a model while it runs.
 
 Not covered yet, in rough order of how much an agent builder would miss them:
 
@@ -543,6 +568,12 @@ Not covered yet, in rough order of how much an agent builder would miss them:
 - images beyond the 15-pixel digits of chapter 31, sound, and models that
   produce pictures; the benchmarking of models themselves
 - learning that continues during use, beyond the rounds of chapter 33
+- prompts tuned by a program instead of by hand, and a full-size system prompt
+  taken apart line by line; chapter 49 measures names against examples on a
+  small model
+- a dictionary of features learned from a model's activations (sparse
+  autoencoders), and graders that are themselves models judging open-ended
+  answers; chapter 50 stops at swaps and directions
 
 ## Further study
 
@@ -553,6 +584,13 @@ Not covered yet, in rough order of how much an agent builder would miss them:
 - Claude Code tools reference: <https://code.claude.com/docs/en/tools-reference>
 - KV cache reuse in llama.cpp's server: <https://github.com/ggml-org/llama.cpp/discussions/13606>
 - Qwen documentation on its chat template and tool-call format: <https://qwen.readthedocs.io/en/latest/getting_started/concepts.html>
+- Anthropic, *Building effective agents* (workflows and agents, the names used in chapter 41): <https://www.anthropic.com/engineering/building-effective-agents>
+- Anthropic, *Writing effective tools for agents* (chapter 37): <https://www.anthropic.com/engineering/writing-tools-for-agents>
+- Anthropic, *Demystifying evals for AI agents* (trials, pass@k and pass^k, chapter 14): <https://www.anthropic.com/research/demystifying-evals-for-ai-agents>
+- Anthropic prompting guide, on examples in a prompt (chapter 49): <https://docs.claude.com/en/docs/build-with-claude/prompt-engineering/multishot-prompting>
+- OpenAI, *A practical guide to building agents* (the manager pattern and handoffs, chapter 32): <https://cdn.openai.com/business-guides-and-resources/a-practical-guide-to-building-agents.pdf>
+- Hermes Agent, an open-source always-on agent with memory, skills and a scheduler (chapters 42 to 48): <https://hermes-agent.nousresearch.com/docs>
+- Gemma 4 prompt formatting, with its system turn (chapter 10): <https://ai.google.dev/gemma/docs/core/prompt-formatting-gemma4>
 
 ## References
 
@@ -560,6 +598,8 @@ Not covered yet, in rough order of how much an agent builder would miss them:
 - Hu et al., *LoRA: Low-Rank Adaptation of Large Language Models*, 2021: <https://arxiv.org/abs/2106.09685>
 - llama.cpp (GGUF, quantization formats and their bits per weight): <https://github.com/ggml-org/llama.cpp>
 - Ollama, OpenAI-compatible API: <https://docs.ollama.com/api/openai-compatibility>
+- *Refusal in Language Models Is Mediated by a Single Direction*, 2024 (chapter 50): <https://arxiv.org/abs/2406.11717>
+- Anthropic, *Mapping the Mind of a Large Language Model*, 2024 (features, chapter 50): <https://www.anthropic.com/research/mapping-mind-language-model>
 - Training text: the "tiny Shakespeare" file from <https://github.com/karpathy/char-rnn>
 
 Facts about tools and file formats were checked in November 2026. Model names

@@ -11,7 +11,8 @@ Optional inputs, each copied to docs/assets/ when present: runs/evals.json
 runs/guard.json (ch17_guard.py --save), runs/agent.npz (ch19_system.py --train),
 runs/moe.json (ch20_moe.py --train), runs/think_*.npz (ch21_think.py --train),
 runs/tiny.bin (ch23_tiny.py --train), and runs/post_*.npz with runs/posttrain.json
-(ch24_posttrain.py --train).
+(ch24_posttrain.py --train). Also runs/prompt.npz (ch49_prompt.py) and runs/inside.json
+(ch50_inside.py).
 """
 import base64, json, os, sys
 import numpy as np
@@ -94,7 +95,8 @@ if os.path.exists(evals_path):
         f.write('window.MICRO_EVALS = ' + json.dumps(evals) + ';\n')
 
 # ---- recorded sessions for chapters 15 and 17 ------------------------------------------
-for name, var in [('harness', 'MICRO_HARNESS'), ('guard', 'MICRO_GUARD'), ('moe', 'MICRO_MOE'), ('selftrain', 'MICRO_SELF'), ('release', 'MICRO_RELEASE')]:
+for name, var in [('harness', 'MICRO_HARNESS'), ('guard', 'MICRO_GUARD'), ('moe', 'MICRO_MOE'), ('selftrain', 'MICRO_SELF'), ('release', 'MICRO_RELEASE'),
+                  ('inside', 'MICRO_INSIDE')]:
     src = os.path.join(ROOT, 'runs', name + '.json')
     if os.path.exists(src):
         with open(src) as f:
@@ -188,6 +190,12 @@ work = os.path.join(ROOT, 'runs', 'work.npz')
 if os.path.exists(work):
     with open(os.path.join(ROOT, 'docs', 'assets', 'work.js'), 'w') as f:
         f.write('window.MICRO_WORK = ' + json.dumps(pack(work)) + ';\n')
+
+# ---- chapter 49: the model that can be told a code by name or shown it by examples ----
+told = os.path.join(ROOT, 'runs', 'prompt.npz')
+if os.path.exists(told):
+    with open(os.path.join(ROOT, 'docs', 'assets', 'prompt.js'), 'w') as f:
+        f.write('window.MICRO_PROMPT = ' + json.dumps(pack(told)) + ';\n')
 
 # ---- chapter 43: the 600 requests, the call the agent wanted and how sure it was ----
 ask = os.path.join(ROOT, 'runs', 'ask.json')

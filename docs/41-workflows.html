@@ -166,11 +166,23 @@ def route(run, q):
   <h2>At full size</h2>
   <ul>
     <li><strong>Start with the simplest thing that works.</strong> Builders of large agents give the same advice: a single model call with good context first, then a fixed workflow, and an agent only when the steps cannot be written down in advance.</li>
-    <li><strong>The common workflows have names.</strong> A chain of model calls, each one working on the output of the last. Routing to specialised paths. Running independent parts in parallel and joining the results (chapter 32). A model that writes and a second one that checks, in a loop with a fixed number of rounds (chapter 25).</li>
+    <li><strong>The common workflows have names,</strong> listed below with the chapter that measures each one.</li>
     <li><strong>The costs scale.</strong> A large model pass costs money and seconds where ours cost a few milliseconds. An agent that takes 20 passes for a job that one workflow pass could do is 20 times slower and dearer.</li>
     <li><strong>Agents earn their cost on open tasks.</strong> Fixing a bug, researching a question, working through a website: the number of steps is unknown and each step depends on what the last one found. There the loop is the only thing that works.</li>
     <li><strong>A router is usually a classifier.</strong> At full size the first stop is rarely a hand-written parser. It is a small model or a cheap call that labels the request, like the guard of chapter 28.</li>
   </ul>
+  <h3>The names you will meet</h3>
+  <p>Guides to building agents use a small set of names for the fixed paths. The table gives each name, what it is, and where this course measures it.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Name</th><th>What it is</th><th>Here</th></tr>
+    <tr><td>Prompt chaining</td><td>A fixed series of model calls. Each works on the output of the one before, and code may check the result between two calls.</td><td>The plan of chapter 39, run step by step</td></tr>
+    <tr><td>Routing</td><td>Label the request first, then send it down the path made for that label.</td><td>This chapter</td></tr>
+    <tr><td>Parallelization</td><td>Several calls at once: either different parts of one job, or the same job several times with a vote.</td><td>Parts: chapter 32. Votes: chapter 25</td></tr>
+    <tr><td>Orchestrator and workers</td><td>A lead splits a job that cannot be split in advance, hands the parts out and combines the results.</td><td>Chapter 32, where the lead is plain code</td></tr>
+    <tr><td>Evaluator and optimizer</td><td>One call writes, another judges, and the first tries again with the verdict, for a fixed number of rounds.</td><td>The verifier of chapter 25, the retries of chapter 40</td></tr>
+    <tr><td>Agent</td><td>The model chooses each step from the result of the last, in a loop.</td><td>Chapters 11, 15 and 19</td></tr>
+  </table></div>
+  <p class="src">The first five names are those of Anthropic's guide "Building effective agents" (December 2024), which calls all five workflows and keeps the word agent for the last row.</p>
 
   <h2>Build it</h2>
   <pre class="code" data-lang="text">python code/ch41_workflow.py   # 300 requests, four ways, about 1 minute; needs  python code/ch39_plan.py --train</pre>

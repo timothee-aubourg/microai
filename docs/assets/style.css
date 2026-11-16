@@ -255,6 +255,11 @@ figure.fig figcaption b { color: var(--ink); }
 .fig .t-fwd { fill: var(--fwd); }
 .fig .t-prob { fill: var(--prob); }
 .fig .t-grad { fill: var(--grad); }
+/* two curves of the same kind are told apart by pigment, never by the three meaning colours */
+.fig .ln-pig2 { stroke: var(--pig2); stroke-width: 2; fill: none; }
+.fig .ln-pig4 { stroke: var(--pig4); stroke-width: 2; fill: none; }
+.fig .bar-pig2, .fig .t-pig2 { fill: var(--pig2); }
+.fig .bar-pig4, .fig .t-pig4 { fill: var(--pig4); }
 .fig .t-bold { font-weight: 700; }
 .fig .arrowhead { fill: var(--muted); }
 .fig .arrowhead-fwd { fill: var(--fwd); }
@@ -282,6 +287,8 @@ table.mini .mono { font-family: var(--mono); }
 .gloss dt:target { color: var(--prob); }
 .top .gl { font-family: var(--sans); font-size: 13px; font-weight: 600; color: var(--muted); text-decoration: none; white-space: nowrap; }
 .top .gl:hover { color: var(--fwd); }
+.top .gl.find { display: none; }                 /* on a phone the bar is full: search is one tap away, on the contents page */
+@media (min-width: 640px) { .top .gl.find { display: inline; } }
 /* on phones, keep diagram labels readable: scroll the figure sideways instead of shrinking it */
 @media (max-width: 640px) {
   figure.fig { overflow-x: auto; -webkit-overflow-scrolling: touch; }
@@ -568,3 +575,23 @@ canvas.pad { width: 100%; height: auto; aspect-ratio: 680 / 520; background: var
 .stick-fig { overflow-x: auto; }
 @media (max-width: 640px) { .stick-fig svg { min-width: 640px; } }
 .actout .need { font-family: var(--sans); font-size: 13.5px; color: var(--muted); margin: 0 0 10px; }
+
+/* chapter 50: one small cell per place and stage */
+.cellgrid { display: grid; grid-template-columns: repeat(26, minmax(0, 1fr)); gap: 2px; margin: 10px 0 12px; max-width: 640px; }
+.cellgrid span { min-width: 0; }
+.cellgrid .hd { font-family: var(--mono); font-size: 10px; line-height: 1.4; text-align: center; color: var(--muted); overflow: hidden; }
+.cellgrid .c { height: 18px; border: 1px solid var(--line); border-radius: 2px; background: var(--panel); }
+.cellgrid .c.on { background: var(--fwd); border-color: var(--fwd); }
+.cellgrid .c.sel { outline: 2px solid var(--ink); outline-offset: 1px; }
+
+/* the contents page: search box and its results; the glossary filter uses the same box */
+.search { margin: 18px auto 10px; font-family: var(--sans); }
+.search label { display: block; font-weight: 700; font-size: 14px; margin-bottom: 6px; }
+.search input { font: 16px var(--sans); min-height: 44px; }
+.search .readout { margin: 8px 0 0; min-height: 1.2em; }
+.hits { list-style: none; padding: 0; margin: 4px 0 0; }
+.hits li { border-top: 1px solid var(--line); margin: 0; }
+.hits a { display: block; padding: 10px 0; text-decoration: none; color: var(--ink); min-height: 44px; line-height: 1.4; }
+.hits b { display: block; font-size: 16.5px; }
+.hits span { display: block; color: var(--muted); font-size: 14px; }
+.gloss .hide { display: none; }

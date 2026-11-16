@@ -54,6 +54,8 @@
     ['46-runstart.html', 'What a run starts with', 'start'],
     ['47-unattended.html', 'Nobody watching', 'permit'],
     ['48-outbox.html', 'Earning attention', 'send'],
+    ['49-prompting.html', 'Telling it or showing it', 'prompt'],
+    ['50-inside.html', 'Looking inside', 'inside'],
   ];
 
   /* One sentence per chapter: the contents page, link previews and share cards. */
@@ -105,7 +107,9 @@
     'Follow-ups and schedules, a scheduler that turns them into events, timers that survive a restart, and what to do with times missed in an outage.',
     'The fixed beginning every run reads, the cache that saves it, what memory should hold, and tidying the notes between runs.',
     'Allow, block or hold each action when nobody is watching; keys kept outside the agent; held actions that do not block the worker.',
-    'What a background agent should send: everything, a digest, only what matters, or start quiet. A month of a simple, stated model of attention.'
+    'What a background agent should send: everything, a digest, only what matters, or start quiet. A month of a simple, stated model of attention.',
+    'An instruction names what a model learned in training; an example shows what has no name. One small model steered both ways, and what each way cannot do.',
+    'Where a tool gets chosen among the numbers a model computes: swap one activation, test what the swap suggests, then push the choice along a direction.'
   ];
 
   // ---------- DOM helpers ----------
@@ -445,7 +449,7 @@
   };
   /* One token at a time with a KV cache, as in code/ch08_sample.py: the keys and
      values of earlier tokens are stored, so a new token costs one row of work. */
-  M.session = function (m, weights) {
+  M.session = function (m, weights, edit) {   // edit(stage, place, x): read or change an activation in place (chapter 50)
     const w = weights || m.w, c = m.cfg, d = c.d_model, H = c.n_head, hd = d / H, L = c.n_layer, B = c.block, rs = 1 / Math.sqrt(hd);
     const K = [], Vc = [];
     for (let l = 0; l < L; l++) { K.push(new Float32Array(B * d)); Vc.push(new Float32Array(B * d)); }
@@ -453,6 +457,7 @@
     function feed(id, extra) {              // extra: a vector added to this token's embedding (an image patch, chapter 31)
       const x = new Float32Array(d);
       for (let i = 0; i < d; i++) x[i] = w.wte[id * d + i] + w.wpe[pos * d + i] + (extra ? extra[i] : 0);
+      if (edit) edit(0, pos, x);            // stage 0: what goes into the first block
       for (let l = 0; l < L; l++) {
         const p = 'h' + l + '.';
         const a = layernorm(x, 1, d, w[p + 'ln1.g'], w[p + 'ln1.b']);
@@ -472,6 +477,7 @@
         for (let i = 0; i < hid.length; i++) { const u = hid[i]; hid[i] = 0.5 * u * (1 + Math.tanh(0.7978845608028654 * (u + 0.044715 * u * u * u))); }
         const mo = matmul(hid, 1, w[p + 'mlp.w1'].length / d, w[p + 'mlp.w2'], d);
         for (let i = 0; i < d; i++) x[i] += mo[i];
+        if (edit) edit(l + 1, pos, x);      // stage l + 1: what comes out of block l
       }
       pos++;
       return M.unembed(m, x, 1, w);
@@ -488,8 +494,8 @@
     };
   };
   /* a text being written: feed the prompt, then add one token at a time */
-  M.writer = function (m, prompt, weights) {
-    const s = M.session(m, weights), ids = M.encode(m, prompt);
+  M.writer = function (m, prompt, weights, edit) {
+    const s = M.session(m, weights, edit), ids = M.encode(m, prompt);
     if (!ids.length) ids.push(m.stoi['\n']);
     let lg = null;
     ids.forEach((id) => { lg = s.push(id); });
@@ -667,7 +673,7 @@
         }).catch(() => '');
         const found = (text, re, base) => { const out = []; let m; while ((m = re.exec(text))) out.push(base + m[1]); return out; };
         return Promise.all(pages.map(keep)).then((texts) => {          // the pages name the files they need
-          const files = new Set(['manifest.webmanifest', 'assets/icon-192.png', 'assets/icon-512.png']);
+          const files = new Set(['manifest.webmanifest', 'assets/icon-192.png', 'assets/icon-512.png', 'assets/search.js']);   // search.js is loaded on first use, so no page names it
           texts.forEach((t) => found(t, /(?:src|href)="(assets\/[^"]+)"/g, '').forEach((u) => files.add(u)));
           return Promise.all(Array.from(files).map(keep)).then(() => keep('assets/style.css'));
         }).then((css) => Promise.all(found(css, /url\(["']?(fonts\/[^"')]+)["']?\)/g, 'assets/').map(keep)));
@@ -718,7 +724,7 @@
     });
     const bar = M.el('div', { class: 'progress', 'aria-hidden': 'true' }, M.el('i'));
     const top = M.el('header', { class: 'top' }, M.el('div', { class: 'top-in' }, M.el('a', { class: 'brand', href: 'index.html', html: 'micro<span>AI</span>' }), trail,
-      M.el('a', { class: 'gl', href: 'map.html', text: 'Map' }), M.el('a', { class: 'gl', href: 'glossary.html', text: 'Glossary' }), themeButton()));
+      M.el('a', { class: 'gl find', href: 'index.html#search', text: 'Search' }), M.el('a', { class: 'gl', href: 'map.html', text: 'Map' }), M.el('a', { class: 'gl', href: 'glossary.html', text: 'Glossary' }), themeButton()));
     document.body.insertBefore(top, document.body.firstChild);
     if (ch) {                                          // how far down the chapter the reader is
       top.appendChild(bar);
@@ -747,7 +753,7 @@
           where.parentNode.insertBefore(on, where.nextSibling);
         }
       }
-      try { const seen = JSON.parse(localStorage.getItem('microai.seen') || '{}'); if (!Object.keys(seen).length) welcome(ch, main); seen[ch] = 1; localStorage.setItem('microai.seen', JSON.stringify(seen)); } catch (e) { /* no storage */ }
+      try { const seen = JSON.parse(localStorage.getItem('microai.seen') || '{}'); if (!Object.keys(seen).length) welcome(ch, main); seen[ch] = 1; localStorage.setItem('microai.seen', JSON.stringify(seen)); localStorage.setItem('microai.last', String(ch)); } catch (e) { /* no storage */ }
       const prev = M.chapters[ch - 2], next = M.chapters[ch];
       const pager = M.el('nav', { class: 'pager', 'aria-label': 'Previous and next chapter' });
       pager.appendChild(prev ? M.el('a', { href: prev[0], html: '<small>Previous</small>' + prev[1] }) : M.el('a', { href: 'index.html', html: '<small>Back to</small>Contents' }));
@@ -1057,7 +1063,8 @@
     ['Part nine', 'shaping behaviour', 24, '#5c6b7a'], ['Part ten', 'faster, and for many', 26, '#9a5a7d'],
     ['Part eleven', 'models that help models', 28, '#6a7f3a'], ['Part twelve', 'inside current models', 30, '#7a6fae'],
     ['Part thirteen', 'the agent, further', 32, '#96806a'], ['Part fourteen', 'safe to release', 35, '#3f6b5c'],
-    ['Part fifteen', 'plugging things in', 37, '#7f8a8f'], ['Part sixteen', 'the agent at work', 39, '#c27c4e'], ['Part seventeen', 'always on', 44, '#5e7f9a']
+    ['Part fifteen', 'plugging things in', 37, '#7f8a8f'], ['Part sixteen', 'the agent at work', 39, '#c27c4e'], ['Part seventeen', 'always on', 44, '#5e7f9a'],
+    ['Part eighteen', 'without changing a weight', 49, '#4b97b8']
   ];
   /* ---------- the map: the course by what an agent is made of, not by the order of the chapters ----------
      Three layers: what the agent does, the model inside it, and what makes the model.
@@ -1073,10 +1080,10 @@
       need: 'Always. This is what turns a text predictor into an agent.', ch: [15, 11, 19, 34], gaps: [] },
     { key: 'tools', name: 'Tools', layer: 'agent', what: 'The actions the model may ask for, described as text, and the format its requests must take.',
       need: 'When the agent has to act on something: files, a calculator, an API.', ch: [11, 13, 37, 38],
-      gaps: ['Designing tool descriptions and error messages for a model to read', 'Using a browser or a screen'] },
+      gaps: ['Measuring how the wording of a description or an error changes what an agent calls', 'Using a browser or a screen'] },
     { key: 'context', name: 'Context', layer: 'agent', what: 'Everything the model can see at one step. It is a budget: every token in it costs room and time at every step.',
-      need: 'As soon as tasks take more than a few steps, or the window fills up.', ch: [16, 38, 32],
-      gaps: ['Writing the system prompt as a piece of design'] },
+      need: 'As soon as tasks take more than a few steps, or the window fills up.', ch: [16, 49, 38, 32],
+      gaps: ['Prompts tuned by a program instead of by hand', 'A full-size system prompt, taken apart line by line'] },
     { key: 'knowledge', name: 'Retrieval and memory', layer: 'agent', what: 'Knowledge kept outside the window and brought in when needed: search over documents, notes the agent keeps.',
       need: 'When the agent must know facts the model was not trained on, or remember across sessions.', ch: [11, 42, 16],
       gaps: ['Notes written by the model itself (here the harness writes them)', 'Embedding search at scale'] },
@@ -1096,8 +1103,8 @@
       need: 'Before you change anything you want to keep. Without a test, you are guessing.', ch: [14, 36],
       gaps: ['Cost and speed per task in production', 'Judging open-ended answers'] },
     { key: 'model', name: 'Inside the model', layer: 'model', what: 'Tokens, vectors, attention and the stack of blocks that turns the text so far into the next token.',
-      need: 'When you want to know why the agent behaves as it does, or to choose and read a model.', ch: [1, 2, 4, 5, 6, 8, 20, 30, 31],
-      gaps: ['Other architectures (state-space models)', 'Models that write by denoising'] },
+      need: 'When you want to know why the agent behaves as it does, or to choose and read a model.', ch: [1, 2, 4, 5, 6, 8, 20, 30, 31, 50],
+      gaps: ['Other architectures (state-space models)', 'Models that write by denoising', 'Dictionaries of features (sparse autoencoders)'] },
     { key: 'learning', name: 'Training and shaping', layer: 'making', what: 'Gradients and the training loop, then fine-tuning, rewards, distillation and learning from its own answers.',
       need: 'When prompting is not enough and you want to change the model itself.', ch: [3, 7, 12, 24, 29, 33],
       gaps: ['Reward models trained on human rankings', 'Data collection and cleaning, scaling laws'] },
@@ -1109,9 +1116,9 @@
   /* Three ways through the course. The chapters stay as they are; a path is an order to read them in. */
   M.paths = [
     { key: 'build', name: 'Build an agent', who: 'You want a working agent and to know why it fails. The model stays a black box until you ask why.',
-      ch: [15, 11, 13, 37, 16, 38, 14, 39, 40, 41, 42, 25, 32, 17, 43, 28, 35, 36, 44, 45, 46, 47, 48, 19] },
+      ch: [15, 11, 13, 37, 16, 49, 38, 14, 39, 40, 41, 42, 25, 32, 17, 43, 28, 35, 36, 44, 45, 46, 47, 48, 19] },
     { key: 'understand', name: 'Understand the model', who: 'You want to know what happens between the text going in and the next token coming out, and how it learns.',
-      ch: [1, 2, 3, 4, 5, 6, 7, 8, 21, 24, 20, 30, 31] },
+      ch: [1, 2, 3, 4, 5, 6, 7, 8, 21, 24, 20, 30, 31, 50] },
     { key: 'run', name: 'Run it yourself', who: 'You want a model on your own machine, fast enough and small enough, and to know what limits it.',
       ch: [10, 9, 18, 22, 23, 26, 27, 12, 29] }
   ];
@@ -1121,7 +1128,7 @@
   // [/site]
   /* Minutes to read each chapter, counted from the pages by tools/build_site.py. */
   // [minutes]
-  M.minutes = [17,15,14,14,15,13,11,12,12,10,13,11,15,15,14,12,14,12,13,13,11,17,16,15,13,12,12,13,10,11,9,11,10,10,13,15,15,10,15,13,10,11,11,9,7,9,9,7];
+  M.minutes = [17,15,14,14,15,13,11,12,12,10,13,11,15,20,14,12,14,12,13,13,11,17,16,15,13,12,12,13,10,11,9,11,10,10,13,15,16,10,15,13,11,11,11,10,7,9,9,7,19,24];
   // [/minutes]
   M.mins = (chs) => chs.reduce((s, c) => s + (M.minutes[c - 1] || 0), 0);
   M.readPath = function (key) {
@@ -1303,7 +1310,13 @@
           keep: 'Decide allow, block or hold by kind of action; keep keys where the agent cannot read them; and end a run instead of waiting for an answer.' },
     48: { q: 'An agent sends all 22 of its daily updates as they happen. Over a month, how many of the 56 things that mattered get read?', o: ['Nearly all: nothing was held back.', 'About half.', 'Almost none.'], a: 2,
           why: 'About 2. Volume divided attention and routine messages wore trust down. Sending only what matters got 43 read; a daily digest, 36.',
-          keep: 'Every message divides the attention every other message gets: send what matters, gather the rest, and start quiet.' }
+          keep: 'Every message divides the attention every other message gets: send what matters, gather the rest, and start quiet.' },
+    49: { q: 'A model knows seven letter codes by name. You show it three pairs of a code it has never seen, and ask for a letter that is in one of the pairs. How often is it right?', o: ['About 1 time in 8: it can only guess.', 'About half the time.', 'Every time.'], a: 2,
+          why: '300 of 300. It finds the pair and copies its second letter. No weight changed: the code was in the prompt. For a letter that no pair showed, it could only rule out the letters taken and guess.',
+          keep: 'A name calls up what training taught. An example can carry something new, and it covers only the cases it shows.' },
+    50: { q: 'An experiment inside an agent shows that one letter of "times", the m, is what makes it multiply and not subtract. Now ask it "what is 12 tides 30?", with a d in place of the m. Which tool does it call?', o: ['sub: the letter that mattered is gone.', 'mul, as before.', 'None: it does not know the word.'], a: 1,
+          why: 'mul, 100 times of 100. The experiment compared "times" with "minus" and found which of their differences matters. It never showed that the model reads one letter: of the 19 other letters put in that place, 11 keep mul.',
+          keep: 'An experiment inside a model answers the question it asked, about the inputs it compared. Turn it into a prediction on new inputs before you call it an explanation.' }
   };
   function guesses(set) {
     let s = {};

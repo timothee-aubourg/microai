@@ -8,7 +8,7 @@ the region of code/gpt.py between `# [snippet:attention]` and `# [/snippet]`.
 The pages therefore always show the code that actually runs. Re-run after
 editing any file in code/.
 """
-import glob, html, os, re, sys, textwrap
+import glob, html, os, re, sys, textwrap, json
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
 
@@ -61,6 +61,23 @@ with open(js, 'w', encoding='utf-8') as f:
 print(f'counted reading time for {len(minutes)} chapters, {sum(minutes)} minutes in all')
 
 
+# The section headings of every chapter, for the search box of the contents page. The glossary and the
+# chapter titles are searched from the files that already hold them; only the headings need collecting.
+SKIP = {'Build it', 'Check yourself', 'Do it'}
+sections = []
+for n, page in enumerate(chapters, 1):
+    with open(page, encoding='utf-8') as f:
+        body = f.read()
+    for attrs, inner in re.findall(r'<h2([^>]*)>(.*?)</h2>', body, flags=re.S):
+        text = html.unescape(re.sub(r'<[^>]+>', '', inner)).strip()
+        if text and text not in SKIP:
+            given = re.search(r'id="([^"]+)"', attrs)
+            sections.append([n, text] + ([given.group(1)] if given else []))
+with open(os.path.join(ROOT, 'docs', 'assets', 'search.js'), 'w', encoding='utf-8') as f:
+    f.write('// written by tools/build_site.py: [chapter, heading] for every section\nwindow.MICRO_SEARCH = ' + json.dumps(sections, ensure_ascii=False, separators=(',', ':')) + ';\n')
+print(f'indexed {len(sections)} section headings for search')
+
+
 # ---------- link previews: what X, Mastodon or a chat app shows when a page is shared ----------
 # The manifest, icon and theme colour are added by micro.js, which knows the reader's light or dark theme.
 # Each page gets a description, a canonical address and an Open Graph / X card pointing at its image in
@@ -74,7 +91,7 @@ with open(js, 'w', encoding='utf-8') as f:
 
 blurbs = [b.replace("\\'", "'") for b in re.findall(r"^    '((?:[^'\\]|\\.)*)',?$", src[src.find('M.blurbs = ['):src.find('];', src.find('M.blurbs = ['))], re.M)]
 assert len(blurbs) == len(chapters), (len(blurbs), len(chapters))
-OTHER = {'index.html': ('microAI: a language model you can hold in your head', 'Build and understand a language model and the agent around it, from first principles: 48 short interactive chapters that run on your phone.', 'index'),
+OTHER = {'index.html': ('microAI: a language model you can hold in your head', 'Build and understand a language model and the agent around it, from first principles: 50 short interactive chapters that run on your phone.', 'index'),
          'map.html': ('The map of an agent · microAI', 'What an agent is made of, on one page: a live agent in your browser, every part with its chapters, and three ways through.', 'map'),
          'glossary.html': ('Glossary · microAI', 'Every technical term of the microAI course in plain words, with the chapter that introduces it.', 'index')}
 
