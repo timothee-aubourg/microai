@@ -673,7 +673,7 @@
         }).catch(() => '');
         const found = (text, re, base) => { const out = []; let m; while ((m = re.exec(text))) out.push(base + m[1]); return out; };
         return Promise.all(pages.map(keep)).then((texts) => {          // the pages name the files they need
-          const files = new Set(['manifest.webmanifest', 'assets/icon-192.png', 'assets/icon-512.png']);
+          const files = new Set(['manifest.webmanifest', 'assets/icon-192.png', 'assets/icon-512.png', 'assets/search.js']);   // search.js is loaded on first use, so no page names it
           texts.forEach((t) => found(t, /(?:src|href)="(assets\/[^"]+)"/g, '').forEach((u) => files.add(u)));
           return Promise.all(Array.from(files).map(keep)).then(() => keep('assets/style.css'));
         }).then((css) => Promise.all(found(css, /url\(["']?(fonts\/[^"')]+)["']?\)/g, 'assets/').map(keep)));
@@ -1080,7 +1080,7 @@
       need: 'Always. This is what turns a text predictor into an agent.', ch: [15, 11, 19, 34], gaps: [] },
     { key: 'tools', name: 'Tools', layer: 'agent', what: 'The actions the model may ask for, described as text, and the format its requests must take.',
       need: 'When the agent has to act on something: files, a calculator, an API.', ch: [11, 13, 37, 38],
-      gaps: ['Designing tool descriptions and error messages for a model to read', 'Using a browser or a screen'] },
+      gaps: ['Measuring how the wording of a description or an error changes what an agent calls', 'Using a browser or a screen'] },
     { key: 'context', name: 'Context', layer: 'agent', what: 'Everything the model can see at one step. It is a budget: every token in it costs room and time at every step.',
       need: 'As soon as tasks take more than a few steps, or the window fills up.', ch: [16, 49, 38, 32],
       gaps: ['Prompts tuned by a program instead of by hand', 'A full-size system prompt, taken apart line by line'] },
