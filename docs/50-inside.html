@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Looking inside | microAI</title>
+<!-- [social] written by tools/build_site.py -->
+<meta name="description" content="Where a tool gets chosen among the numbers a model computes: swap one activation, test what the swap suggests, then push the choice along a direction.">
+<link rel="canonical" href="https://timothee-aubourg.github.io/microai/50-inside.html">
+<meta property="og:site_name" content="microAI">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Looking inside · microAI">
+<meta property="og:description" content="Where a tool gets chosen among the numbers a model computes: swap one activation, test what the swap suggests, then push the choice along a direction.">
+<meta property="og:url" content="https://timothee-aubourg.github.io/microai/50-inside.html">
+<meta property="og:image" content="https://timothee-aubourg.github.io/microai/cards/50.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Looking inside · microAI">
+<meta name="twitter:card" content="summary_large_image">
+<!-- [/social] -->
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/theme.js"></script>
+</head>
+<body data-ch="50">
+<main>
+  <p class="where">Chapter 50</p>
+  <h1>Looking inside</h1>
+  <p class="question">The agent reads "what is 12 times 30?" and writes <code>mul 12 30</code>. Where, among the numbers it computes, does "times" become "mul"? And can you change its choice without changing a weight?</p>
+
+  <p>Every chapter so far judged a model from outside. Text went in, text came out, and a grader counted. Chapter 28 broke the habit once: a probe read the numbers inside the model to spot a request. This chapter goes further the same way. It reads what the agent of chapter 19 computes between a question and a tool call, finds the place where the tool is chosen, and then changes the choice by changing those numbers. No weight is touched.</p>
+  <p>The agent is small enough to know completely: 108,032 weights, two blocks, 64 numbers per place. On questions it had never seen, it scored 200 of 200 in chapter 19. Here you find out how it earns that score. The answer is less reassuring than the score.</p>
+
+  <h2>What there is to read</h2>
+  <p>The harness of chapter 19 gives the model this text, and the model writes the name of a tool after it. A line break is shown as ⏎.</p>
+  <pre class="code" data-lang="text">⏎U what is 12 times 30?⏎C </pre>
+  <p>That is 26 characters, so 26 places. At each place the model holds a vector of 64 numbers, the <a class="term" href="glossary.html#residual-stream">residual stream</a> of chapter 6, and each of its two blocks adds something to it.</p>
+  <div class="def"><span class="kind">Definitions</span>
+    <p>An <dfn>activation</dfn> is the vector a model holds for one place at one stage of its computation. Here it has 64 numbers.</p>
+    <p>This model has three <dfn>stages</dfn>. Stage 0 is what goes into the first block: the embedding of the character plus the embedding of its place (chapter 4). Stage 1 is what comes out of the first block, and stage 2 what comes out of the second. The scores for the next character are computed from stage 2 at the last place.</p>
+  </div>
+  <p>So this one question produces 26 × 3 = 78 activations, and 78 × 64 = 4,992 numbers. Everything the model works out about the question is among them, including the choice between <code>add</code>, <code>sub</code> and <code>mul</code>. Reading them takes one more line in the forward pass of chapter 8, which is shown under "Build it".</p>
+
+  <h2>Swap one activation</h2>
+  <p>Staring at 4,992 numbers tells you nothing. An experiment does. Take two questions that differ by one word and get different tools:</p>
+  <pre class="code" data-lang="text">what is 12 times 30?    the agent calls   mul 12 30
+what is 12 minus 30?    the agent calls   sub 12 30</pre>
+  <p>Run the second question and keep its 78 activations. Now run the first one again, with one change: at a single cell, one place at one stage, throw away the activation the model computed and put in the one from the other run. Then let the model carry on. If it now calls <code>sub</code>, that cell carried the choice. If it still calls <code>mul</code>, the choice did not pass through that cell.</p>
+  <div class="def"><span class="kind">Definition</span>
+    <p><dfn>Activation patching</dfn> is replacing one activation by the one computed on another input, to see whether the output follows. This chapter calls it a swap.</p>
+  </div>
+  <h3>By hand: a relay of two places</h3>
+  <p>A paper model with two places and two stages shows what a swap can tell. Place 1 holds the word: 3 for "times", 5 for "minus". Place 2 starts at 0. From stage 0 to stage 1, place 2 adds the number that place 1 held at stage 0, and place 1 keeps its own. The answer is read from place 2 at stage 1: 3 means <code>mul</code>, 5 means <code>sub</code>.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th></th><th>Place 1, stage 0</th><th>Place 2, stage 0</th><th>Place 1, stage 1</th><th>Place 2, stage 1</th><th>Answer</th></tr>
+    <tr><td>"times" run</td><td class="mono">3</td><td class="mono">0</td><td class="mono">3</td><td class="mono">3</td><td class="mono">mul</td></tr>
+    <tr><td>"minus" run</td><td class="mono">5</td><td class="mono">0</td><td class="mono">5</td><td class="mono">5</td><td class="mono">sub</td></tr>
+  </table></div>
+  <p>Swap, in the "times" run, each cell in turn for the one of the "minus" run. Place 1 at stage 0 becomes 5, place 2 then adds 5 and the answer is <code>sub</code>: the swap changed the answer. Place 2 at stage 0 is 0 in both runs, so nothing changes. Place 1 at stage 1 becomes 5, but place 2 has already read place 1 and nobody reads it again: the answer stays <code>mul</code>. Place 2 at stage 1 becomes 5: <code>sub</code>. Two cells of four change the answer, and they trace the path of the information: in at place 1, out at place 2. The cell that holds the word at stage 1 does <em>contain</em> the word. It is not <em>used</em>.</p>
+  <h3>Measured: 78 cells, 100 questions each</h3>
+  <p>The script did this on the real agent, for 100 pairs of two-digit numbers the model had never seen together, at each of the 78 cells: 7,800 runs. The count in a cell is the number of questions, out of 100, for which the call changed to <code>sub</code>.</p>
+  <figure class="fig" id="fig-grid">
+    <svg viewBox="0 0 760 196" role="img" aria-labelledby="f50a">
+      <title id="f50a">A grid of three rows and 26 columns. The columns are the characters of the prompt: a line break, U, what is 12 times 30, a question mark, a line break, C and a space. The rows are the three stages: what goes in, after block 1 and after block 2. Three cells are marked 100: the letter m of times in the first row, and the last place in the second and third rows. An arrow runs from the letter m to the last place of the second row. Twenty-four other cells are outlined and empty: the letters t and e in the first row, and in the two lower rows every place from the word to the end except the last. The remaining 51 cells are plain.</title>
+      <defs><marker id="c50a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
+      <text x="115" y="32" text-anchor="middle" class="t-mono t-small">⏎</text><text x="140" y="32" text-anchor="middle" class="t-mono t-small">U</text><text x="165" y="32" text-anchor="middle" class="t-mono t-small">␣</text><text x="190" y="32" text-anchor="middle" class="t-mono t-small">w</text><text x="215" y="32" text-anchor="middle" class="t-mono t-small">h</text><text x="240" y="32" text-anchor="middle" class="t-mono t-small">a</text><text x="265" y="32" text-anchor="middle" class="t-mono t-small">t</text><text x="290" y="32" text-anchor="middle" class="t-mono t-small">␣</text><text x="315" y="32" text-anchor="middle" class="t-mono t-small">i</text><text x="340" y="32" text-anchor="middle" class="t-mono t-small">s</text><text x="365" y="32" text-anchor="middle" class="t-mono t-small">␣</text><text x="390" y="32" text-anchor="middle" class="t-mono t-small">1</text><text x="415" y="32" text-anchor="middle" class="t-mono t-small">2</text><text x="440" y="32" text-anchor="middle" class="t-mono t-small">␣</text><text x="465" y="32" text-anchor="middle" class="t-mono t-small">t</text><text x="490" y="32" text-anchor="middle" class="t-mono t-small">i</text><text x="515" y="32" text-anchor="middle" class="t-mono t-small">m</text><text x="540" y="32" text-anchor="middle" class="t-mono t-small">e</text><text x="565" y="32" text-anchor="middle" class="t-mono t-small">s</text><text x="590" y="32" text-anchor="middle" class="t-mono t-small">␣</text><text x="615" y="32" text-anchor="middle" class="t-mono t-small">3</text><text x="640" y="32" text-anchor="middle" class="t-mono t-small">0</text><text x="665" y="32" text-anchor="middle" class="t-mono t-small">?</text><text x="690" y="32" text-anchor="middle" class="t-mono t-small">⏎</text><text x="715" y="32" text-anchor="middle" class="t-mono t-small">C</text><text x="740" y="32" text-anchor="middle" class="t-mono t-small">␣</text>
+      <text x="94" y="63" text-anchor="end" class="t-small">goes in</text><text x="94" y="97" text-anchor="end" class="t-small">after block 1</text><text x="94" y="131" text-anchor="end" class="t-small">after block 2</text>
+      <rect x="104" y="44" width="22" height="28" rx="3" class="bx-soft"/><rect x="129" y="44" width="22" height="28" rx="3" class="bx-soft"/><rect x="154" y="44" width="22" height="28" rx="3" class="bx-soft"/><rect x="179" y="44" width="22" height="28" rx="3" class="bx-soft"/><rect x="204" y="44" width="22" height="28" rx="3" class="bx-soft"/><rect x="229" y="44" width="22" height="28" rx="3" class="bx-soft"/><rect x="254" y="44" width="22" height="28" rx="3" class="bx-soft"/><rect x="279" y="44" width="22" height="28" rx="3" class="bx-soft"/><rect x="304" y="44" width="22" height="28" rx="3" class="bx-soft"/><rect x="329" y="44" width="22" height="28" rx="3" class="bx-soft"/><rect x="354" y="44" width="22" height="28" rx="3" class="bx-soft"/><rect x="379" y="44" width="22" height="28" rx="3" class="bx-soft"/><rect x="404" y="44" width="22" height="28" rx="3" class="bx-soft"/><rect x="429" y="44" width="22" height="28" rx="3" class="bx-soft"/><rect x="454" y="44" width="22" height="28" rx="3" class="bx"/><rect x="479" y="44" width="22" height="28" rx="3" class="bx-soft"/><rect x="504" y="44" width="22" height="28" rx="3" class="bx-fwd"/><text x="515" y="63" text-anchor="middle" class="t-small t-bold">100</text><rect x="529" y="44" width="22" height="28" rx="3" class="bx"/><rect x="554" y="44" width="22" height="28" rx="3" class="bx-soft"/><rect x="579" y="44" width="22" height="28" rx="3" class="bx-soft"/><rect x="604" y="44" width="22" height="28" rx="3" class="bx-soft"/><rect x="629" y="44" width="22" height="28" rx="3" class="bx-soft"/><rect x="654" y="44" width="22" height="28" rx="3" class="bx-soft"/><rect x="679" y="44" width="22" height="28" rx="3" class="bx-soft"/><rect x="704" y="44" width="22" height="28" rx="3" class="bx-soft"/><rect x="729" y="44" width="22" height="28" rx="3" class="bx-soft"/><rect x="104" y="78" width="22" height="28" rx="3" class="bx-soft"/><rect x="129" y="78" width="22" height="28" rx="3" class="bx-soft"/><rect x="154" y="78" width="22" height="28" rx="3" class="bx-soft"/><rect x="179" y="78" width="22" height="28" rx="3" class="bx-soft"/><rect x="204" y="78" width="22" height="28" rx="3" class="bx-soft"/><rect x="229" y="78" width="22" height="28" rx="3" class="bx-soft"/><rect x="254" y="78" width="22" height="28" rx="3" class="bx-soft"/><rect x="279" y="78" width="22" height="28" rx="3" class="bx-soft"/><rect x="304" y="78" width="22" height="28" rx="3" class="bx-soft"/><rect x="329" y="78" width="22" height="28" rx="3" class="bx-soft"/><rect x="354" y="78" width="22" height="28" rx="3" class="bx-soft"/><rect x="379" y="78" width="22" height="28" rx="3" class="bx-soft"/><rect x="404" y="78" width="22" height="28" rx="3" class="bx-soft"/><rect x="429" y="78" width="22" height="28" rx="3" class="bx-soft"/><rect x="454" y="78" width="22" height="28" rx="3" class="bx"/><rect x="479" y="78" width="22" height="28" rx="3" class="bx"/><rect x="504" y="78" width="22" height="28" rx="3" class="bx"/><rect x="529" y="78" width="22" height="28" rx="3" class="bx"/><rect x="554" y="78" width="22" height="28" rx="3" class="bx"/><rect x="579" y="78" width="22" height="28" rx="3" class="bx"/><rect x="604" y="78" width="22" height="28" rx="3" class="bx"/><rect x="629" y="78" width="22" height="28" rx="3" class="bx"/><rect x="654" y="78" width="22" height="28" rx="3" class="bx"/><rect x="679" y="78" width="22" height="28" rx="3" class="bx"/><rect x="704" y="78" width="22" height="28" rx="3" class="bx"/><rect x="729" y="78" width="22" height="28" rx="3" class="bx-fwd"/><text x="740" y="97" text-anchor="middle" class="t-small t-bold">100</text><rect x="104" y="112" width="22" height="28" rx="3" class="bx-soft"/><rect x="129" y="112" width="22" height="28" rx="3" class="bx-soft"/><rect x="154" y="112" width="22" height="28" rx="3" class="bx-soft"/><rect x="179" y="112" width="22" height="28" rx="3" class="bx-soft"/><rect x="204" y="112" width="22" height="28" rx="3" class="bx-soft"/><rect x="229" y="112" width="22" height="28" rx="3" class="bx-soft"/><rect x="254" y="112" width="22" height="28" rx="3" class="bx-soft"/><rect x="279" y="112" width="22" height="28" rx="3" class="bx-soft"/><rect x="304" y="112" width="22" height="28" rx="3" class="bx-soft"/><rect x="329" y="112" width="22" height="28" rx="3" class="bx-soft"/><rect x="354" y="112" width="22" height="28" rx="3" class="bx-soft"/><rect x="379" y="112" width="22" height="28" rx="3" class="bx-soft"/><rect x="404" y="112" width="22" height="28" rx="3" class="bx-soft"/><rect x="429" y="112" width="22" height="28" rx="3" class="bx-soft"/><rect x="454" y="112" width="22" height="28" rx="3" class="bx"/><rect x="479" y="112" width="22" height="28" rx="3" class="bx"/><rect x="504" y="112" width="22" height="28" rx="3" class="bx"/><rect x="529" y="112" width="22" height="28" rx="3" class="bx"/><rect x="554" y="112" width="22" height="28" rx="3" class="bx"/><rect x="579" y="112" width="22" height="28" rx="3" class="bx"/><rect x="604" y="112" width="22" height="28" rx="3" class="bx"/><rect x="629" y="112" width="22" height="28" rx="3" class="bx"/><rect x="654" y="112" width="22" height="28" rx="3" class="bx"/><rect x="679" y="112" width="22" height="28" rx="3" class="bx"/><rect x="704" y="112" width="22" height="28" rx="3" class="bx"/><rect x="729" y="112" width="22" height="28" rx="3" class="bx-fwd"/><text x="740" y="131" text-anchor="middle" class="t-small t-bold">100</text>
+      <path d="M515,72 C575,98 641,62 731,84" class="ln-fwd" marker-end="url(#c50a)"/>
+      <text x="104" y="166" class="t-small t-muted">a number: of 100 questions, how many called the other tool after the swap at that cell</text>
+      <text x="104" y="184" class="t-small t-muted">outlined and empty: the two runs differ there, and the swap changed nothing. Plain: no difference to swap.</text>
+    </svg>
+    <figcaption><b>Where the choice between "times" and "minus" lives.</b> 78 cells, one swap at a time, 100 questions each. The two runs differ at 27 cells, and three of those change the tool. ⏎ is a line break and ␣ a space.</figcaption>
+  </figure>
+  <p>Three cells give 100 of 100, and the other 75 give 0. Before reading anything into the 75, take out the cells where a swap could not matter. At 51 of them the two runs hold exactly the same numbers, so there is nothing to swap: before the word, the model has read the same characters in both runs, and as the word goes in only the letters that differ are different, t and m, m and n, e and u. That leaves 27 cells where the runs differ. Three of them change the tool. At the other 24 the difference is there, and the choice does not pass through it. Asking "minus" and borrowing from "times" gives the same three cells, 100 of 100 again.</p>
+  <p>Read the figure as the paper relay. The choice comes in at one place: the letter <b>m</b>, the third letter of "times", where "minus" has an <b>n</b>. After the first block it sits at the last place, the one where the name of the tool is about to be written, and it stays there. So the first block, at the last place, looks back with its attention (chapter 5) at the third letter of the word, and what it finds there decides between the two tools. The first and the fourth letter also differ between the two words, and swapping them changes nothing. The cell of the letter <b>m</b> after block 1 still contains the letter, and swapping it changes nothing either, as in the relay.</p>
+
+  <section class="bench" id="w-swap">
+    <h3>Swap a cell yourself</h3>
+    <p class="try"><b>Try this.</b> The agent runs in this page. Choose the place of the letter <b>m</b> and the stage "goes in", then press <b>Swap this cell</b> and read the call. Move one place left, to the letter <b>i</b>, and swap again. Then press <b>Try all 78 cells</b> and count the cells that light up. Last, press <b>New numbers</b> and try all the cells again.</p>
+  </section>
+
+  <p><strong>What you should have seen.</strong> Swapping the letter m as it goes in turns the call into <code>sub 12 30</code>, with both numbers intact. Swapping the i next to it leaves <code>mul 12 30</code>: the two words have the same i there. Trying every cell lights 3 of the 78: the m in the top row, and the last place in the two rows below it. New numbers gave the same three cells each time we tried, and asking "minus" while borrowing from "times" lights the same three, with the call turned into <code>mul</code>.</p>
+
+  <h2>A claim, and its test</h2>
+  <p>The figure answers one question: between "times" and "minus", which difference does the model use? One of three, the third letter. An answer of this kind is worth something only if it predicts what the model does on inputs nobody has tried, and this one makes an easy prediction. The two words differ at three places, so there are six other ways to mix them. Each mix should be read by its third letter: m for <code>mul</code>, n for <code>sub</code>.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Word</th><th>Its letters 1, 3 and 4</th><th>Predicted</th><th>Calls, of 100</th></tr>
+    <tr><td class="mono">tines</td><td>t, n, e</td><td class="mono">sub</td><td class="mono">sub 100</td></tr>
+    <tr><td class="mono">tinus</td><td>t, n, u</td><td class="mono">sub</td><td class="mono">sub 100</td></tr>
+    <tr><td class="mono">timus</td><td>t, m, u</td><td class="mono">mul</td><td class="mono">mul 100</td></tr>
+    <tr><td class="mono">mimes</td><td>m, m, e</td><td class="mono">mul</td><td class="mono">mul 100</td></tr>
+    <tr><td class="mono">mimus</td><td>m, m, u</td><td class="mono">mul</td><td class="mono">mul 100</td></tr>
+    <tr><td class="mono">mines</td><td>m, n, e</td><td class="mono">sub</td><td class="mono">sub 100</td></tr>
+  </table></div>
+  <p>Six predictions, six right, 600 calls of 600. "mimus" differs from "minus" by one letter and gets multiplied.</p>
+  <h3>The same result, said too strongly</h3>
+  <p>It is tempting to go one step further and say: <em>the model reads the third letter of the word</em>. That is another claim. It speaks of every word, and the experiment compared two. It can be tested as well. The model knows 20 letters. Take "times" and change one letter at a time into each of the 19 others: 95 made-up words, each asked 100 times. If the model read only the third letter, a change anywhere else would keep <code>mul</code>, and a change of the third letter would lose it.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Place changed</th><th>1 (t)</th><th>2 (i)</th><th>3 (m)</th><th>4 (e)</th><th>5 (s)</th></tr>
+    <tr><td>Letters that keep <code>mul</code>, of 19</td><td class="mono">10</td><td class="mono">12</td><td class="mono">11</td><td class="mono">10</td><td class="mono">10</td></tr>
+    <tr><td>If only the third letter were read</td><td class="mono">19</td><td class="mono">19</td><td class="mono">0</td><td class="mono">19</td><td class="mono">19</td></tr>
+  </table></div>
+  <p>The claim is wrong at every place. "tides" and "tires" call <code>mul</code> 100 times of 100, with no m in them. "tomes" and "pimes" have their m, and call <code>mul</code> 0 times of 100. The third place is no more special than the others: wherever a letter is changed, about half of the possible letters keep the tool and half lose it. The model reads the whole word, and its reading is spread over the five letters.</p>
+  <p>So what did the swap show? Exactly what it tested. A swap between two inputs finds which of <em>their differences</em> matter. It says nothing about what the two inputs share, here the letters i and s. It says nothing about the other letters that could stand at the same place. "Between times and minus, the third letter decides" is a result. "The model reads the third letter" was never measured, and it is false. Many mistakes made when looking inside a model have this shape: a true result about the inputs that were compared, stretched into a claim about all inputs.</p>
+  <h3>Words it was never taught</h3>
+  <div class="scroll"><table class="mini">
+    <tr><th>Word</th><th>Calls, of 100</th></tr>
+    <tr><td class="mono">over</td><td class="mono">sub 100</td></tr>
+    <tr><td class="mono">and</td><td class="mono">sub 100</td></tr>
+    <tr><td class="mono">by</td><td class="mono">no call</td></tr>
+    <tr><td class="mono">divided by</td><td class="mono">no call</td></tr>
+  </table></div>
+  <p class="src">Every count on this page is measured by <code>code/ch50_inside.py</code> on 100 pairs of numbers.</p>
+  <p>For "over" or "and" the agent calls <code>sub</code>, a hundred times of a hundred, and reports the result as its answer. For "by" and "divided by" it makes no call and writes an answer on its own. It never says that it does not know the word.</p>
+  <p>None of this showed in the evaluation of chapter 19. Its 200 questions used the three words the model was trained on. An evaluation measures behaviour on the inputs it contains (chapter 14). Looking inside showed that the choice of tool hangs on the letters of one word, and so which other inputs were worth trying.</p>
+
+  <section class="bench" id="w-word">
+    <h3>Ask with a word of your own</h3>
+    <p class="try"><b>Try this.</b> Ask with "times", then change one letter at a time: "tines", "tides", "pimes". Predict the tool before each one. Then try a word the agent was never taught, such as "over" or "half of".</p>
+  </section>
+
+  <p><strong>What you should have seen.</strong> With the numbers 12 and 30, "tines" calls <code>sub 12 30</code>. "tides" and "tires" call <code>mul 12 30</code>, although their third letter is no longer an m, and "pimes" calls <code>sub 12 30</code> with its m in place. Read the last line each time. After "tines" the agent answers "12 minus 30 is -18." It reports the sum it called, in a word it knows, and nothing in its answer shows that the question said something else. "over" calls <code>sub</code> and drops a digit on the way: <code>sub 12 3</code>. "half of" calls <code>sub 12 30</code>.</p>
+
+  <h2>A direction</h2>
+  <p>A swap replaces a whole activation. A finer tool moves it a little, along one chosen line.</p>
+  <h3>By hand: two averages</h3>
+  <p>Pretend an activation has two numbers. Over many "times" questions its average is (1, 4). Over many "minus" questions it is (5, 2). The difference, minus less times, is (4, −2): four along the first number, two back along the second. Add half of it to a "times" activation of (1, 4) and you get (3, 3), exactly between the two averages. Add all of it and you land on (5, 2), where "minus" questions usually are.</p>
+  <div class="def"><span class="kind">Definitions</span>
+    <p>A <dfn>direction</dfn> is a vector along which activations are compared or moved. Here it is the difference between two average activations.</p>
+    <p><dfn>Activation steering</dfn> is adding a multiple of a direction to an activation while the model runs. The multiple is the strength.</p>
+  </div>
+  <div class="eq"><i>x</i> &larr; <i>x</i> + <i>s</i> &times; ( average for B &minus; average for A )</div>
+  <p>where <i>x</i> is the activation at one cell, A is what was asked, B is what you are pushing towards, and <i>s</i> is the strength.</p>
+  <h3>Measured: how far to push</h3>
+  <p>The script averaged the activation at the last place over 200 "times" questions and 200 "minus" questions, at each stage. After block 1 the two averages are 2.25 apart, and a typical activation there has a length of 5.2. After block 2 they are 10.7 apart, for a typical length of 9.9. Then, on 100 new questions, it added the direction to that one activation, at several strengths. The table counts the calls that changed tool.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Strength</th><th class="mono">0.25</th><th class="mono">0.4</th><th class="mono">0.5</th><th class="mono">0.6</th><th class="mono">0.75</th><th class="mono">1</th></tr>
+    <tr><td>times to minus, after block 1</td><td class="mono">0</td><td class="mono">0</td><td class="mono">1</td><td class="mono">94</td><td class="mono">100</td><td class="mono">100</td></tr>
+    <tr><td>times to minus, after block 2</td><td class="mono">0</td><td class="mono">0</td><td class="mono">1</td><td class="mono">97</td><td class="mono">100</td><td class="mono">100</td></tr>
+    <tr><td>minus to times, after block 2</td><td class="mono">0</td><td class="mono">5</td><td class="mono">100</td><td class="mono">100</td><td class="mono">100</td><td class="mono">100</td></tr>
+    <tr><td>plus to times, after block 2</td><td class="mono">0</td><td class="mono">8</td><td class="mono">100</td><td class="mono">100</td><td class="mono">100</td><td class="mono">100</td></tr>
+    <tr><td>times to plus, after block 2</td><td class="mono">0</td><td class="mono">0</td><td class="mono">0</td><td class="mono">93</td><td class="mono">100</td><td class="mono">100</td></tr>
+  </table></div>
+  <p>Below half way nothing happens. Just past half way nearly every call changes, and at three quarters every one does. In every call that changed tool, both numbers were still the right ones: the push moved the choice of tool and nothing else. The switch sits a little on one side of the middle or the other, depending on the pair. The model's choice behaves like a line drawn between the averages, which is what the last step of the model computes: a comparison of scores (chapter 6).</p>
+  <p>Is the choice kept in one of the 64 numbers? The script checked. At the last place after block 2, 46 of the 64 numbers each separate "times" from "minus" perfectly on their own, 200 questions of 200. The largest single number carries 8% of the direction, and the eight largest carry 49% (shares of its squared length). There is no "times" number. The choice is spread across the vector, as chapter 4 found for meaning.</p>
+
+  <h3>Pushed off the tool</h3>
+  <p>The same recipe works on the other choice the agent makes: whether to call a tool at all. At the end of the request the model writes <code>C</code> to call or <code>A</code> to answer directly. The script took the average activation there, after block 2, for the three chat questions the agent knows ("hello" and two others) and for 200 sums, and added the difference to 100 sums.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Strength</th><th>Answered with no tool, of 100</th><th>Right, of 100</th></tr>
+    <tr><td class="mono">0</td><td class="mono">0</td><td class="mono">100</td></tr>
+    <tr><td class="mono">0.25</td><td class="mono">0</td><td class="mono">100</td></tr>
+    <tr><td class="mono">0.5</td><td class="mono">0</td><td class="mono">100</td></tr>
+    <tr><td class="mono">0.75</td><td class="mono">100</td><td class="mono">0</td></tr>
+    <tr><td class="mono">1</td><td class="mono">100</td><td class="mono">0</td></tr>
+  </table></div>
+  <pre class="code" data-lang="text">U what is 72 plus 76?
+A 72 times 76 is 16.
+U what is 32 minus 36?
+A 32 times 36 is 56.
+U what is 96 times 78?
+A 66 times 78 is 586.
+U what is 91 plus 53?
+A 91 is 93 minus 53 is -5.
+</pre>
+  <p class="src">Four of the 100 answers at strength 1. No tool was called for any of them.</p>
+  <p>One activation at one place, moved three quarters of the way along one direction, turns an agent that is right 100 times of 100 into one that is wrong 100 times of 100. Its answers keep the look of answers. This is the made-up answer of the map page, produced on purpose, and it shows where the truth of this agent's answers was all along: in the calculator. The model's own words were never what made them right.</p>
+
+  <section class="bench" id="w-steer">
+    <h3>Push the agent yourself</h3>
+    <p class="try"><b>Try this.</b> Keep "times towards minus" and raise the strength slowly from 0. Note the strength at which the call changes, and check the two numbers in the call. Then choose "a sum towards a direct answer", go back to 0 and raise the strength again. Read what the agent writes once the call has gone.</p>
+  </section>
+
+  <p><strong>What you should have seen.</strong> For "12 times 30" the call stays <code>mul 12 30</code> up to a strength of 0.55 and becomes <code>sub 12 30</code> at 0.60, with the numbers unchanged. The answer follows the call, not the question: "12 minus 30 is -18." Of the 20 other sums, none changes tool at 0.50, 11 do at 0.55 and all 20 at 0.60. Pushed towards a direct answer, "12 plus 30" keeps its call up to 0.55. At 0.60 the call is gone and the agent writes "12 is 10 plus 30 is 30." Of the 20 other sums, 7 lose their call at 0.60, 17 at 0.65 and all 20 from 0.70 on, and from there none of the 20 answers is right.</p>
+
+  <h2>At full size</h2>
+  <p>The three moves of this chapter, reading, swapping and pushing, are the ones used on models with billions of weights. The reading is the probe of chapter 28. Swapping is how researchers find which parts of a large model carry a given fact or choice. Pushing along a direction is used to study a behaviour and, sometimes, to change it. Three published results show what this has found. They are other people's measurements, not ours.</p>
+  <p><strong>Refusal is one direction.</strong> A 2024 study, "Refusal in Language Models Is Mediated by a Single Direction", looked at 13 open chat models of up to 72 billion weights. In each one it found a single direction such that removing it from the activations stops the model from refusing harmful requests, and adding it makes the model refuse harmless ones. This is the experiment of "Pushed off the tool" on the behaviour chapter 24 trained in. The consequence is practical: for a model whose weights are public, a refusal learned in training is a default that anyone can remove without retraining. It is not a barrier. The barriers are the ones outside the model, in chapters 17, 28 and 47.</p>
+  <p><strong>Features, when single numbers mean nothing.</strong> In our agent the choice was spread over all 64 numbers. In a large model each number also takes part in many unrelated things at once, so reading them one at a time gives nothing. A common answer is to train a second, small network on the activations, a sparse autoencoder, which rewrites each activation as a sum of a few items from a very long list. The items are called features. In May 2024 Anthropic reported lists of up to 34 million features for one of its production models, with features for places, people, kinds of code and abstract ideas. Turning one of them up, the feature for a famous bridge, made the model bring the bridge into almost any answer. That demonstration was a push along one direction, as here.</p>
+  <p><strong>The limits are the ones you met.</strong> A true result about two words was one sentence away from a false claim about all words, and only a test on new inputs told them apart. At full size the explanations are partial in the same way: they cover some behaviours on some inputs, and each one has to be checked by predicting something new. Reading a model is evidence about it. It is not yet a proof of what it will do.</p>
+
+  <h2>Build it</h2>
+  <p>The forward pass is the cached one of chapter 8 with a single addition: after the embeddings and after each block, a function may read the activation or return another one in its place.</p>
+  <pre class="code" data-src="ch50_inside.py#hook">def step(self, token, cache):
+    w, H, hd = self.w, self.H, self.d // self.H
+    pos = cache['pos']
+    x = w['wte'][token] + w['wpe'][pos]
+    seen = cache.setdefault('seen', [[] for _ in range(self.L + 1)])
+    if self.edit is not None:
+        x = self.edit(0, pos, x)                      # stage 0: what goes in
+    seen[0].append(x)
+    for i in range(self.L):
+        a = self.ln(x, w[f'h{i}.ln1.g'], w[f'h{i}.ln1.b'])
+        q = (a @ w[f'h{i}.attn.wq']).reshape(H, hd)
+        cache['k'][i].append((a @ w[f'h{i}.attn.wk']).reshape(H, hd))
+        cache['v'][i].append((a @ w[f'h{i}.attn.wv']).reshape(H, hd))
+        K, V = np.stack(cache['k'][i], axis=1), np.stack(cache['v'][i], axis=1)
+        s = np.einsum('hd,htd-&gt;ht', q, K) / np.sqrt(hd)
+        s = np.exp(s - s.max(-1, keepdims=True)); s /= s.sum(-1, keepdims=True)
+        x = x + np.einsum('ht,htd-&gt;hd', s, V).reshape(self.d) @ w[f'h{i}.attn.wo']
+        h = self.ln(x, w[f'h{i}.ln2.g'], w[f'h{i}.ln2.b']) @ w[f'h{i}.mlp.w1']
+        h = 0.5 * h * (1 + np.tanh(np.sqrt(2 / np.pi) * (h + 0.044715 * h * h * h)))
+        x = x + h @ w[f'h{i}.mlp.w2']
+        if self.edit is not None:
+            x = self.edit(i + 1, pos, x)              # stage i + 1: after block i. Return x, or another x
+        seen[i + 1].append(x)                         # every activation is kept, to be read later
+    cache['pos'] += 1
+    return self.ln(x, w['ln_f.g'], w['ln_f.b']) @ w['wte'].T</pre>
+  <p class="src">One line per stage is all it takes to open the model.</p>
+  <pre class="code" data-src="ch50_inside.py#swap">def swap_grid(run, word, other, numbers):
+    """Ask "a WORD b". At one place and one stage, put in the activation from "a OTHER b".
+    Count how often the tool that is called becomes the other word's tool."""
+    places = len(f'\nU what is 12 {word} 30?\nC ')
+    flipped, kept = np.zeros((run.L + 1, places), int), np.zeros((run.L + 1, places), int)
+    for a, b in numbers:
+        donor = activations(run, f'\nU what is {a} {other} {b}?\nC ')
+        for stage in range(run.L + 1):
+            for place in range(places):
+                edit = lambda i, pos, x: donor[stage][place] if (i == stage and pos == place) else x
+                _, call, _ = ask(run, f'what is {a} {word} {b}?', edit)
+                if call.startswith(big.WORDS[other]):
+                    flipped[stage, place] += 1
+                    kept[stage, place] += call.split()[1:] == [str(a), str(b)]
+    return flipped, kept</pre>
+  <p class="src">The swap, for every cell. <code>ask</code> runs the agent loop of chapter 19 with the favourite character at every step.</p>
+  <pre class="code" data-src="ch50_inside.py#direction">def mean_at(run, word, numbers, stage, tail='C '):
+    """The average activation, at the place where the tool name is about to be written."""
+    return np.mean([activations(run, f'\nU what is {a} {word} {b}?\n{tail}')[stage][-1] for a, b in numbers], axis=0)
+
+def steer(run, word, other, direction, stage, strength, numbers):
+    """Add strength x direction at that one place, and count the calls that change tool."""
+    flipped = kept = 0
+    for a, b in numbers:
+        place = len(f'\nU what is {a} {word} {b}?\nC ') - 1
+        edit = lambda i, pos, x: x + strength * direction if (i == stage and pos == place) else x
+        _, call, _ = ask(run, f'what is {a} {word} {b}?', edit)
+        if call.startswith(big.WORDS[other]):
+            flipped += 1
+            kept += call.split()[1:] == [str(a), str(b)]
+    return flipped, kept</pre>
+  <p class="src">A direction is a difference of two averages, and steering is one addition.</p>
+  <pre class="code" data-lang="text">python code/ch50_inside.py</pre>
+
+  <section class="yourturn" aria-label="Your turn, by hand">
+    <h3>Your turn, by hand</h3>
+    <p class="need">Paper and a pencil · about 12 minutes</p>
+    <p>A paper model reads three cards and fills a fourth place. Each place holds one number at each of three stages.</p>
+    <ul>
+      <li><b>Stage 0.</b> Place 1 holds the first number. Place 2 holds the word: 1 for "plus", 2 for "times". Place 3 holds the second number. Place 4 holds 0.</li>
+      <li><b>Stage 1.</b> Place 4 takes the number place 2 held at stage 0. The other places keep their own.</li>
+      <li><b>Stage 2.</b> Place 4 looks at what it holds: below 1.5 it becomes place 1 plus place 3, otherwise place 1 times place 3. The others keep their own. The answer is read from place 4.</li>
+    </ul>
+    <p class="predict"><b>Predict first.</b> You will swap each of the twelve cells of "3 plus 4" for the same cell of "3 times 4". How many of the twelve swaps change the answer? Write your guess down.</p>
+    <ol>
+      <li>Fill the grid, four places by three stages, for "3 plus 4" and for "3 times 4".</li>
+      <li>In the "plus" run, replace place 2 at stage 0 by its value in the "times" run and work the model through. What is the answer?</li>
+      <li>Do the same for place 2 at stage 1, and then for place 4 at stage 1.</li>
+      <li>Over many runs, place 4 at stage 1 holds 1 for "plus" and 2 for "times". What is the direction from plus to times, and from which strength does adding it to a "plus" run change the answer?</li>
+    </ol>
+    <details class="answer"><summary>Check your working</summary>
+      <ol class="worked">
+        <li>"3 plus 4": stage 0 is 3, 1, 4, 0. Stage 1 is 3, 1, 4, 1. Stage 2 is 3, 1, 4, 7. "3 times 4": stage 0 is 3, 2, 4, 0. Stage 1 is 3, 2, 4, 2. Stage 2 is 3, 2, 4, 12.</li>
+        <li>Place 2 at stage 0 becomes 2. Place 4 then takes 2 at stage 1, and at stage 2 it multiplies: 12. The swap changed the answer.</li>
+        <li>Place 2 at stage 1 becomes 2, but place 4 already took its number from stage 0 and holds 1: the answer stays 7. Place 4 at stage 1 becomes 2, so stage 2 multiplies: 12.</li>
+        <li>The direction is 2 − 1 = +1. Place 4 holds 1 + <i>s</i>, which passes 1.5 when <i>s</i> is above 0.5. Half way, as in the measured table.</li>
+      </ol>
+      <p>Your prediction: three of twelve. Places 1 and 3, and place 4 at stage 0, hold the same numbers in both runs, so seven swaps change nothing at all. Of the five cells that differ, place 2 at stage 0 and place 4 at stages 1 and 2 change the answer. Place 2 at stages 1 and 2 holds the word and changes nothing, because nothing reads it any more.</p>
+    </details>
+  </section>
+
+  <div class="note">
+    <h3>What this chapter glossed over</h3>
+    <p><strong>One agent, one choice.</strong> Everything here is about a model of 108,032 weights choosing among three tools, and one block is enough to move the choice to where it is used. A large model spreads a choice over many places, blocks and attention heads, and the same experiments return partial answers.</p>
+    <p><strong>The letter test covers one word.</strong> The 95 variants are each one letter away from "times". Words two letters away, and variants of "plus" and "minus", were not tried. The test shows that the reading is spread over the word. It does not say how.</p>
+    <p><strong>The swap compared two words of the same length.</strong> "times" and "minus" both have five letters, so every place lines up. "plus" has four, the places after it shift by one, and a swap between "plus" and "times" would mix the two effects. That is why the grid is drawn for one pair only. The direction experiment does not have this limit, because it works at the last place.</p>
+    <p><strong>Averages hide spread.</strong> A direction between two averages works well here because all "times" questions give nearly the same activation at the last place. Where a group is spread out, the difference of averages is a poor summary, and better directions are found by training a probe.</p>
+    <p><strong>Swapping at stage 0 is close to changing the letter.</strong> The activation that goes in is the embedding of the character plus that of its place. Swapping it at one place is nearly the same as retyping that letter, which is why the made-up words agree so well with the grid. Swaps after a block have no such shortcut, and they are the informative ones.</p>
+    <p><strong>Heads were not separated.</strong> The grid says the first block moves the choice to the last place. It does not say which of its four attention heads does it. The same swap, done on the output of one head at a time, would.</p>
+    <p><strong>The dictionary of features was not built.</strong> Training a sparse autoencoder on this agent is possible, and with 64 numbers and three tools it would find little that the averages do not show. On the Shakespeare model of chapter 7 it would be a fair project.</p>
+  </div>
+
+  <div class="recap">
+    <h3>In short</h3>
+    <ul>
+      <li>An <a class="term" href="glossary.html#activation">activation</a> is the vector a model holds for one place at one stage. For one question of 26 characters this agent computes 78 of them.</li>
+      <li>A swap, or <a class="term" href="glossary.html#activation-patching">activation patching</a>, puts in one activation from another run. Of 78 cells, three changed the tool, 100 times of 100, and 75 never did.</li>
+      <li>Containing is not using: the cell that holds the letter after block 1 changed nothing.</li>
+      <li>A swap finds which differences between two inputs matter. "Between times and minus, the third letter decides" held for all six mixes of the two words. "The model reads the third letter" did not: 11 of 19 other letters in that place still gave <code>mul</code>.</li>
+      <li>For a word it was never taught, the agent calls <code>sub</code> or answers with no tool. It never says it does not know.</li>
+      <li>Adding a <a class="term" href="glossary.html#direction">direction</a>, the difference of two averages, changes the choice just past half way. One push at one place replaced 100 right answers by 100 made-up ones.</li>
+      <li>A score of 200 of 200 did not show any of this. A score describes the inputs that were tried.</li>
+    </ul>
+  </div>
+
+  <div class="stick" data-draw="fig-grid" data-explain="activation,activation-patching,direction,activation-steering"></div>
+
+  <h2>Check yourself</h2>
+  <details class="check"><summary>A probe reads the activation at the letter m after block 1 and tells "times" from "minus" every time. Does that show the model uses this activation to choose its tool?</summary>
+    <p>No. It shows the information is there. Swapping that very cell changed the call 0 times of 100: the choice had already been read from stage 0. Only an intervention, a swap or a push, shows that something is used.</p></details>
+  <details class="check"><summary>The swap showed that the third letter decides between "times" and "minus". Why does it not follow that the model reads only the third letter?</summary>
+    <p>A swap tests the differences between the two inputs compared. It does not test the letters they share, or any other letter that could stand in the same place. Changing one letter of "times" at a time showed that every place counts: at each one, about half of the 19 other letters keep the tool and half lose it.</p></details>
+  <details class="check"><summary>At strength 0.5 one call of 100 changes tool, at 0.6 it is 94. What does that tell you about how the choice is made?</summary>
+    <p>That it behaves like a threshold between the two averages. Short of the middle the scores still favour the old tool. Past it they favour the new one, for nearly every question at once, because the questions of one kind sit close together at that place.</p></details>
+  <details class="check"><summary>The agent scored 200 of 200. Give an input on which it calls the wrong tool, and say what in this chapter pointed to it.</summary>
+    <p>"what is 12 over 30?" calls <code>sub</code> and reports a subtraction. The grid showed that the choice hangs on the letters of one word, which suggested trying words built from the same letters, and then words the model was never taught.</p></details>
+  <details class="check"><summary>A model trained to refuse certain requests has its weights published. Why is the refusal not a protection?</summary>
+    <p>Whoever has the weights can read the activations, find the direction that separates refused requests from accepted ones, and remove it while the model runs. A published study did this on 13 open chat models. Protection has to sit where the user cannot reach: in the harness, its permissions and its sandbox.</p></details>
+</main>
+
+<script src="assets/agent.js"></script>
+<script src="assets/inside.js"></script>
+<script src="assets/glossary.js"></script>
+<script src="assets/micro.js"></script>
+<script>
+M.ready(function () {
+  var A = window.MICRO_AGENT, I = window.MICRO_INSIDE, boxes = ['#w-swap', '#w-word', '#w-steer'].map(function (s) { return M.$(s); });
+  if (!A || !I) { boxes.forEach(function (b) { b.appendChild(M.el('p', { text: 'The trained agent did not load, so this experiment is unavailable.' })); }); return; }
+  var m = M.loadWeights(A);
+  var TOOLS = { add: function (a, b) { return a + b; }, sub: function (a, b) { return a - b; }, mul: function (a, b) { return a * b; } };
+  var D = '0123456789', CALL = [{ words: ['add', 'sub', 'mul'] }, [' ', 1, 1], [D, 1, 2], [' ', 1, 1], [D, 1, 2], ['\n', 1, 1]], ROLE = [{ words: ['C ', 'A '] }];
+  var STAGES = ['goes in', 'after block 1', 'after block 2'];
+  function moves(fmt, st) {                                      // the format machine of chapter 13
+    var i = st[0], s = st[1], out = {}, mayEnd;
+    while (i < fmt.length) {
+      var part = fmt[i];
+      if (part.words) {
+        part.words.forEach(function (w) { if (w.indexOf(s) === 0 && w.length > s.length && !(w[s.length] in out)) out[w[s.length]] = [i, s + w[s.length]]; });
+        mayEnd = part.words.indexOf(s) >= 0;
+      } else {
+        if (s.length < part[2]) for (var k = 0; k < part[0].length; k++) if (!(part[0][k] in out)) out[part[0][k]] = [i, s + part[0][k]];
+        mayEnd = s.length >= part[1];
+      }
+      if (!mayEnd) break;
+      i++; s = '';
+    }
+    return out;
+  }
+  function writeLine(wr, used, fmt, limit) {
+    var line = '', st = [0, ''];
+    while (line.slice(-1) !== '\n' && line.length < limit && used.n < m.cfg.block) {
+      var z = wr.logits(), best = -1, legal = null;
+      if (fmt) { legal = moves(fmt, st); if (!Object.keys(legal).length) break; }
+      for (var i = 0; i < z.length; i++) if ((!legal || m.chars[i] in legal) && (best < 0 || z[i] > z[best])) best = i;
+      var ch = m.chars[best];
+      if (fmt) st = legal[ch];
+      line += ch; wr.add(best); used.n++;
+    }
+    return line;
+  }
+  function ask(question, edit) {                                 // the agent loop of chapter 19; edit changes activations on the way
+    var prompt = '\nU ' + question + '\n', wr = M.writer(m, prompt, null, edit), used = { n: prompt.length };
+    var role = writeLine(wr, used, ROLE, 2);
+    if (role !== 'C ') return { call: '', answer: writeLine(wr, used, null, 60).trim() };
+    var call = writeLine(wr, used, CALL, 14).trim(), p = call.split(' '), result = TOOLS[p[0]](+p[1], +p[2]), fed = 'R ' + result + '\nA ';
+    for (var i = 0; i < fed.length; i++) { wr.add(m.stoi[fed[i]]); used.n++; }
+    return { call: call, result: result, answer: writeLine(wr, used, null, 60).trim() };
+  }
+  function record(text) {                                        // every activation while the model reads `text`
+    var rec = [[], [], []];
+    M.writer(m, text, null, function (stage, place, x) { rec[stage][place] = Float32Array.from(x); });
+    return rec;
+  }
+  function numbers(rnd) { return [10 + Math.floor(rnd() * 90), 10 + Math.floor(rnd() * 90)]; }
+  function lines(box, q, r) {                                    // draw one exchange
+    box.textContent = '';
+    var COLOR = { U: '--ink', C: '--fwd', R: '--prob-fill', A: '--fwd' };
+    var rows = [['U', q, 'you']];
+    if (r.call) { rows.push(['C', r.call, 'the model asks for a tool']); rows.push(['R', String(r.result), 'the program ran it']); }
+    rows.push(['A', r.answer, r.call ? 'the model answers, using the result' : 'the model answers with no tool']);
+    rows.forEach(function (l) {
+      box.appendChild(M.el('div', { style: 'border-left:4px solid ' + M.css(COLOR[l[0]]) + ';padding:4px 0 4px 10px;margin:6px 0' },
+        M.el('div', { style: 'font-family:var(--mono);font-size:15px;overflow-wrap:anywhere', text: l[0] + ' ' + l[1] }), M.el('div', { class: 'caption', style: 'margin:0', text: l[2] })));
+    });
+  }
+  var show = function (c) { return c === '\n' ? '⏎' : c === ' ' ? '␣' : c; };
+
+  // ---------- widget 1: swap one cell ----------
+  (function () {
+    var box = boxes[0], rnd = M.rng(5), ab = [12, 30], way = 0, flipped = null;
+    var WORDS = [['times', 'minus', 'mul', 'sub'], ['minus', 'times', 'sub', 'mul']];
+    var grid = M.el('div', { class: 'cellgrid', role: 'img' }), out = M.el('p', { class: 'readout', 'aria-live': 'polite' }), head = M.el('p', { class: 'caption' });
+    var place = M.slider({ label: 'Place', min: 1, max: 26, step: 1, value: 17, fmt: function (v) { return v + ': ' + show(text()[v - 1]); }, oninput: function () { draw(); } });
+    var stage = M.select('Stage', STAGES.map(function (s, i) { return [String(i), s]; }), function () { draw(); });
+    var which = M.select('Ask', [['0', 'times, borrow from minus'], ['1', 'minus, borrow from times']], function (v) { way = +v; flipped = null; draw(); });
+    function text() { return '\nU what is ' + ab[0] + ' ' + WORDS[way][0] + ' ' + ab[1] + '?\nC '; }
+    function swapAt(st, pl, donor) {
+      return ask('what is ' + ab[0] + ' ' + WORDS[way][0] + ' ' + ab[1] + '?', function (s, p, x) { if (s === st && p === pl) x.set(donor[st][pl]); });
+    }
+    function donorRun() { return record('\nU what is ' + ab[0] + ' ' + WORDS[way][1] + ' ' + ab[1] + '?\nC '); }
+    function draw(msg) {
+      var t = text(), st = +stage.sel.value, pl = place.value - 1;
+      grid.textContent = '';
+      for (var p = 0; p < 26; p++) grid.appendChild(M.el('span', { class: 'hd', text: show(t[p]) }));
+      for (var s = 0; s < 3; s++) for (p = 0; p < 26; p++)
+        grid.appendChild(M.el('span', { class: 'c' + (flipped && flipped[s][p] ? ' on' : '') + (s === st && p === pl ? ' sel' : '') }));
+      grid.setAttribute('aria-label', 'Three rows of 26 cells, one row per stage. ' + (flipped ? flipped.reduce(function (a, r) { return a + r.filter(Boolean).length; }, 0) + ' cells are lit.' : 'No cell has been tried yet.'));
+      head.textContent = 'Asked: what is ' + ab[0] + ' ' + WORDS[way][0] + ' ' + ab[1] + '? Borrowed from: the same question with "' + WORDS[way][1] + '". Rows: goes in, after block 1, after block 2.';
+      if (msg !== undefined) out.textContent = msg;
+    }
+    function one() {
+      var st = +stage.sel.value, pl = place.value - 1, r = swapAt(st, pl, donorRun());
+      draw('Swapped ' + show(text()[pl]) + ' (' + STAGES[st] + '). The agent wrote: C ' + r.call + (r.call.indexOf(WORDS[way][3]) === 0 ? '. The tool changed.' : '. The tool did not change.'));
+    }
+    function all() {
+      var donor = donorRun(), n = 0;
+      flipped = [[], [], []];
+      for (var s = 0; s < 3; s++) for (var p = 0; p < 26; p++) { flipped[s][p] = swapAt(s, p, donor).call.indexOf(WORDS[way][3]) === 0; n += flipped[s][p]; }
+      draw(n + ' of 78 swaps changed the tool to ' + WORDS[way][3] + '.');
+    }
+    box.appendChild(M.row(which.el)); box.appendChild(M.row(place)); box.appendChild(M.row(stage.el));
+    box.appendChild(M.row(M.button('Swap this cell', one, 'go'), M.button('Try all 78 cells', all), M.button('New numbers', function () { ab = numbers(rnd); flipped = null; draw(''); })));
+    box.appendChild(head); box.appendChild(grid); box.appendChild(out);
+    draw('');
+  })();
+
+  // ---------- widget 2: a word of your own ----------
+  (function () {
+    var box = boxes[1], rnd = M.rng(9), ab = [12, 30], out = M.el('div', { 'aria-live': 'polite' });
+    var input = M.el('input', { type: 'text', value: 'times', maxlength: '10', 'aria-label': 'The word between the two numbers', autocapitalize: 'off', autocomplete: 'off', spellcheck: 'false' });
+    function go() {
+      var w = input.value.toLowerCase().split('').filter(function (c) { return (c >= 'a' && c <= 'z') || c === ' '; }).join('').trim().slice(0, 10);
+      if (!w) return;
+      var q = 'what is ' + ab[0] + ' ' + w + ' ' + ab[1] + '?';
+      lines(out, q, ask(q));
+    }
+    input.addEventListener('keydown', function (e) { if (e.key === 'Enter') go(); });
+    var chips = M.el('div', { class: 'row' });
+    ['times', 'tines', 'mimus', 'tides', 'tires', 'pimes', 'over', 'half of'].forEach(function (w) { chips.appendChild(M.button(w, function () { input.value = w; go(); })); });
+    box.appendChild(input);
+    box.appendChild(M.row(M.button('Ask', go, 'go'), M.button('New numbers', function () { ab = numbers(rnd); go(); })));
+    box.appendChild(out); box.appendChild(chips);
+    go();
+  })();
+
+  // ---------- widget 3: push along a direction ----------
+  (function () {
+    var box = boxes[2], rnd = M.rng(2), ab = [12, 30], out = M.el('div', { 'aria-live': 'polite' }), stat = M.el('p', { class: 'readout' });
+    var PUSH = [['times', 'minus'], ['minus', 'times'], ['plus', 'times'], ['times', 'plus'], null], WORDS3 = ['plus', 'minus', 'times'];
+    var kind = M.select('Push', [['0', 'times towards minus'], ['1', 'minus towards times'], ['2', 'plus towards times'], ['3', 'times towards plus'], ['4', 'a sum towards a direct answer']], go);
+    var stage = M.select('At', [['2', 'after block 2'], ['1', 'after block 1']], go);
+    var s = M.slider({ label: 'Strength', min: 0, max: 1.5, step: 0.05, value: 0, fmt: function (v) { return v.toFixed(2); }, oninput: go });
+    function run(word, a, b, k, st, strength) {
+      var q = 'what is ' + a + ' ' + word + ' ' + b + '?', dir = new Float32Array(64), at, i;
+      if (PUSH[k]) { var from = I.means[PUSH[k][0]][st], to = I.means[PUSH[k][1]][st]; for (i = 0; i < 64; i++) dir[i] = to[i] - from[i]; at = ('\nU ' + q + '\nC ').length - 1; }
+      else { st = 2; for (i = 0; i < 64; i++) dir[i] = I.direct.mean_chat[i] - I.direct.mean_sums[i]; at = ('\nU ' + q + '\n').length - 1; }
+      return [q, ask(q, function (sg, p, x) { if (sg === st && p === at) for (var j = 0; j < 64; j++) x[j] += strength * dir[j]; })];
+    }
+    function go() {
+      var k = +kind.sel.value, st = +stage.sel.value, word = PUSH[k] ? PUSH[k][0] : 'plus', r = run(word, ab[0], ab[1], k, st, s.value);
+      stage.el.hidden = !PUSH[k];
+      lines(out, r[0], r[1]);
+      var changed = 0, right = 0, r2 = M.rng(31);
+      for (var n = 0; n < 20; n++) {
+        var c = numbers(r2), w = PUSH[k] ? word : WORDS3[n % 3], res = run(w, c[0], c[1], k, st, s.value)[1];
+        var tool = { plus: 'add', minus: 'sub', times: 'mul' }[w];
+        if (PUSH[k] ? res.call.indexOf(tool) !== 0 : !res.call) changed++;
+        if (res.answer === c[0] + ' ' + w + ' ' + c[1] + ' is ' + TOOLS[tool](c[0], c[1]) + '.') right++;
+      }
+      stat.textContent = 'On 20 other sums at this strength: ' + changed + (PUSH[k] ? ' changed tool' : ' answered with no tool') + ', ' + right + ' gave the right answer to the question asked.';
+    }
+    box.appendChild(M.row(kind.el)); box.appendChild(M.row(stage.el)); box.appendChild(M.row(s));
+    box.appendChild(M.row(M.button('New numbers', function () { ab = numbers(rnd); go(); })));
+    box.appendChild(out); box.appendChild(stat);
+    go();
+  })();
+});
+</script>
+</body>
+</html>

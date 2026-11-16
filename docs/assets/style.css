@@ -247,6 +247,7 @@ figure.fig figcaption b { color: var(--ink); }
 .fig .ln-dash { stroke: var(--muted); stroke-width: 1.2; stroke-dasharray: 4 4; fill: none; }
 .fig .bar-prob { fill: var(--prob-fill); }
 .fig .bar-fwd { fill: var(--fwd); }
+.fig .bar-grad { fill: var(--grad); }
 .fig text { fill: var(--ink); font-size: 14px; }
 .fig .t-mono { font-family: var(--mono); }
 .fig .t-muted { fill: var(--muted); }
@@ -568,3 +569,11 @@ canvas.pad { width: 100%; height: auto; aspect-ratio: 680 / 520; background: var
 .stick-fig { overflow-x: auto; }
 @media (max-width: 640px) { .stick-fig svg { min-width: 640px; } }
 .actout .need { font-family: var(--sans); font-size: 13.5px; color: var(--muted); margin: 0 0 10px; }
+
+/* chapter 50: one small cell per place and stage */
+.cellgrid { display: grid; grid-template-columns: repeat(26, minmax(0, 1fr)); gap: 2px; margin: 10px 0 12px; max-width: 640px; }
+.cellgrid span { min-width: 0; }
+.cellgrid .hd { font-family: var(--mono); font-size: 10px; line-height: 1.4; text-align: center; color: var(--muted); overflow: hidden; }
+.cellgrid .c { height: 18px; border: 1px solid var(--line); border-radius: 2px; background: var(--panel); }
+.cellgrid .c.on { background: var(--fwd); border-color: var(--fwd); }
+.cellgrid .c.sel { outline: 2px solid var(--ink); outline-offset: 1px; }

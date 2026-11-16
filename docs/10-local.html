@@ -99,7 +99,7 @@ What is the capital of France?&lt;|im_end|&gt;
     <p class="try"><b>Try this.</b> The box shows the by-hand document. The blue pieces are special tokens. Tick the second turn and read the document again. Then switch between the three model families. Edit the messages if you like.</p>
   </section>
 
-  <p><strong>What you should have seen.</strong> The first document has 5 special tokens and ends where the assistant is about to speak. With the second turn ticked it has 9, and it contains everything again: the instruction, the first question, the answer <code>Paris.</code>, and the new question. The whole conversation is sent on every turn, because the model keeps nothing between calls. The other families write the same conversation with other tokens: 15 of them in the Llama 3 style, 8 in the Gemma style, which has no separate system role and puts the instruction at the start of the first user turn.</p>
+  <p><strong>What you should have seen.</strong> The first document has 5 special tokens and ends where the assistant is about to speak. With the second turn ticked it has 9, and it contains everything again: the instruction, the first question, the answer <code>Paris.</code>, and the new question. The whole conversation is sent on every turn, because the model keeps nothing between calls. The other families write the same conversation with other tokens: 15 of them in the Llama 3 style, 8 in the Gemma style, which has no separate system role and puts the instruction at the start of the first user turn. That is the layout of Gemma up to version 3. Gemma 4, released in 2026, has a system turn of its own and new turn tokens, so even within one family the layout changes from one generation to the next. Always take the template from the files of the exact model you run.</p>
 
   <p>Each model family has its own chat template, and it is stored inside the model file so the server can apply it for you. If the wrong template is used, the model still produces text, because it always can. It just produces worse text, since the document no longer looks like the ones it was trained on. When a local model behaves strangely, this is one of the first things to check.</p>
 
@@ -273,7 +273,7 @@ M.ready(function () {
     var sys = M.el('input', { type: 'text', id: 'tp-sys', value: 'You are a concise assistant.' });
     var usr = M.el('input', { type: 'text', id: 'tp-usr', value: 'What is the capital of France?' });
     var out = M.el('div', { class: 'out' }), stat = M.el('p', { class: 'readout' });
-    var sel = M.select('Model family', [['chatml', 'ChatML (Qwen and many others)'], ['llama3', 'Llama 3 style'], ['gemma', 'Gemma style']], function (v) { fmt = v; draw(); });
+    var sel = M.select('Model family', [['chatml', 'ChatML (Qwen and many others)'], ['llama3', 'Llama 3 style'], ['gemma', 'Gemma style (up to Gemma 3)']], function (v) { fmt = v; draw(); });
     var cbId = 'tp-two', cb = M.el('input', { type: 'checkbox', id: cbId });
     cb.addEventListener('change', function () { two = cb.checked; draw(); });
     function build() {

@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Telling it or showing it | microAI</title>
+<!-- [social] written by tools/build_site.py -->
+<meta name="description" content="An instruction names what a model learned in training; an example shows what has no name. One small model steered both ways, and what each way cannot do.">
+<link rel="canonical" href="https://timothee-aubourg.github.io/microai/49-prompting.html">
+<meta property="og:site_name" content="microAI">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Telling it or showing it · microAI">
+<meta property="og:description" content="An instruction names what a model learned in training; an example shows what has no name. One small model steered both ways, and what each way cannot do.">
+<meta property="og:url" content="https://timothee-aubourg.github.io/microai/49-prompting.html">
+<meta property="og:image" content="https://timothee-aubourg.github.io/microai/cards/49.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Telling it or showing it · microAI">
+<meta name="twitter:card" content="summary_large_image">
+<!-- [/social] -->
+<link rel="stylesheet" href="assets/style.css">
+<script src="assets/theme.js"></script>
+</head>
+<body data-ch="49">
+<main>
+  <p class="where">Chapter 49</p>
+  <h1>Telling it or showing it</h1>
+  <p class="question">You want a finished model to do one particular thing. You can tell it in a few words, or show it examples. Which works, when, and what does each cost?</p>
+
+  <p>Chapter 15 put a system prompt at the start of every request, and chapter 16 counted what it costs to read. Neither asked what should be written in it. A prompt steers a model whose weights are fixed, and it has two means: words that say what to do, and examples of it being done. Guides to prompting recommend both. This chapter measures what each one can do, on a model small enough to test exactly.</p>
+  <p>The measurements need a task where "right" has no room for opinion, where the model can be told some things by name, and where other things have no name at all. Writing letters in a code is such a task.</p>
+
+  <h2>Two ways to ask</h2>
+  <p>The alphabet has eight letters, a to h. A <b>code</b> swaps every letter for another one. Seven codes have a name, a digit: code 3 moves every letter three places along, and after h comes a again. So code 3 writes a as d, b as e, and g as b. Every other code is drawn at random: there are 40,320 ways to pair eight letters with eight letters, and no name for any of them.</p>
+  <p>A prompt has three lines. The first can give a name. The second has six places for examples, each a pair of letters: <code>ad</code> reads "a is written d". The third asks for one letter.</p>
+  <figure class="fig" id="fig-prompt">
+    <svg viewBox="0 0 760 216" role="img" aria-labelledby="f49a">
+      <title id="f49a">The same question asked two ways. On the left, told: the first line of the prompt gives the name 3, the line of examples is empty, the question is the letter b and the model answers e. An arrow runs from the name to the answer. On the right, shown: no name is given, the line of examples holds the pairs ag, cf and hb, the question is the letter c and the model answers f. An arrow runs from the pair cf to the answer.</title>
+      <defs><marker id="c49a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
+      <rect x="16" y="34" width="340" height="128" rx="8" class="bx"/><text x="30" y="24" class="t-small t-bold">Told: a name</text><text x="34" y="64" class="t-mono">R 3</text><text x="34" y="94" class="t-mono">E .. .. .. .. .. ..</text><text x="34" y="124" class="t-mono">Q b</text><text x="30" y="186" class="t-small t-muted">The name calls up what training</text><text x="30" y="204" class="t-small t-muted">attached to it: three places along.</text>
+      <rect x="404" y="34" width="340" height="128" rx="8" class="bx"/><text x="418" y="24" class="t-small t-bold">Shown: examples</text><text x="422" y="64" class="t-mono">R -</text><text x="422" y="94" class="t-mono">E ag cf hb .. .. ..</text><text x="422" y="124" class="t-mono">Q c</text><text x="418" y="186" class="t-small t-muted">The pair that starts with c is found</text><text x="418" y="204" class="t-small t-muted">and its second letter is copied.</text>
+      <rect x="48" y="48" width="14" height="22" rx="4" class="bx-fwd"/><text x="34" y="64" class="t-mono">R 3</text>
+      <rect x="461" y="78" width="23" height="22" rx="4" class="bx-fwd"/><text x="422" y="94" class="t-mono">E ag cf hb .. .. ..</text>
+      <rect x="276" y="106" width="58" height="30" rx="6" class="bx-prob"/><text x="305" y="126" text-anchor="middle" class="t-mono t-bold">e</text><text x="305" y="152" text-anchor="middle" class="t-small t-muted">answer</text>
+      <rect x="664" y="106" width="58" height="30" rx="6" class="bx-prob"/><text x="693" y="126" text-anchor="middle" class="t-mono t-bold">f</text><text x="693" y="152" text-anchor="middle" class="t-small t-muted">answer</text>
+      <path d="M65,59 C200,52 300,60 304,104" class="ln-fwd" marker-end="url(#c49a)"/>
+      <path d="M473,77 C493,44 688,40 692,104" class="ln-fwd" marker-end="url(#c49a)"/>
+    </svg>
+    <figcaption><b>One question, asked two ways.</b> Code 3 writes b as e. The code on the right has no name: the three pairs are all the model is given.</figcaption>
+  </figure>
+
+  <div class="def"><span class="kind">Definitions</span>
+    <p>An <dfn>instruction</dfn> is text in a prompt that says what to do. It works through what training attached to its words.</p>
+    <p>An <dfn>example</dfn>, also called a shot, is an input placed in the prompt together with its right output, for the model to imitate. A prompt with a few examples is called few-shot. One with none is zero-shot.</p>
+    <p><dfn>In-context learning</dfn> is a model doing, from examples in its prompt, something its weights alone would not do. No weight changes, and nothing is kept once the prompt is gone.</p>
+  </div>
+  <h3>By hand: the same question, both ways</h3>
+  <p><b>Told.</b> The prompt says <code>R 3</code> and asks for g. Count three places along from g: h, then a, then b. The answer is b. Nothing in the prompt shows a code. You needed to know already what "3" means.</p>
+  <p><b>Shown.</b> The prompt says <code>R -</code>, shows the pairs <code>ag cf hb</code>, and asks for c. Look for the pair that starts with c: it is <code>cf</code>. The answer is f. You needed no knowledge of this code. You needed to know how to read a pair.</p>
+  <p>Now ask for d with the same three pairs. No pair starts with d. The pairs say that g, f and b are taken, so d is written as one of the five letters left, and nothing says which. An example settles the cases it shows.</p>
+
+  <h3>The model</h3>
+  <p>One model of 152,256 weights was trained on prompts of both kinds, mixed. Half of them used one of the seven named codes: with its name alone, with examples alone, or with both. The other half used a code drawn at random for that one prompt, with one to six pairs and no name. A random code never comes back, so at test time every one of them is new to the model.</p>
+
+  <h2>Told: a code with a name</h2>
+  <p>Ask for a letter with nothing but a name. The script did it 300 times, each time with one of the seven names and a letter drawn at random. Then it did the same with no name at all.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>The prompt gives</th><th>Right, of 300</th></tr>
+    <tr><td>a name, no example</td><td class="mono">300</td></tr>
+    <tr><td>no name, no example</td><td class="mono">46</td></tr>
+  </table></div>
+  <p class="src">Every count on this page is measured by <code>code/ch49_prompt.py</code>.</p>
+  <p>With a name the model is right every time. With nothing it is right 46 times of 300, about what one guess among eight letters gives, which is 37 or 38. A second count of the same thing, in a table further down, gives 37. So the single character after R carries everything. It can, because training put the seven codes into the weights, eight letters to write for each, 56 in all, and the name picks eight of them.</p>
+  <p>That is the strength of an instruction, and its limit. One character calls up a whole behaviour. It can only call up a behaviour that training put there. A code drawn at random was never in training, so no character names it.</p>
+
+  <h2>Shown: a code it has never seen</h2>
+  <p>Now the other way. No name, a code drawn at random, one to six pairs of it, and a question about a letter that is in one of the pairs.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Pairs shown</th><th class="mono">1</th><th class="mono">2</th><th class="mono">3</th><th class="mono">4</th><th class="mono">6</th></tr>
+    <tr><td>Right, of 300</td><td class="mono">300</td><td class="mono">300</td><td class="mono">300</td><td class="mono">300</td><td class="mono">300</td></tr>
+  </table></div>
+  <p>Right every time, whatever the number of pairs. Each of these 1,500 codes was new to the model, and it wrote the letter correctly from two characters of prompt. Its attention (chapter 5) finds the pair that starts with the letter asked and copies the letter after it. This is <a class="term" href="glossary.html#in-context-learning">in-context learning</a> in its plainest form, and it is worth being exact about where the code was learned. Not in the weights: they are the same before and after. The code is in the prompt, and it is gone with it.</p>
+  <h3>What the examples do not show</h3>
+  <p>Ask the same prompts for a letter that is in none of the pairs.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Pairs shown</th><th class="mono">1</th><th class="mono">2</th><th class="mono">3</th><th class="mono">4</th><th class="mono">6</th></tr>
+    <tr><td>Right, of 300, on a letter in no pair</td><td class="mono">53</td><td class="mono">54</td><td class="mono">63</td><td class="mono">81</td><td class="mono">145</td></tr>
+    <tr><td>One guess among the letters still free</td><td class="mono">43</td><td class="mono">50</td><td class="mono">60</td><td class="mono">75</td><td class="mono">150</td></tr>
+    <tr><td>Answers with a letter already taken</td><td class="mono">0</td><td class="mono">0</td><td class="mono">0</td><td class="mono">0</td><td class="mono">0</td></tr>
+  </table></div>
+  <p>The answer is not in the prompt, and the model does about as well as a careful guesser would. It never answered with a letter that a pair had already used: 0 times in 1,500. It has learned that a code uses each letter once, so it rules out the taken letters and picks among the rest. With six pairs two letters are left, and it is right about half the time. Ruling out is all the examples allow.</p>
+  <h3>By hand: what one more example buys</h3>
+  <p>Draw the letter asked at random, and show <i>k</i> pairs. The letter is in one of them <i>k</i> times in 8, and then the model is right. The other 8 − <i>k</i> times in 8 it guesses among 8 − <i>k</i> letters, and is right once in 8 − <i>k</i>: that comes to 1 time in 8, whatever <i>k</i> is. In all, (<i>k</i> + 1) times in 8. With three pairs, 4 in 8: 150 of 300.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Pairs shown</th><th class="mono">0</th><th class="mono">1</th><th class="mono">2</th><th class="mono">3</th><th class="mono">4</th><th class="mono">5</th><th class="mono">6</th></tr>
+    <tr><td>Right, of 300, on any letter</td><td class="mono">37</td><td class="mono">76</td><td class="mono">119</td><td class="mono">156</td><td class="mono">195</td><td class="mono">215</td><td class="mono">265</td></tr>
+    <tr><td>(<i>k</i> + 1) in 8, of 300</td><td class="mono">37.5</td><td class="mono">75</td><td class="mono">112.5</td><td class="mono">150</td><td class="mono">187.5</td><td class="mono">225</td><td class="mono">262.5</td></tr>
+  </table></div>
+  <p>Each pair adds about one case in eight, the case it shows. No pair makes the model better at the letters it does not show. An example covers what it shows, which is why guides ask for examples that are varied: five examples of the same case are one example.</p>
+
+  <h2>Examples that point at something known</h2>
+  <p>Something else happens when the pairs come from one of the seven named codes, shown without its name. Ask again for a letter that no pair shows.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>Pairs shown</th><th class="mono">1</th><th class="mono">2</th><th class="mono">3</th><th class="mono">4</th><th class="mono">6</th></tr>
+    <tr><td>A named code, name not given: right of 300</td><td class="mono">291</td><td class="mono">295</td><td class="mono">300</td><td class="mono">300</td><td class="mono">300</td></tr>
+    <tr><td>A random code, from the table above</td><td class="mono">53</td><td class="mono">54</td><td class="mono">63</td><td class="mono">81</td><td class="mono">145</td></tr>
+  </table></div>
+  <p>One pair is enough for 291 of 300. The pair <code>ad</code> does not say what c becomes. But d is three places along from a, the model holds a code that does that, and it answers with that code for every letter. Here the example taught nothing. It <em>pointed</em> at something the weights already held, the way a name does.</p>
+  <p>These are two different jobs, and real prompts mix them all the time. An example of something the model can already do, a tone or a layout it knows, selects that behaviour, and one or two examples are enough. An example of something new can only be applied where it fits. From outside the two look the same: you add examples and the output gets better. They fail differently. When the model recognises something, it applies it with confidence to every case, including cases where you meant something else. When it recognises nothing, it is right only on what you showed.</p>
+
+  <h2>When the two disagree</h2>
+  <p>A prompt can say one thing and show another. The model was never trained on such a prompt, so nothing taught it which to believe. The script tried three kinds of disagreement, 300 prompts each.</p>
+  <h3>The name against the pairs</h3>
+  <p>The name is one code and the pairs come from another. The letter asked is in one of the pairs, so both give an answer, and the two answers differ.</p>
+  <div class="scroll"><table class="mini">
+    <tr><th>The pairs come from</th><th>Pairs</th><th>Follows the name</th><th>Follows the pairs</th><th>Neither</th></tr>
+    <tr><td>another named code</td><td class="mono">1</td><td class="mono">300</td><td class="mono">0</td><td class="mono">0</td></tr>
+    <tr><td></td><td class="mono">3</td><td class="mono">293</td><td class="mono">5</td><td class="mono">2</td></tr>
+    <tr><td></td><td class="mono">6</td><td class="mono">287</td><td class="mono">10</td><td class="mono">3</td></tr>
+    <tr><td>a random code</td><td class="mono">1</td><td class="mono">300</td><td class="mono">0</td><td class="mono">0</td></tr>
+    <tr><td></td><td class="mono">3</td><td class="mono">288</td><td class="mono">10</td><td class="mono">2</td></tr>
+    <tr><td></td><td class="mono">6</td><td class="mono">287</td><td class="mono">9</td><td class="mono">4</td></tr>
+  </table></div>
+  <p>The name wins, at least 287 times of 300, against six pairs as against one, with the pair that answers the question in plain view. A likely reason: in training a name was never wrong, and using it needs no search through the pairs. Of two signs that had always agreed, the model leans on the cheaper one.</p>
+  <h3>One pair against the others</h3>
+  <p>Six pairs and no name. Five follow one of the named codes. The sixth, the pair for the letter asked, is wrong. The model copied the wrong pair 300 times of 300. The pattern of the other five, which it used so well when the pair was missing, counts for nothing against a pair that answers the question. With the right name added to prompts of the same kind, it went with the name 290 times, with the pair 8 times, and with neither 2 times.</p>
+  <h3>Two pairs for one letter</h3>
+  <p>A random code, in which two of the pairs give the same letter two different codes. The model followed the earlier pair 187 times, the later one 105 times, and neither 8 times.</p>
+  <p>Three things to keep from these counts. An example is followed to the letter, mistakes included, so check every one. When a prompt disagrees with itself, the model does not average and does not warn you: it follows one side and writes its answer in the usual confident form. And which side it follows is not a law of language models. It is what this training happened to make easy. Another model can lean the other way, and the only way to know is to try.</p>
+
+  <section class="bench" id="w-ask">
+    <h3>Ask it both ways</h3>
+    <p class="try"><b>Try this.</b> The model runs in this page. The table asks it for all eight letters with the prompt shown above it. Start as set: no name, three pairs of a new code. Read which letters it gets right. Move <b>Pairs shown</b> down to 0 and up to 6. Then take the pairs from code 3 without saying so, with two pairs. Last, give the name of code 5 while the pairs still come from code 3.</p>
+  </section>
+
+  <p><strong>What you should have seen.</strong> As set, the pairs are <code>ed ae fb</code>, and the model agrees with their code on 4 of the 8 letters: the three that a pair shows, and one of the five that none shows, which is the by-hand count for three pairs. With no pair and no name its eight answers mean nothing. With six pairs it is right on the six letters shown and on neither of the other two. Take the pairs from code 3 without saying so, and two pairs, <code>eh ad</code>, are enough for 8 of 8: all six letters that no pair shows come out right, because the model has recognised the code. Now give the name of code 5 above those two pairs. The model writes code 5 for all 8 letters, including e and a, whose pairs say otherwise in the line just above the question. Raising the pairs of code 3 to six changes nothing: still code 5 on 8 of 8.</p>
+
+  <h2>What each one costs</h2>
+  <p>In this model the name is one character and each pair is two. At full size the same difference is larger. An instruction is a sentence or two, some tens of tokens. An example is a whole input with its whole output, often hundreds of tokens, and a prompt usually needs several.</p>
+  <h3>By hand: 10,000 requests a day</h3>
+  <p>Take an instruction of 30 tokens, and five examples of 150 tokens each, 750 tokens. Both sit in the system prompt, so both are read at every request (chapter 16). Over 10,000 requests a day the instruction is 30 × 10,000 = 300,000 tokens read, and the examples are 750 × 10,000 = 7,500,000. The examples cost 25 times as much to read. A prefix cache makes the fixed beginning cheap to read again, and it does not give back the room: those 750 tokens are in the window of every request.</p>
+  <p>So the usual order is the cheap means first. Say it. Add examples when saying it is not enough, which is when the thing wanted has no name the model knows: a house style, a layout, the tone of a reply.</p>
+
+  <h2>At full size</h2>
+  <p>A large model has been trained on far more names than seven, so far more can simply be said. What you measured still holds, and the published guides to prompting say the same things in their own words.</p>
+  <ul>
+    <li><strong>Say it plainly first.</strong> State what is wanted, for whom, and in what form. Anthropic's guide to context for agents asks for a system prompt at the right altitude: specific enough to guide the model, and not a list of brittle rules for every case.</li>
+    <li><strong>Show what cannot be said.</strong> Anthropic's prompting guide recommends three to five examples and asks that they be relevant, varied and clearly set apart from the instructions. Relevant, because an example covers the cases it shows. Varied, because the model copies whatever the examples have in common, including what you did not intend.</li>
+    <li><strong>Make the two agree.</strong> Check each example against the instructions before blaming the model. Anthropic's prompting guide warns that a model picks up patterns in the examples that their author never intended. Ours followed the name against the examples, and copied a wrong example when no name was given. Neither is a rule to count on.</li>
+    <li><strong>The prompt is also the tools.</strong> The descriptions of chapter 37 are instructions, read at every step. The same care applies to them.</li>
+    <li><strong>Test every change.</strong> A prompt is a program in a language nobody has specified. Whether a new sentence helped is a question for the evaluation of chapter 14, on tasks kept aside, with enough runs to tell.</li>
+  </ul>
+
+  <h2>Build it</h2>
+  <pre class="code" data-src="ch49_prompt.py#rules">def shift(k):
+    """A code with a name: every letter moves k places along, and h wraps round to a."""
+    return {c: LETTERS[(i + k) % 8] for i, c in enumerate(LETTERS)}
+
+def fresh(rng):
+    """A code drawn at random, one of 40,320. The model will not have met it."""
+    return dict(zip(LETTERS, rng.permutation(list(LETTERS))))</pre>
+  <p class="src">Seven codes with a name, and as many random ones as you like.</p>
+  <pre class="code" data-src="ch49_prompt.py#prompt">def prompt(name, pairs, letter):
+    """One line for the name, one line of six places for examples, and the question.
+    A pair such as "ad" reads: a is written d. An empty place is two dots.
+    Every part sits at a fixed place, so the model knows where to look."""
+    shown = [a + b for a, b in pairs] + ['..'] * (SLOTS - len(pairs))
+    return f'\nR {name or "-"}\nE ' + ' '.join(shown) + f'\nQ {letter}'</pre>
+  <p class="src">The prompt: a name, six places for pairs, one question.</p>
+  <pre class="code" data-src="ch49_prompt.py#data">def sample(rng):
+    """One training text. A named code comes with its name, with examples, or with both.
+    A random code can only come with examples."""
+    if rng.random() &lt; 0.5:
+        k = int(rng.integers(1, 8))
+        code, how = shift(k), rng.random()
+        name = NAMES[k - 1] if how &lt; 0.6 else None
+        n = 0 if how &lt; 0.4 else int(rng.integers(1, SLOTS + 1))
+    else:
+        code, name, n = fresh(rng), None, int(rng.integers(1, SLOTS + 1))
+    pairs = examples(code, n, rng)
+    shown = [a for a, _ in pairs]
+    asked = [shown[rng.integers(len(shown))] if shown and rng.random() &lt; 0.6 else LETTERS[rng.integers(8)] for _ in range(ASKED)]
+    return prompt(name, pairs, asked[0]) + ' '.join(c + code[c] for c in asked)[1:] + '\n'</pre>
+  <p class="src">The training mix. The model never sees a prompt whose name and pairs disagree.</p>
+  <pre class="code" data-src="ch49_prompt.py#answer">def answers(model, prompts):
+    """The model's letter for each prompt: its favourite among the eight."""
+    ids = np.array([[STOI[c] for c in p] for p in prompts])
+    allowed = [STOI[c] for c in LETTERS]
+    logits, _ = model.forward(ids)
+    return [LETTERS[i] for i in np.argmax(logits.data[:, -1, allowed], axis=-1)]</pre>
+  <p class="src">Asking: the favourite of the eight letters.</p>
+  <pre class="code" data-lang="text">python code/ch49_prompt.py            # train and measure, about 25 minutes
+python code/ch49_prompt.py --steps 0  # measure the saved model again</pre>
+
+  <section class="yourturn" aria-label="Your turn, by hand">
+    <h3>Your turn, by hand</h3>
+    <p class="need">Paper and a pencil · about 10 minutes</p>
+    <p>You are the model. You know the seven named codes: code <i>k</i> moves every letter <i>k</i> places along, and after h comes a. Answer each of the five prompts, or say what it leaves open.</p>
+    <p class="predict"><b>Predict first.</b> For how many of the five prompts does the prompt alone fix one right answer? Write your guess down.</p>
+    <pre class="code" data-lang="text">1   R 5    E .. .. .. .. .. ..    Q f
+2   R -    E bh ea dc .. .. ..    Q e
+3   R -    E bh ea dc .. .. ..    Q g
+4   R -    E be dg hc .. .. ..    Q c
+5   R 2    E ad .. .. .. .. ..    Q a</pre>
+    <ol>
+      <li>Answer prompts 1 and 2.</li>
+      <li>In prompt 3, which letters can g still be written as, if the code is a random one?</li>
+      <li>In prompt 4, no pair starts with c. Do the three pairs fit one of the named codes? What would you answer, and what are you assuming?</li>
+      <li>In prompt 5, what does the name say, and what does the pair say?</li>
+    </ol>
+    <details class="answer"><summary>Check your working</summary>
+      <ol class="worked">
+        <li>Prompt 1: five places along from f are g, h, a, b, c. The answer is c. Prompt 2: the pair that starts with e is <code>ea</code>. The answer is a.</li>
+        <li>h, a and c are taken. g is written as one of b, d, e, f or g: five letters, and the prompt does not choose.</li>
+        <li>b to e is three places, d to g is three, and h to c is three (a, b, c). All three pairs fit code 3, so c would be f. That assumes the code is one of the seven with a name. If it is a random code that happens to agree with code 3 on three letters, c could be any of the five letters not yet used.</li>
+        <li>Code 2 writes a as c. The pair says a is written d. The prompt contradicts itself, and neither answer is wrong by the prompt alone.</li>
+      </ol>
+      <p>Your prediction: two, prompts 1 and 2. Prompt 3 leaves five letters open. Prompt 4 has one likely answer and no certain one. Prompt 5 has two. The measurements above show what the model does in each of those three cases, and it was trained for none of the last one.</p>
+    </details>
+  </section>
+
+  <div class="note">
+    <h3>What this chapter glossed over</h3>
+    <p><strong>The task is a toy with exact answers.</strong> Letter codes were chosen because every answer can be graded and a code can be new by construction. Real prompts ask for things with no single right output, and there the effect of an example is harder to measure and usually larger.</p>
+    <p><strong>Reading examples was trained in.</strong> This model reads pairs because half its training texts made it. A model trained only on named codes would ignore the line of examples. Large models read examples well because their training text is full of lists, tables and worked cases that reward it.</p>
+    <p><strong>The layout is fixed.</strong> The name, the six places and the question always sit at the same positions. A real prompt is free text. Where a sentence sits, how examples are marked off and what comes last all change the result, and guides give advice on each that this chapter does not test.</p>
+    <p><strong>Seven names is a small vocabulary.</strong> At full size an instruction can combine words the model knows into a request it never saw in that form. Our seven names cannot be combined. The limit you measured, that a name only calls up what training attached to it, is the same. Its edge is much further out.</p>
+    <p><strong>Nothing here is thinking.</strong> Asking a model to reason before it answers is the third common means of prompting. Chapter 21 measures it.</p>
+    <p><strong>What disagreement does depends on training.</strong> The model never saw a name and pairs that disagree, so what it does then was not taught: it is what its weights happen to do. A different training run or a different model may lean the other way, which is the reason to test your own prompts and not to trust a rule about it.</p>
+  </div>
+
+  <div class="recap">
+    <h3>In short</h3>
+    <ul>
+      <li>An <a class="term" href="glossary.html#instruction">instruction</a> names a behaviour that training put in the weights. Here one character was enough: 300 of 300. It cannot name what training never held.</li>
+      <li>An <a class="term" href="glossary.html#example">example</a> shows the behaviour. A code never seen before was written right 300 times of 300 from a pair in the prompt, with no weight changed: <a class="term" href="glossary.html#in-context-learning">in-context learning</a>.</li>
+      <li>An example covers what it shows. On a letter in no pair the model ruled out the letters taken and guessed. Over all letters, <i>k</i> pairs give (<i>k</i> + 1) right in 8.</li>
+      <li>An example can also point at something known: one pair of a named code gave 291 of 300 on letters it did not show.</li>
+      <li>When name and pairs disagreed, this model followed the name at least 287 times of 300. With no name it copied a wrong pair 300 times of 300. It was trained for neither case, so test your own prompts.</li>
+      <li>Examples are read at every request: 25 times the tokens of the instruction in the by-hand count.</li>
+    </ul>
+  </div>
+
+  <div class="stick" data-draw="fig-prompt" data-explain="instruction,example,in-context-learning,system-prompt"></div>
+
+  <h2>Check yourself</h2>
+  <details class="check"><summary>Why can a code drawn at random not be asked for by name?</summary>
+    <p>A name works through what training attached to it, and training attached nothing to this code: it did not exist before the prompt. It can only be shown.</p></details>
+  <details class="check"><summary>Three pairs are shown and the letter asked is in none of them. What is the best a model can do, if the code is a random one?</summary>
+    <p>Rule out the three letters already used and guess among the five left: right one time in five. The examples do not contain the answer, and no amount of skill at reading them will find it there.</p></details>
+  <details class="check"><summary>The model wrote a letter in a code it had never seen. In what sense did it learn the code?</summary>
+    <p>Only for the length of that prompt. No weight changed. Its attention found the pair and copied from it, and with the next prompt the code is gone. That is in-context learning, and it is different from the training of chapter 3.</p></details>
+  <details class="check"><summary>A prompt has one instruction and five examples, and the output is wrong in the same way every time. Where do you look first?</summary>
+    <p>At the examples. Check that they agree with the instruction, and look for something all five share that you did not intend: a length, an opening word, a format. A model copies what its examples have in common.</p></details>
+  <details class="check"><summary>An instruction of 30 tokens does the job on 9 requests of 10. Five examples of 150 tokens each bring it to 10 of 10. What do you need to know before adding them?</summary>
+    <p>What a failure costs against 750 more tokens read on every request, and whether the gain is real: one evaluation of ten requests cannot tell 9 from 10 (chapter 14). Run enough tasks to see the difference, then decide.</p></details>
+</main>
+
+<script src="assets/prompt.js"></script>
+<script src="assets/glossary.js"></script>
+<script src="assets/micro.js"></script>
+<script>
+M.ready(function () {
+  var box = M.$('#w-ask');
+  if (!window.MICRO_PROMPT) { box.appendChild(M.el('p', { text: 'The trained model did not load, so this experiment is unavailable.' })); return; }
+  var m = M.loadWeights(window.MICRO_PROMPT), LETTERS = 'abcdefgh', SLOTS = 6, rnd = M.rng(5);
+  function shift(k) { var c = {}; for (var i = 0; i < 8; i++) c[LETTERS[i]] = LETTERS[(i + k) % 8]; return c; }
+  function shuffled() { var a = LETTERS.split(''); for (var i = 7; i > 0; i--) { var j = Math.floor(rnd() * (i + 1)), t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
+  function fresh() { var a = shuffled(), c = {}; for (var i = 0; i < 8; i++) c[LETTERS[i]] = a[i]; return c; }
+  function prompt(name, pairs, letter) {                         // the same three lines as code/ch49_prompt.py
+    var shown = pairs.map(function (p) { return p[0] + p[1]; });
+    while (shown.length < SLOTS) shown.push('..');
+    return '\nR ' + (name || '-') + '\nE ' + shown.join(' ') + '\nQ ' + letter;
+  }
+  function answer(name, pairs, letter) {                         // the model's favourite among the eight letters
+    var z = M.writer(m, prompt(name, pairs, letter)).logits(), best = null;
+    for (var i = 0; i < 8; i++) { var id = m.stoi[LETTERS[i]]; if (best === null || z[id] > z[best]) best = id; }
+    return m.chars[best];
+  }
+  var code = fresh(), order = shuffled();                        // the code the pairs are taken from, and which letters are shown first
+  var name = M.select('Name given', [['', 'none']].concat([1, 2, 3, 4, 5, 6, 7].map(function (k) { return [String(k), 'code ' + k]; })), draw);
+  var from = M.select('Pairs taken from', [['', 'a new code, drawn at random']].concat([1, 2, 3, 4, 5, 6, 7].map(function (k) { return [String(k), 'code ' + k + ', without saying so']; })), function (v) { code = v ? shift(+v) : fresh(); draw(); });
+  var n = M.slider({ label: 'Pairs shown', min: 0, max: 6, step: 1, value: 3, oninput: draw });
+  var text = M.el('pre', { class: 'out', 'aria-label': 'The prompt' }), table = M.el('table', { class: 'mini' }), stat = M.el('p', { class: 'readout', 'aria-live': 'polite' });
+  function draw() {
+    var pairs = order.slice(0, n.value).map(function (c) { return [c, code[c]]; }), told = name.sel.value ? shift(+name.sel.value) : null;
+    var seen = {}, right = 0, open = 0, openRight = 0, toldRight = 0;
+    pairs.forEach(function (p) { seen[p[0]] = 1; });
+    text.textContent = prompt(name.sel.value, pairs, '?').slice(1);
+    table.textContent = '';
+    var head = M.el('tr', null, M.el('th', { text: 'Letter' }), M.el('th', { text: 'In a pair?' }), M.el('th', { text: 'Model writes' }), M.el('th', { text: pairs.length ? 'The pairs\' code' : 'No pairs' }));
+    if (told) head.appendChild(M.el('th', { text: 'Code ' + name.sel.value }));
+    table.appendChild(head);
+    LETTERS.split('').forEach(function (c) {
+      var got = answer(name.sel.value, pairs, c), ok = pairs.length && got === code[c];
+      if (ok) right++;
+      if (!seen[c]) { open++; if (ok) openRight++; }
+      if (told && got === told[c]) toldRight++;
+      var row = M.el('tr', null, M.el('td', { class: 'mono', text: c }), M.el('td', { text: seen[c] ? 'yes' : 'no' }), M.el('td', { class: 'mono', text: got }),
+        M.el('td', { class: 'mono', text: pairs.length ? code[c] + (ok ? ' ✓' : '') : '' }));
+      if (told) row.appendChild(M.el('td', { class: 'mono', text: told[c] + (got === told[c] ? ' ✓' : '') }));
+      table.appendChild(row);
+    });
+    stat.textContent = (pairs.length ? 'Agrees with the pairs\' code on ' + right + ' of 8 letters' + (open ? ', and on ' + openRight + ' of the ' + open + ' that no pair shows' : '') + '. ' : '') +
+      (told ? 'Agrees with code ' + name.sel.value + ' on ' + toldRight + ' of 8.' : '');
+  }
+  box.appendChild(M.row(name.el)); box.appendChild(M.row(from.el)); box.appendChild(M.row(n));
+  box.appendChild(M.row(M.button('New code and pairs', function () { order = shuffled(); code = from.sel.value ? shift(+from.sel.value) : fresh(); draw(); }, 'go')));
+  box.appendChild(text); box.appendChild(M.el('div', { class: 'scroll' }, table)); box.appendChild(stat);
+  draw();
+});
+</script>
+</body>
+</html>
